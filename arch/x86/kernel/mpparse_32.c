@@ -767,11 +767,9 @@ static int __init smp_scan_config (unsigned long base, unsigned long length)
  * 初始化APIC
  *
  * setup_arch()
- *   setup_memory()
- *     setup_bootmem_allocator()
- *       find_smp_config()
- *          find_smp_config()
- *
+ *  setup_memory()
+ *   setup_bootmem_allocator()
+ *    find_smp_config()
  */
 void __init find_smp_config (void)
 {

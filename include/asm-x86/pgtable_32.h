@@ -76,6 +76,8 @@ void paging_init(void);
  * any out-of-bounds memory accesses will hopefully be caught.
  * The vmalloc() routines leaves a hole of 4kB between each vmalloced
  * area for the same reason. ;)
+ *
+ * 内核虚拟地址空间的896M+8M处是VMALLOC的开始位置
  */
 #define VMALLOC_OFFSET	(8*1024*1024)
 #define VMALLOC_START	(((unsigned long) high_memory + \
@@ -114,6 +116,7 @@ void paging_init(void);
 #define _PAGE_ACCESSED	0x020
 #define _PAGE_DIRTY	0x040
 #define _PAGE_PSE	0x080	/* 4 MB (or 2MB) page, Pentium+, if present.. */
+//用在给内核分配物理内存的时候，有这个标记的页表在进程上下问切换的时候，页表不刷出TLB
 #define _PAGE_GLOBAL	0x100	/* Global TLB entry PPro+ */
 #define _PAGE_UNUSED1	0x200	/* available for programmer */
 #define _PAGE_UNUSED2	0x400

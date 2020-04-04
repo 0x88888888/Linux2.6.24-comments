@@ -73,6 +73,8 @@ static inline int get_pageblock_migratetype(struct page *page)
  * MIGRATE_RECLAIMABLE是可交换回收的内存块链表。MIGRATE_ISOLATE是不可分配的内存块链表.而free_area中链表的数量也增加到5个。
  * 假设某个包含1024个页面的块属性为MIGRATE_MOVABLE,它被分配出去一部分,剩余的部分被拆散为2^3的连续页面,那么它只能连接到第3个free_area中的
  * MIGRATE_MOVABLE链表中去。
+ *
+ * free_area表示一个zone->free_area[MAXORDER] 中的一个order
  */
 struct free_area {
     /*
@@ -82,6 +84,7 @@ struct free_area {
        MIGRATE_RESERVE
        MIGRATE_ISOLATE
        一共有这么几种列表类型
+       zone中每一个order，需要再次分MIGRATE，以防止出现碎片
      */
 	struct list_head	free_list[MIGRATE_TYPES];
 	unsigned long		nr_free; /* 所有列表上的空闲页的数目 */
@@ -276,9 +279,9 @@ struct zone {
        通常由page allocator访问,
        pages_min, pages_low, pages_high是页换出时的"水印",如果内存不足，
        内核可以将页写到硬盘。
-       如果空闲页多于pages_high，则内存域的状态是理想的。
-       如果空闲页少于pages_low，则内核开始将页换出到硬盘。
-       如果空闲页低于pages_min,那么页回收工作的压力就比较大了，因为内存急需空闲页
+       如果空闲页多于pages_high，则内存域的状态是理想的,__alloc_pages 的gfp_mask有ALLOC_WMARK_HIGH标记。
+       如果空闲页少于pages_low，则内核开始将页换出到硬盘,__alloc_pages 的gfp_mask有ALLOC_WMARK_LOW标记。
+       如果空闲页低于pages_min,那么页回收工作的压力就比较大了，因为内存急需空闲页,,__alloc_pages 的gfp_mask有ALLOC_WMARK_MIN标记
     */
 	unsigned long		pages_min, pages_low, pages_high;
 	/*
@@ -300,7 +303,11 @@ struct zone {
 	 */
 	unsigned long		min_unmapped_pages;
 	unsigned long		min_slab_pages;
-	/* 这个数组用于实现每个cpu的热/冷页列表。内核使用这些列表来保存可用于满足实现的“新鲜”页 */
+	/* 这个数组用于实现每个cpu的热/冷页列表。
+	 * 内核使用这些列表来保存可用于满足实现的“新鲜”页 
+	 *
+	 * 每个per_cpu_pageset都包含一个per_cpu_pages[2]数组
+	 */
 	struct per_cpu_pageset	*pageset[NR_CPUS];
 #else
 	struct per_cpu_pageset	pageset[NR_CPUS];
@@ -418,6 +425,7 @@ struct zone {
        herd. 
      *
      * 在page上等待的进程
+     * 看函数page_waitqueue()对wait_table和wait_table_bits的使用方式
 	 */
 	wait_queue_head_t	* wait_table;
 	unsigned long		wait_table_hash_nr_entries;

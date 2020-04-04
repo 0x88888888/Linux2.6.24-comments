@@ -258,7 +258,7 @@ enum
 	NET_RX_SOFTIRQ,  /* net_rx_action 网络数据包接受*/
 	BLOCK_SOFTIRQ,   /* blk_done_softirq 块设备读写*/
 	TASKLET_SOFTIRQ, /* tasklet_action 处理低优先级tasklet*/
-	SCHED_SOFTIRQ,   /* run_rebalance_domains 多cpu任务队列平衡*/
+	SCHED_SOFTIRQ,   /* run_rebalance_domains 多cpu任务队列平衡, 在函数trigger_load_balance中触发*/
 #ifdef CONFIG_HIGH_RES_TIMERS
 	HRTIMER_SOFTIRQ, /* run_timer_softirq 高精度时钟*/
 #endif

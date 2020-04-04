@@ -242,6 +242,11 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
  *   dup_mm()
  *    dup_mmap()
  *
+ * do_fork() 
+ *  copy_process()
+ *   copy_mm() 
+ *    dup_mm()
+ *     dup_mmap()
  */
 static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
 {
@@ -348,7 +353,9 @@ static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
 		rb_parent = &tmp->vm_rb;
 
 		mm->map_count++;
-		/* 分配对应虚拟地址空间的页表，并不需要分配物理页面,但是将可写的页表项改为只读 */
+		/* 分配对应虚拟地址空间的页表，并不需要分配物理页面,但是将可写的页表项改为只读 
+		 * 每个page都增加page->_count计数
+		 */
 		retval = copy_page_range(mm, oldmm, mpnt);
 
 		if (tmp->vm_ops && tmp->vm_ops->open)
@@ -413,6 +420,12 @@ __cacheline_aligned_in_smp DEFINE_SPINLOCK(mmlist_lock);
  *  copy_mm()
  *   dup_mm()
  *    mm_init()
+ *
+ * do_fork() 
+ *  copy_process()
+ *   copy_mm() 
+ *    dup_mm()
+ *     mm_init()
  */
 static struct mm_struct * mm_init(struct mm_struct * mm)
 {
@@ -420,6 +433,7 @@ static struct mm_struct * mm_init(struct mm_struct * mm)
 	atomic_set(&mm->mm_count, 1);
 	init_rwsem(&mm->mmap_sem);
 	INIT_LIST_HEAD(&mm->mmlist);
+	
 	mm->flags = (current->mm) ? current->mm->flags
 				  : MMF_DUMP_FILTER_DEFAULT;
 	mm->core_waiters = 0;
@@ -582,6 +596,11 @@ void mm_release(struct task_struct *tsk, struct mm_struct *mm)
  * copy_process()
  *  copy_mm()
  *   dup_mm()
+ *
+ * do_fork() 
+ *  copy_process()
+ *   copy_mm() 
+ *    dup_mm()
  */
 static struct mm_struct *dup_mm(struct task_struct *tsk)
 {
@@ -610,7 +629,10 @@ static struct mm_struct *dup_mm(struct task_struct *tsk)
 	if (init_new_context(tsk, mm))
 		goto fail_nocontext;
 
-    /* 处理用户态地址空间相关的数据结构，复制vm_area_struct结构 */
+    /* 处理用户态地址空间相关的数据结构，复制vm_area_struct结构 
+     *
+     * 复制用户态页表
+	 */
 	err = dup_mmap(mm, oldmm);
 	if (err)
 		goto free_pt;
@@ -639,8 +661,10 @@ fail_nocontext:
 /*
  * 复制mm_struct, vm_area_struct
  *
- * copy_process()
- *  copy_mm()
+ *
+ * do_fork() 
+ *  copy_process()
+ *   copy_mm()
  */
 static int copy_mm(unsigned long clone_flags, struct task_struct * tsk)
 {
@@ -1229,6 +1253,7 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 #else
 	p->hardirqs_enabled = 0;
 #endif
+
 	p->hardirq_enable_ip = 0;
 	p->hardirq_enable_event = 0;
 	p->hardirq_disable_ip = _THIS_IP_;
@@ -1271,10 +1296,16 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 		goto bad_fork_cleanup_semundo;
 	if ((retval = copy_fs(clone_flags, p)))
 		goto bad_fork_cleanup_files;
+	/*
+	 * 信号处理函数
+	 */
 	if ((retval = copy_sighand(clone_flags, p)))
 		goto bad_fork_cleanup_fs;
 	if ((retval = copy_signal(clone_flags, p)))
 		goto bad_fork_cleanup_sighand;
+	/*
+	 * 页表信息等复制
+	 */
 	if ((retval = copy_mm(clone_flags, p)))
 		goto bad_fork_cleanup_signal;
 	if ((retval = copy_keys(clone_flags, p)))

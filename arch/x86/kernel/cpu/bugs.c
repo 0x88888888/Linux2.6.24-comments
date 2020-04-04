@@ -174,6 +174,10 @@ static void __init check_config(void)
 }
 
 
+/*
+ * start_kernel()
+ *  check_bugs()
+ */
 void __init check_bugs(void)
 {
 	identify_boot_cpu();

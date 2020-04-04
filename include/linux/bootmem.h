@@ -32,8 +32,8 @@ typedef struct bootmem_data {
 	unsigned long node_boot_start; /* 保存了系统中第一个页的编号，大多数体系结构下都是0 */
 	unsigned long node_low_pfn; /* 直接管理的物理地址空间中最后一页的编号,即ZONE_NORMAL的结束页 */
 	void *node_bootmem_map;   /* 存储分配位图的内存区的指针，在IA-32系统上，该地址保存在_end变量中,该变量在链接期间自动的插入到内核映像中去 */
-	unsigned long last_offset; /* 上一次分配的页的编号 */
-	unsigned long last_pos;
+	unsigned long last_offset; /* 如果上一次请求分配，没有分配整个页，这个数字表示新的分配将由此开始 */
+	unsigned long last_pos;    /* 上一次分配的页的编号 */
 	unsigned long last_success;	/* 上一次成功分配的内存的位置，新的分配将由此开始. Previous allocation point.  To speed
 					 * up searching */
 	struct list_head list;  /* NUMA计算机和物理地址空间散布着空洞的计算机，需要为每个连续的内存区注册一个bootmem分配器 */

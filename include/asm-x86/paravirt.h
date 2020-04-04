@@ -704,7 +704,15 @@ static inline unsigned long apic_read(unsigned long reg)
 {
 	return PVOP_CALL1(unsigned long, pv_apic_ops.apic_read, reg);
 }
-
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *	  smp_prepare_cpus()
+ *	   native_smp_prepare_cpus()
+ *	    smp_boot_cpus()
+ *       setup_boot_clock()
+ */
 static inline void setup_boot_clock(void)
 {
 	PVOP_VCALL0(pv_apic_ops.setup_boot_clock);

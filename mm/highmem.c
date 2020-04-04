@@ -156,6 +156,7 @@ start:
 	
 		if (!pkmap_count[last_pkmap_nr]) /* 如果找到计数器为0的，则获得这个页表项对应的页表的线性地址 */
 			break;	/* Found a usable entry */
+		
 		if (--count)
 			continue;
 
@@ -199,7 +200,7 @@ start:
 /*
  * kmap()
  *  kmap_high()
- *
+ * page映射到PKMAP_BASE之后的虚拟地址
  */
 void fastcall *kmap_high(struct page *page)
 {
@@ -213,8 +214,9 @@ void fastcall *kmap_high(struct page *page)
 	 */
 	spin_lock(&kmap_lock);
 
-	/* 从page_address_htable中进行查找page对应的虚拟地址 
-	 * 看这个意思，是可以把896M以下的page也可以map到 128m的 high address上去的。 
+	/*
+	 * 从page_address_htable中进行查找page对应的虚拟地址 
+	 * 
 	 */
 	vaddr = (unsigned long)page_address(page);
 	if (!vaddr) //还没有在page_address_htable[]中映射
@@ -312,7 +314,13 @@ static struct page_address_slot {
 } ____cacheline_aligned_in_smp page_address_htable[1<<PA_HASH_ORDER];
 
 
-/* 从page_address_htable中找到对应的bucket */
+/*
+ * 从page_address_htable中找到对应的bucket 
+ *
+ * page_address()
+ *  page_slot()
+ *
+ */
 static struct page_address_slot *page_slot(struct page *page)
 {
 	return &page_address_htable[hash_ptr(page, PA_HASH_ORDER)];
@@ -320,6 +328,8 @@ static struct page_address_slot *page_slot(struct page *page)
 
 /*
  * 896M之下和896M之上的都是不一样的处理方式
+ *
+ * 内核查找page对应的3G-4G虚拟内存地址
  */
 void *page_address(struct page *page)
 {
@@ -330,8 +340,8 @@ void *page_address(struct page *page)
 	if (!PageHighMem(page)) /* 非highmem,物理内存896M之内 */
 		return lowmem_page_address(page); // 线性映射了
 
-    /* HigmMem的hash_slot 
-     * page_address_htable中的slot
+    /* HighMem的hash_slot 
+     * page_address_htable[]中的slot
 	 */
 	pas = page_slot(page);
 	ret = NULL;
@@ -343,7 +353,7 @@ void *page_address(struct page *page)
 
 	    /* 从page_address_slot对应的链表中查找这个page是否已经在里面了 */
 		list_for_each_entry(pam, &pas->lh, list) {
-			if (pam->page == page) {
+			if (pam->page == page) {  //找到page对应的虚拟地址了
 				ret = pam->virtual;
 				goto done;
 			}

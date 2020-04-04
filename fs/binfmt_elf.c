@@ -793,7 +793,10 @@ static int load_elf_binary(struct linux_binprm *bprm, struct pt_regs *regs)
 		}
 	}
 
-	/* Flush all traces of the currently running executable */
+	/* Flush all traces of the currently running executable
+	 *
+	 * 刷新mm->pgd到cr3中去
+	 */
 	retval = flush_old_exec(bprm);
 	if (retval)
 		goto out_free_dentry;

@@ -464,6 +464,7 @@ void __init native_pagetable_setup_done(pgd_t *base)
  * mappings.
  *  初始化系统的页表，以变量swapper_pg_dir为基础 
  *
+ * 将内核的虚拟内存划分为kmalloc区域,vmalloc区域,last map(LAST_PKMAP)区域,fixed map区域 
  *
  * start_kernel()
  *  setup_arch()
@@ -484,12 +485,15 @@ static void __init pagetable_init (void)
 	/* Enable PGE if available */
 	if (cpu_has_pge) {
 		set_in_cr4(X86_CR4_PGE);
+		//
 		__PAGE_KERNEL |= _PAGE_GLOBAL;
 		__PAGE_KERNEL_EXEC |= _PAGE_GLOBAL;
 	}
 
     /* 将物理内存页的前896M映射到地址空间从PAGE_OFFSET(3G)开始的位置 */
 	kernel_physical_mapping_init(pgd_base);
+
+	//空函数
 	remap_numa_kva();
 
 	/*
@@ -500,7 +504,7 @@ static void __init pagetable_init (void)
 	end = (FIXADDR_TOP + PMD_SIZE - 1) & PMD_MASK;
 	page_table_range_init(vaddr, end, pgd_base);
 
-	/* 设置permanent 在页表中的映射 */
+	/* 设置permanent 在页表中的映射，计算出pkmap_page_table的值 */
 	permanent_kmaps_init(pgd_base);
 
 	paravirt_pagetable_setup_done(pgd_base);
@@ -643,6 +647,8 @@ out:
  */
 void __init paging_init(void)
 {
+
+//是否启用PAE
 #ifdef CONFIG_X86_PAE
 	set_nx();
 	if (nx_enabled)
@@ -650,12 +656,13 @@ void __init paging_init(void)
 #endif
 
     /* 初始化系统的页表，以变量swapper_pg_dir为基础
-     * 将物理内存页的前896M映射到地址空间从PAGE_OFFSET开始的位置
+     * 将物理内存页的前896M映射到虚拟地址空间从PAGE_OFFSET开始的位置
      * 设置页表中permanent map映射的开始位置
      *  在mm/init_32.c中
     */
 	pagetable_init();
 
+    //从新加载页表
 	load_cr3(swapper_pg_dir);
 
 #ifdef CONFIG_X86_PAE

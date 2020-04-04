@@ -37,6 +37,14 @@ void leave_mm(unsigned long cpu);
 /*
  * context_switch()
  *  switch_mm()
+ *
+ * load_elf_binary()
+ *  flush_old_exec()
+ *   exec_mmap()
+ *    activate_mm() 
+ *     switch_mm()
+ *
+ * 刷新cr3寄存器
  */
 static inline void switch_mm(struct mm_struct *prev,
 			     struct mm_struct *next,
@@ -81,6 +89,12 @@ static inline void switch_mm(struct mm_struct *prev,
 #define deactivate_mm(tsk, mm)			\
 	asm("movl %0,%%gs": :"r" (0));
 
+/*
+ * load_elf_binary()
+ *  flush_old_exec()
+ *   exec_mmap()
+ *    activate_mm()
+ */
 #define activate_mm(prev, next)				\
 	do {						\
 		paravirt_activate_mm(prev, next);	\

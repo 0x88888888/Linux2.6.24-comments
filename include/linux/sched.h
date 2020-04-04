@@ -842,10 +842,15 @@ struct sched_class {
 	void (*enqueue_task) (struct rq *rq, struct task_struct *p, int wakeup);
 	void (*dequeue_task) (struct rq *rq, struct task_struct *p, int sleep);
 	void (*yield_task) (struct rq *rq);
-
+    /*
+     * 用一个进程去切换当前进程
+     */
 	void (*check_preempt_curr) (struct rq *rq, struct task_struct *p);
 
 	struct task_struct * (*pick_next_task) (struct rq *rq);
+	/*
+	 * 在另一个进程替换当前运行的进程之前会调用put_prev_task
+	 */
 	void (*put_prev_task) (struct rq *rq, struct task_struct *p);
 
 #ifdef CONFIG_SMP
@@ -859,8 +864,14 @@ struct sched_class {
 			      enum cpu_idle_type idle);
 #endif
 
+    /*
+     * 在进程的调度策略发生变化时，需要调用set_curr_task
+     */
 	void (*set_curr_task) (struct rq *rq);
 	void (*task_tick) (struct rq *rq, struct task_struct *p);
+	/*
+	 * 每次新建立task_struct的时候，用task_new通知调度器
+	 */
 	void (*task_new) (struct rq *rq, struct task_struct *p);
 };
 
@@ -925,7 +936,9 @@ struct sched_entity {
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	struct sched_entity	*parent;
-	/* rq on which this entity is (to be) queued: */
+	/* rq on which this entity is (to be) queued: 
+	 * 本sched_entity所属的 cfs_rq
+	 */
 	struct cfs_rq		*cfs_rq;
 	/* rq "owned" by this entity/group: */
 	struct cfs_rq		*my_q;
@@ -950,6 +963,9 @@ struct task_struct {
 
 	int prio /* 动态优先级*/, static_prio/* 普通优先级 */, normal_prio /* 普通优先级 */;
 	struct list_head run_list;
+	/*
+	 * 调度器类,rt_sched_class ,fair_sched_class ,idle_sched_class
+	 */
 	const struct sched_class *sched_class;
 
 	/* 调度实体，进程组，进程都是调度实体 */
@@ -975,6 +991,10 @@ struct task_struct {
 	unsigned int btrace_seq;
 #endif
 
+    /*
+     * SCHED_NORMAL, SCHED_BATCH, SCHED_IDLE, 
+     * SCHED_RR, SCHED_FIFO
+     */
 	unsigned int policy;
     /*允许进程在哪些cpu上执行*/
 	cpumask_t cpus_allowed;

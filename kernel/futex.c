@@ -2031,6 +2031,10 @@ void exit_robust_list(struct task_struct *curr)
 				   curr, pip);
 }
 
+/*
+ * sys_futex()
+ *  do_futex()
+ */
 long do_futex(u32 __user *uaddr, int op, u32 val, ktime_t *timeout,
 		u32 __user *uaddr2, u32 val2, u32 val3)
 {
@@ -2073,6 +2077,7 @@ long do_futex(u32 __user *uaddr, int op, u32 val, ktime_t *timeout,
 	default:
 		ret = -ENOSYS;
 	}
+	
 	return ret;
 }
 
@@ -2087,8 +2092,10 @@ asmlinkage long sys_futex(u32 __user *uaddr, int op, u32 val,
 	int cmd = op & FUTEX_CMD_MASK;
 
 	if (utime && (cmd == FUTEX_WAIT || cmd == FUTEX_LOCK_PI)) {
+		
 		if (copy_from_user(&ts, utime, sizeof(ts)) != 0)
 			return -EFAULT;
+		
 		if (!timespec_valid(&ts))
 			return -EINVAL;
 

@@ -19,8 +19,16 @@
  * The ones marked DEBUG are only valid if CONFIG_SLAB_DEBUG is set.
  */
 #define SLAB_DEBUG_FREE		0x00000100UL	/* DEBUG: Perform (expensive) checks on free */
+// 在对象头、尾插入标志，用来支持对缓冲区溢出的检查。
 #define SLAB_RED_ZONE		0x00000400UL	/* DEBUG: Red zone objs in a cache */
+/*
+ * 使用一种己知模式填充 slab，
+ * 允许对缓存中的对象进行监视（对象属对象所有，不过可以在外部进行修改）。
+ */
 #define SLAB_POISON		0x00000800UL	/* DEBUG: Poison objects */
+/*
+ * 指定缓存对象必须与硬件缓存行对齐。
+ */
 #define SLAB_HWCACHE_ALIGN	0x00002000UL	/* Align objs on cache lines */
 #define SLAB_CACHE_DMA		0x00004000UL	/* Use GFP_DMA memory */
 #define SLAB_STORE_USER		0x00010000UL	/* DEBUG: Store the last owner for bug hunting */

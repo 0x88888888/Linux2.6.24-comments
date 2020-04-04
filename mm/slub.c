@@ -3015,6 +3015,10 @@ static int slab_memory_callback(struct notifier_block *self,
  *			Basic setup of slabs
  *******************************************************************/
 
+/*
+ * start_kernel()
+ *  kmem_cache_init()
+ */
 void __init kmem_cache_init(void)
 {
 	int i;

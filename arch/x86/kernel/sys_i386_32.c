@@ -271,6 +271,8 @@ asmlinkage int sys_olduname(struct oldold_utsname __user * name)
 /*
  * Do a system call from kernel instead of calling sys_execve so we
  * end up with proper pt_regs.
+ *
+ * 从内核态线程转成用户态进程
  */
 int kernel_execve(const char *filename, char *const argv[], char *const envp[])
 {

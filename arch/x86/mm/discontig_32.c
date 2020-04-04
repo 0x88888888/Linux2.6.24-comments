@@ -156,6 +156,8 @@ static void __init find_max_pfn_node(int nid)
  * subsequent nodes place them at node_remap_start_vaddr which contains
  * node local data in physically node local memory.  See setup_memory()
  * for details.
+ *
+ * 分配一个pg_data_t对象
  */
 static void __init allocate_pgdat(int nid)
 {
@@ -167,6 +169,15 @@ static void __init allocate_pgdat(int nid)
 	}
 }
 
+/*
+ * start_kernel()
+ *  setup_arch()
+ *   zone_sizes_init()
+ *    free_area_init_nodes()
+ *     free_area_init_node()
+ *      alloc_node_mem_map()
+ *       alloc_remap()
+ */
 void *alloc_remap(int nid, unsigned long size)
 {
 	void *allocation = node_remap_alloc_vaddr[nid];

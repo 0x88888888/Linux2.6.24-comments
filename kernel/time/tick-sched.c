@@ -227,7 +227,9 @@ void tick_nohz_stop_sched_tick(void)
 		last_jiffies = jiffies;
 	} while (read_seqretry(&xtime_lock, seq));
 
-	/* Get the next timer wheel timer */
+	/* Get the next timer wheel timer 
+	 * 此句的意思就是找出下一个最近的timer或者hrtimer 用来将其到期时间作为下一个时钟中断的时间
+	 */
 	next_jiffies = get_next_timer_interrupt(last_jiffies);
 	delta_jiffies = next_jiffies - last_jiffies;
 

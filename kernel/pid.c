@@ -242,6 +242,8 @@ fastcall void free_pid(struct pid *pid)
 /*
  * copy_process()
  *   alloc_pid()
+ *
+ * 在namespace中分配一个id
  */
 struct pid *alloc_pid(struct pid_namespace *ns)
 {
@@ -262,6 +264,7 @@ struct pid *alloc_pid(struct pid_namespace *ns)
 		if (nr < 0)
 			goto out_free;
 
+        //确定upid的成员值
 		pid->numbers[i].nr = nr;
 		pid->numbers[i].ns = tmp;
 		tmp = tmp->parent;
@@ -274,8 +277,11 @@ struct pid *alloc_pid(struct pid_namespace *ns)
 		INIT_HLIST_HEAD(&pid->tasks[type]);
 
 	spin_lock_irq(&pidmap_lock);
+
+	//每一层的upid要链接到pid_hash[idx]中去
 	for (i = ns->level; i >= 0; i--) {
 		upid = &pid->numbers[i];
+		
 		hlist_add_head_rcu(&upid->pid_chain,
 				&pid_hash[pid_hashfn(upid->nr, upid->ns)]);
 	}
@@ -300,8 +306,9 @@ struct pid * fastcall find_pid_ns(int nr, struct pid_namespace *ns)
 	struct upid *pnr;
 
 	hlist_for_each_entry_rcu(pnr, elem,
-			&pid_hash[pid_hashfn(nr, ns)], pid_chain)
-		if (pnr->nr == nr && pnr->ns == ns)
+			&pid_hash[pid_hashfn(nr, ns)], pid_chain)  //在pid_hash[upid对应的哈希索引] 链表中查找
+		if (pnr->nr == nr && pnr->ns == ns) //nr相等，并且ns相等
+		    //根据upid在pid中的位置，强行转成pid
 			return container_of(pnr, struct pid,
 					numbers[ns->level]);
 

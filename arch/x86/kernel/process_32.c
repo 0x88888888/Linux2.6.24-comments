@@ -185,7 +185,11 @@ static inline void play_dead(void)
  *    rest_init()
  *     cpu_idle()
  *    
+ * start_kernel()
+ *  rest_init()
+ *   cpu_idle()
  *
+ * 使得本线程成为idle线程
  */
 void cpu_idle(void)
 {
@@ -195,7 +199,8 @@ void cpu_idle(void)
 
 	/* endless idle loop with no priority at all */
 	while (1) {
-		tick_nohz_stop_sched_tick(); //进入tickless状态
+		tick_nohz_stop_sched_tick(); //关闭时钟中断？进入tickless状态
+		
 		while (!need_resched()) {
 			void (*idle)(void);
 
@@ -215,6 +220,7 @@ void cpu_idle(void)
 			__get_cpu_var(irq_stat).idle_timestamp = jiffies;
 			idle();
 		}
+		
 		tick_nohz_restart_sched_tick();
 		preempt_enable_no_resched();
 		schedule();

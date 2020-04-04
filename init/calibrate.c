@@ -112,6 +112,10 @@ static unsigned long __devinit calibrate_delay_direct(void) {return 0;}
  */
 #define LPS_PREC 8
 
+/*
+ * 计算MogoMIPS值，该值指定了在每个jiffiy期间可以执行多少个空循环。
+ * 内核需要该值来估算一些进行轮询或者忙等待的任务所需的时间
+ */
 void __devinit calibrate_delay(void)
 {
 	unsigned long ticks, loopbit;

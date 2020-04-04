@@ -72,7 +72,8 @@ struct pid
 	struct hlist_head tasks[PIDTYPE_MAX];
 	struct rcu_head rcu;
 	int level;
-	struct upid numbers[1];
+	//每个数组成员表示某个level，也就是某个命名空间中的upid
+	struct upid numbers[1];  //pid->numbers[pid_namespace->level]就是对应层的pid值了
 };
 
 extern struct pid init_struct_pid;

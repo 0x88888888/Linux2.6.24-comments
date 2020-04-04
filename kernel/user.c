@@ -322,7 +322,9 @@ void free_uid(struct user_struct *up)
 /* 在ns中分配一个id=uid的用户 */
 struct user_struct * alloc_uid(struct user_namespace *ns, uid_t uid)
 {
-    /* 在ns->uidhash_table中查找uid的用户 */
+    /* 在ns->uidhash_table中查找uid的用户
+     * 先确定在user_namespace->uidhash_table[]中的list
+     */
 	struct hlist_head *hashent = uidhashentry(ns, uid);
 	struct user_struct *up;
 
@@ -333,6 +335,7 @@ struct user_struct * alloc_uid(struct user_namespace *ns, uid_t uid)
 	uids_mutex_lock();
 
 	spin_lock_irq(&uidhash_lock);
+	//在user_namespace->uidhash_table[]中的某个hashent中查找uid用户
 	up = uid_hash_find(uid, hashent);
 	spin_unlock_irq(&uidhash_lock);
 
@@ -400,6 +403,7 @@ struct user_struct * alloc_uid(struct user_namespace *ns, uid_t uid)
 			key_put(new->session_keyring);
 			kmem_cache_free(uid_cachep, new);
 		} else {
+			//放到user_namespace->uidhash_table[]中的某个hashent中去
 			uid_hash_insert(new, hashent);
 			up = new;
 		}

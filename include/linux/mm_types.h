@@ -41,7 +41,7 @@ struct page {
             PG_referenced和PG_active控制了系统使用该页的活跃程度,在页交换子系统选择换出页时，该信息很重要。
             PG_uptodate, 表示页的数据已经从块设备读取，期间没有出现错误
             PG_dirty, 和磁盘上的页相比，页的内容已经出现改变。
-            PG_lru有助于实现页面回收和切换.内核使用lru链表来区别活动和不活动页，如果页在其中的一个链表中，就设置该标记，
+            PG_lru有助于实现页面回收和切换.内核使用lru链表来区别活动(zone->active)和不活动页(zone->inactive)，如果页在其中的一个链表中，就设置该标记，
             PG_active,如果页在活动链表中，就设置该标记
             PG_highmem,表示页在高端内存中，无法持久映射在内存中。
             PG_private,表示page结构的private成员非空,用于I/O页，可使用该字段将页细分为多个缓冲区,但内核的其他部分也有各种不同的用法。
@@ -59,6 +59,9 @@ struct page {
 					               updated asynchronously */
 	atomic_t _count;		/* 内核中引用改页的次数,在其值达0时,内核就知道page实例当前不使用，因此可以删除,Usage count, see below. */
 	union {
+		/*
+		 * 如果一个page用与slub分配期，因为只会被内核映射，内核则不需要使用_mapcount来记录多少个pte映射了该page,而用该字段来记录本page内被多少个对象使用(slub时已经指定对象大小了),就用union中的inuse了
+		 */
 		atomic_t _mapcount;	/*  内存管理子系统中映射的页表项计数，
 		                        用于表示页是否已经映射，还用于限制逆序映射搜索.
 
@@ -80,10 +83,10 @@ struct page {
 	    struct {
 		unsigned long private;		/*
                                      * 由映射私有:
-                                     * 1.如果设置了PagePrivate,用于buffer_head，指向将page划分为更小单位的第一个buffer_head(一般是有4个buffer_head)
+                                     * 1.如果flags设置了PagePrivate,用于buffer_head，指向将page划分为更小单位的第一个buffer_head(一般是有4个buffer_head)
                                      *     buffer_head的关系看create_empty_buffers, link_dev_buffers.
-                                     * 2.如果设置了PageSwapCache，则用于swp_entry_t
-                                     * 3.如果设置了PG_buddy，则用于表示伙伴系统中的order(阶)
+                                     * 2.如果flags设置了PageSwapCache，则用于swp_entry_t
+                                     * 3.如果flags设置了PG_buddy，则用于表示伙伴系统中的order(阶)
                                      * 4.PG_migratetype也存储在这里
 		                             *
 		                             *   Mapping-private opaque data:
@@ -96,7 +99,7 @@ struct page {
 		struct address_space *mapping;	/* 
 		                                   字段 mapping 用于区分匿名页面和基于文件映射的页面，
 		                                   如果该字段的最低位被置位了，那么该字段包含的是指向anon_vma 结构（用于匿名页面）的指针；
-		                                   否则，该字段包含指向 address_space 结构的指针（用于基于文件映射的页面）。
+		                                   否则，该字段包含指向inode->address_space 结构的指针（用于基于文件映射的页面）。
 		                                 
 		                                   mapping字段为空，则该页属于交换高速缓存,
 		                                   如果最低位为0,则指向inode的address_space
@@ -143,7 +146,7 @@ struct page {
 		void *freelist;		/* SLUB: freelist req. slab lock */
 	};
 	struct list_head lru;		/* 1.链接到zone->active_list,zone->inactive_list
-	                               2.链接到zone->pageset->pcp.list
+	                               2.链接到zone->pageset->pcp[].list
 	                               
 	                               用于在各种列表上维护该页,以便将页按不同类别分组，
 	                               1.如换出页的列表,2.列如由zone->lru_lock保护active_list!. 

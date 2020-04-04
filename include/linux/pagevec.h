@@ -75,6 +75,12 @@ static inline void pagevec_release_nonlru(struct pagevec *pvec)
 		__pagevec_release_nonlru(pvec);
 }
 
+/*
+ * lru_cache_add()
+ *  __pagevec_lru_add()
+ *   release_pages()
+ *    pagevec_free()
+ */
 static inline void pagevec_free(struct pagevec *pvec)
 {
 	if (pagevec_count(pvec))

@@ -707,6 +707,14 @@ static struct notifier_block __cpuinitdata cpu_nfb = {
 	.notifier_call = cpu_callback
 };
 
+/*
+ * start_kernel()
+ *   rest_init() 中调用kernel_thread()创建kernel_init线程
+ *    kernel_init()
+ *     do_pre_smp_initcalls()
+ *      spawn_ksoftirqd()
+ * 创建或者启动watchdog_task线程(入口函数为ksoftirqd)
+ */
 __init int spawn_ksoftirqd(void)
 {
 	void *cpu = (void *)(long)smp_processor_id();

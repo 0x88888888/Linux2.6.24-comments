@@ -1796,6 +1796,9 @@ void cpuset_track_online_nodes(void)
  * cpuset_init_smp - initialize cpus_allowed
  *
  * Description: Finish top cpuset after cpu, node maps are initialized
+ *
+ * 它将cpus_allowed和mems_allwed更新为在线的cpu和在线的内存结点.
+ * 最后为cpu热插拨和内存热插拨注册了hook.
  **/
 
 void __init cpuset_init_smp(void)

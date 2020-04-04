@@ -318,6 +318,13 @@ unsigned long __init find_max_low_pfn(void)
 
 /*
  * workaround for Dell systems that neglect to reserve EBDA
+ *
+ *
+ * start_kernel()
+ *  setup_arch()
+ *   setup_memory()
+ *    setup_bootmem_allocator() 
+ *     reserve_ebda_region()
  */
 static void __init reserve_ebda_region(void)
 {
@@ -344,10 +351,10 @@ static unsigned long __init setup_memory(void)
 	/*
 	 * partially used pages are not usable - thus
 	 * we are rounding upwards:
-	 * 确定最小的page frame number，
-
-	min_low_pfn is located at the beginning of the first
-	 page after _end which is the end of the loaded kernel image
+	 * min_low_pfn is located at the beginning of the first
+	 * page after _end which is the end of the loaded kernel image
+	 *            _end是内核镜像在内存中的结束位置
+	 *
      * 向上取，跳过 init_pg_tables_end所在的page
      * 最小空闲空间的page number。
 	 */
@@ -480,6 +487,8 @@ void __init setup_bootmem_allocator(void)
 	 * bootmem allocator的bitmap从min_low_pfn处开始
 	 *
 	 * 把位图中从min_low_pfn到max_low_pfn都标记为已占用状态
+	 * 
+	 * 从min_low_pfn, max_low_pfn来看，bootmem只负责管理 NORMAL 区域的内存
 	 */
 	bootmap_size = init_bootmem(min_low_pfn, max_low_pfn);
 

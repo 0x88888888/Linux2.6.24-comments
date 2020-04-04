@@ -79,7 +79,10 @@ static int parse_one(char *param,
 }
 
 /* You can use " around spaces, but can't escape ". */
-/* Hyphens and underscores equivalent in parameter names. */
+/*
+ * Hyphens and underscores equivalent in parameter names. 
+ * 从内核以正文串形式的命令行中，提取下一个“名值对”
+ */
 static char *next_arg(char *args, char **param, char **val)
 {
 	unsigned int i, equals = 0;

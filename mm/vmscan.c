@@ -1173,9 +1173,6 @@ static void shrink_active_list(unsigned long nr_pages, struct zone *zone,
 		 * reclaiming mapped memory instead of just pagecache.  Work out
 		 * how much memory
 		 * is mapped.
-		 *
-		 * 
-		 *
 		 */
 		mapped_ratio = ((global_page_state(NR_FILE_MAPPED) +
 				global_page_state(NR_ANON_PAGES)) * 100) /
@@ -2145,6 +2142,15 @@ int sysctl_min_slab_ratio = 5;
  *
  * zone_reclaim()
  *  __zone_reclaim()
+ *
+ * alloc_pages_node()
+ *  __alloc_pages()
+ *   get_page_from_freelist()
+ *    zone_reclaim()
+ *     __zone_reclaim()
+ * 
+ * 回收物理内存
+ * 
  */
 static int __zone_reclaim(struct zone *zone, gfp_t gfp_mask, unsigned int order)
 {
@@ -2225,7 +2231,8 @@ static int __zone_reclaim(struct zone *zone, gfp_t gfp_mask, unsigned int order)
  *  __alloc_pages()
  *   get_page_from_freelist()
  *    zone_reclaim()
- *
+ * 
+ * 回收物理内存
  */
 int zone_reclaim(struct zone *zone, gfp_t gfp_mask, unsigned int order)
 {

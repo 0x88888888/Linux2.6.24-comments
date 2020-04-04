@@ -598,7 +598,7 @@ static void *__vmalloc_node(unsigned long size, gfp_t gfp_mask, pgprot_t prot,
 	if (!size || (size >> PAGE_SHIFT) > num_physpages)
 		return NULL;
 	
-	/*在VMALLOC_START和VMALLOC_END 找到一个线性区，
+	/* 遍历vmlist,在VMALLOC_START和VMALLOC_END 找到一个线性区，
 	  并获得vm_struct描述符，描述符的flags字段被初始化为VM_ALLOC标志，
 	  该标志意味着通过使用vmalloc()函数*/  
 	area = get_vm_area_node(size, VM_ALLOC, node, gfp_mask);

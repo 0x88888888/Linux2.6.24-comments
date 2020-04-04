@@ -332,6 +332,9 @@ int bprm_mm_init(struct linux_binprm *bprm)
 	int err;
 	struct mm_struct *mm = NULL;
 
+    /*
+     * 分配mm_struct对象，建立新的pgd对象，然后从swapper_pg_dir复制内核态页目录 */
+     */
 	bprm->mm = mm = mm_alloc();
 	err = -ENOMEM;
 	if (!mm)
@@ -704,6 +707,12 @@ int kernel_read(struct file *file, unsigned long offset,
 
 EXPORT_SYMBOL(kernel_read);
 
+/*
+ * load_elf_binary()
+ *  flush_old_exec()
+ *   exec_mmap()
+ *
+ */
 static int exec_mmap(struct mm_struct *mm)
 {
 	struct task_struct *tsk;
@@ -733,6 +742,7 @@ static int exec_mmap(struct mm_struct *mm)
 	active_mm = tsk->active_mm;
 	tsk->mm = mm;
 	tsk->active_mm = mm;
+	
 	activate_mm(active_mm, mm);
 	task_unlock(tsk);
 	arch_pick_mmap_layout(mm);
@@ -971,6 +981,11 @@ void set_task_comm(struct task_struct *tsk, char *buf)
 	task_unlock(tsk);
 }
 
+/*
+ * load_elf_binary()
+ *  flush_old_exec()
+ *
+ */
 int flush_old_exec(struct linux_binprm * bprm)
 {
 	char * name;
@@ -997,6 +1012,8 @@ int flush_old_exec(struct linux_binprm * bprm)
 		goto out;
 	/*
 	 * Release all of the old mmap stuff
+	 *
+	 * 用新的mm对象(mm->pgd)去刷新cr3寄存器
 	 */
 	retval = exec_mmap(bprm->mm);
 	if (retval)
@@ -1067,6 +1084,12 @@ EXPORT_SYMBOL(flush_old_exec);
 /* 
  * Fill the binprm structure from the inode. 
  * Check permissions, then read the first 128 (BINPRM_BUF_SIZE) bytes
+ *
+ * sys_execve系统调用
+ *  do_execve()
+ *   prepare_binprm()
+ * 
+ * 给子进程准备一些从父进程和inode中得到参数
  */
 int prepare_binprm(struct linux_binprm *bprm)
 {
@@ -1350,7 +1373,7 @@ int do_execve(char * filename,
 	bprm->filename = filename;
 	bprm->interp = filename;
 
-	/* 分配一个mm_struct  */
+	/* 分配一个mm_struct，建立新的pgd对象  */
 	retval = bprm_mm_init(bprm);
 	if (retval)
 		goto out_file;
@@ -1370,7 +1393,10 @@ int do_execve(char * filename,
 	if (retval)
 		goto out;
 
-    /* 主要作用是读取文件头部部分内容到bprm->buf中 */
+    /* 主要作用是读取文件头部部分内容到bprm->buf中 
+     *
+     * 给子进程准备一些从父进程和inode中得到参数
+	 */
 	retval = prepare_binprm(bprm);
 	if (retval < 0)
 		goto out;

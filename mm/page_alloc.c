@@ -464,6 +464,10 @@ static inline int page_is_buddy(struct page *page, struct page *buddy,
  *        free_one_page()
  *         __free_one_page()
  *
+ * free_hot_cold_page()
+ *  free_pages_bulk()
+ *   __free_one_page()
+ *
  * 在free的时候，没有修改migrate type啊
  * 即使buddy合并，也没有修改migrate type,只是从order A 对应的migrate type中移动到 order B对应的migrate type列表中
  */
@@ -560,6 +564,10 @@ static inline int free_pages_check(struct page *page)
  *
  * And clear the zone's pages_scanned counter, to hold off the "all pages are
  * pinned" detection logic.
+ *
+ * free_hot_cold_page()
+ *  free_pages_bulk()
+ *
  */
 static void free_pages_bulk(struct zone *zone, int count,
 					struct list_head *list, int order)
@@ -1163,6 +1171,14 @@ void drain_zone_pages(struct zone *zone, struct per_cpu_pages *pcp)
 }
 #endif
 
+/*
+ * 释放zone->pcp[]中的page
+ *
+ * alloc_pages_node()
+ *  __alloc_pages()
+ *   drain_all_local_pages()
+ *    __drain_pages()
+ */
 static void __drain_pages(unsigned int cpu)
 {
 	unsigned long flags;
@@ -1181,6 +1197,7 @@ static void __drain_pages(unsigned int cpu)
 
 			pcp = &pset->pcp[i];
 			local_irq_save(flags);
+			// 释放zone->pcp[]中的page
 			free_pages_bulk(zone, pcp->count, &pcp->list, 0);
 			pcp->count = 0;
 			local_irq_restore(flags);
@@ -1226,6 +1243,12 @@ void mark_free_pages(struct zone *zone)
 
 /*
  * Spill all of this CPU's per-cpu pages back into the buddy allocator.
+ *
+ * alloc_pages_node()
+ *  __alloc_pages()
+ *   drain_all_local_pages()
+ *    smp_drain_local_pages()
+ *     drain_local_pages()
  */
 void drain_local_pages(void)
 {
@@ -1236,6 +1259,12 @@ void drain_local_pages(void)
 	local_irq_restore(flags);	
 }
 
+/*
+ * alloc_pages_node()
+ *  __alloc_pages()
+ *   drain_all_local_pages()
+ *    smp_drain_local_pages()
+ */
 void smp_drain_local_pages(void *arg)
 {
 	drain_local_pages();
@@ -1243,6 +1272,12 @@ void smp_drain_local_pages(void *arg)
 
 /*
  * Spill all the per-cpu pages from all CPUs back into the buddy allocator
+ *
+ * 释放zone->pcp[]中的page
+ *
+ * alloc_pages_node()
+ *  __alloc_pages()
+ *   drain_all_local_pages()
  */
 void drain_all_local_pages(void)
 {
@@ -1257,6 +1292,13 @@ void drain_all_local_pages(void)
 
 /*
  * Free a 0-order page
+ * 
+ * free_hot_page()
+ *  free_hot_cold_page()
+ * 
+ * free_cold_page()
+ *  free_hot_cold_page()
+ *
  */
 static void fastcall free_hot_cold_page(struct page *page, int cold)
 {
@@ -1276,10 +1318,12 @@ static void fastcall free_hot_cold_page(struct page *page, int cold)
 
 	pcp = &zone_pcp(zone, get_cpu())->pcp[cold];
 	local_irq_save(flags);
-	__count_vm_event(PGFREE);
+	__count_vm_event(PGFREE); 
+
+	//将page加到zone->pcp[]中去
 	list_add(&page->lru, &pcp->list);
 	
-	/* 设置迁移类型 */
+	/* 设置迁移类型       migrate type  */
 	set_page_private(page, get_pageblock_migratetype(page));
 	pcp->count++;
 	if (pcp->count >= pcp->high) {
@@ -1408,9 +1452,9 @@ failed:
 
 /* __alloc_pages中使用下面的这些宏 */
 #define ALLOC_NO_WATERMARKS	0x01 /* 完全不检查水印， don't check watermarks at all */
-#define ALLOC_WMARK_MIN		0x02 /* 在zone包含zone->pages_low时可以分配页, use pages_min watermark */
-#define ALLOC_WMARK_LOW		0x04 /* 在zone包含zone->pages_low时可以分配页, use pages_low watermark */
-#define ALLOC_WMARK_HIGH	0x08 /* 只有在zone包含zone->pages_high空闲页面时才分配页,use pages_high watermark */
+#define ALLOC_WMARK_MIN		0x02 /* 在zone包含个zone->pages_min时可以分配页, use pages_min watermark */
+#define ALLOC_WMARK_LOW		0x04 /* 在zone包含个zone->pages_low时可以分配页, use pages_low watermark */
+#define ALLOC_WMARK_HIGH	0x08 /* 只有在zone包含个zone->pages_high空闲页面时才分配页,use pages_high watermark */
 #define ALLOC_HARDER		0x10 /* 通知buddy allocator放宽限制分配限制,   try to alloc harder */
 #define ALLOC_HIGH		0x20 /* 进一步放宽限制 __GFP_HIGH set */
 #define ALLOC_CPUSET		0x40 /* 只能从当前进程允许运行相关联的cpu的内存节点中分配, check for correct cpuset */
@@ -1737,6 +1781,8 @@ zonelist_scan:
 				continue;
 		
 		zone = *z;
+
+		//cpuset_zone_allowed_softwall用检测zone是否属于该进程允许允许的cpu
 		if ((alloc_flags & ALLOC_CPUSET) &&
 			!cpuset_zone_allowed_softwall(zone, gfp_mask))
 				goto try_next_zone;
@@ -1754,7 +1800,8 @@ zonelist_scan:
 				mark = zone->pages_low;
 			else
 				mark = zone->pages_high;
-			
+
+			//zone中是否足够的空闲页可供分配
 			if (!zone_watermark_ok(zone, order, mark,
 				    classzone_idx, alloc_flags)) {
 				/* mark在zone_watermark_ok中检测不通过，需要reclaim物理内存 */    
@@ -1794,6 +1841,8 @@ try_next_zone:
  *
  * alloc_pages_node()
  *  __alloc_pages()
+ *
+ *
  */
 struct page * fastcall
 __alloc_pages(gfp_t gfp_mask, unsigned int order,
@@ -1829,9 +1878,11 @@ restart:
     /* 
      * 第一次去分配page,以ALLOC_WMARK_LOW水位可以分配,这个算是比较高的要求,
      * 尽量保护各个zone预留的空闲内存
+     *
      */
 	page = get_page_from_freelist(gfp_mask|__GFP_HARDWALL, order,
 				zonelist, ALLOC_WMARK_LOW|ALLOC_CPUSET);
+	
 	if (page)
 		goto got_pg;
 
@@ -1844,7 +1895,8 @@ restart:
 	 * over allocated.
 	 *
 	 *
-	 * 如果指定了GFP_THISNODE标志后，则不能继续进行慢速内存分配，因为该标志指明了内存不能进行回收，因此直接跳到nopage处的代码。
+	 * 如果指定了GFP_THISNODE标志后，则不能继续进行慢速内存分配，
+	 * 因为该标志指明了内存不能进行回收(reclaim)，因此直接跳到nopage处的代码。
 	 */
 	if (NUMA_BUILD && (gfp_mask & GFP_THISNODE) == GFP_THISNODE)
 		goto nopage; //不允许尝试别的node了，那就直接失败
@@ -1867,7 +1919,11 @@ restart:
 	 * 降低水位标准,再次尝试分配
 	 */
 	alloc_flags = ALLOC_WMARK_MIN;
-	/* 是实时进程,且不是中断上下文,或者这次内存分配不能wait,那就激进一点了 */
+  	/*
+  	 * 是实时进程,且不是中断上下文,或者这次内存分配不能wait,那就激进一点了 
+  	 *
+  	 * 下面的ALLOC_HIGH和ALLOC_HARDER标记，会使得get_page_from_freelist 更加激进一些
+	 */
 	if ((unlikely(rt_task(p)) && !in_interrupt()) || !wait)
 		alloc_flags |= ALLOC_HARDER;
 	
@@ -1940,13 +1996,15 @@ nofail_alloc:
        进入同步回收的状态
 	*/
 	cpuset_memory_pressure_bump();
+
+	//需要释放一部分物理内存了
 	p->flags |= PF_MEMALLOC;
 	reclaim_state.reclaimed_slab = 0;
 	p->reclaim_state = &reclaim_state;
 
     /* 释放掉一部分
-       did_some_progress表示的确释放了一些页面,这个函数可能会睡眠
-    */
+     * did_some_progress表示的确释放了一些页面,这个函数可能会睡眠
+     */
 	did_some_progress = try_to_free_pages(zonelist->zones, order, gfp_mask);
 
 	p->reclaim_state = NULL;
@@ -1954,7 +2012,7 @@ nofail_alloc:
 
 	cond_resched();
 
-	if (order != 0)
+	if (order != 0) // 释放zone->pcp[]中的page
 		drain_all_local_pages();
 
 	if (likely(did_some_progress)) {
@@ -2006,9 +2064,11 @@ nofail_alloc:
 	 */
 	do_retry = 0;
 	if (!(gfp_mask & __GFP_NORETRY)) {
+		
 		if ((order <= PAGE_ALLOC_COSTLY_ORDER) ||
 						(gfp_mask & __GFP_REPEAT))
 			do_retry = 1;
+		
 		if (gfp_mask & __GFP_NOFAIL)
 			do_retry = 1;
 	}
@@ -2063,6 +2123,16 @@ fastcall unsigned long get_zeroed_page(gfp_t gfp_mask)
 
 EXPORT_SYMBOL(get_zeroed_page);
 
+
+/*
+ * lru_cache_add()
+ *  __pagevec_lru_add()
+ *   release_pages()
+ *    pagevec_free()
+ *     __pagevec_free()
+ *
+ * 释放page的时候，先释放到zone->pcp[]中去的
+ */
 void __pagevec_free(struct pagevec *pvec)
 {
 	int i = pagevec_count(pvec);
@@ -3033,13 +3103,13 @@ static void setup_zone_migrate_reserve(struct zone *zone)
  *设置所有的page为MIGRATE_MOVABLE
  
  * start_kernel()
- *   setup_arch()
- *     zone_sizes_init()
- *       free_area_init_nodes()
- *          free_area_init_node()
- *             free_area_init_core()
- *                memmap_init_zone()
- *
+ *  setup_arch()
+ *   zone_sizes_init()
+ *    free_area_init_nodes()
+ *     free_area_init_node()
+ *      free_area_init_core()
+ *       memmap_init_zone()
+ *      
  */
 void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,
 		unsigned long start_pfn, enum memmap_context context)
@@ -3154,6 +3224,15 @@ static int zone_batchsize(struct zone *zone)
 
 /*
  * 初始化 per_cpu_pageset->pcp[0],per_cpu_pageset->pcp[1]
+ *
+ * start_kernel()
+ *  setup_arch()
+ *   zone_sizes_init()
+ *    free_area_init_nodes()
+ *     free_area_init_node()
+ *      free_area_init_core()
+ *       zone_pcp_init() 
+ *        setup_pageset()
  */
 inline void setup_pageset(struct per_cpu_pageset *p, unsigned long batch)
 {
@@ -3363,6 +3442,17 @@ int zone_wait_table_init(struct zone *zone, unsigned long zone_size_pages)
 	return 0;
 }
 
+/*
+ * start_kernel()
+ *  setup_arch()
+ *   zone_sizes_init()
+ *    free_area_init_nodes()
+ *     free_area_init_node()
+ *      free_area_init_core()
+ *       zone_pcp_init()
+ *
+ * 初始化zone->pageset数组成员，只是建立空链表而已
+ */
 static __meminit void zone_pcp_init(struct zone *zone)
 {
 	int cpu;
@@ -3930,9 +4020,9 @@ static inline int pageblock_default_order(unsigned int order)
  * start_kernel()
  *  setup_arch()
  *   zone_sizes_init()
- *     free_area_init_nodes()
- *      free_area_init_node()
- *       free_area_init_core()
+ *    free_area_init_nodes()
+ *     free_area_init_node()
+ *      free_area_init_core()
  */
 static void __meminit free_area_init_core(struct pglist_data *pgdat,
 		unsigned long *zones_size, unsigned long *zholes_size)
@@ -4040,6 +4130,14 @@ static void __meminit free_area_init_core(struct pglist_data *pgdat,
 	}
 }
 
+/*
+ * start_kernel()
+ *  setup_arch()
+ *   zone_sizes_init()
+ *    free_area_init_nodes()
+ *     free_area_init_node()
+ *      alloc_node_mem_map()
+ */
 static void __init_refok alloc_node_mem_map(struct pglist_data *pgdat)
 {
 	/* Skip empty nodes，内存节点中有hole */
@@ -4157,9 +4255,9 @@ static inline void setup_nr_node_ids(void)
  * the range being registered will be merged with existing ranges.
  *
  * start_kernel()
- *   setup_arch()
- *     zone_sizes_init()
- *        add_active_range()
+ *  setup_arch()
+ *   zone_sizes_init()
+ *    add_active_range()
  *
  * 把PFN的有效范围添加到early_node_map[]中，如果可以合并就合并
  */
@@ -4173,7 +4271,9 @@ void __init add_active_range(unsigned int nid, unsigned long start_pfn,
 			  nid, start_pfn, end_pfn,
 			  nr_nodemap_entries, MAX_ACTIVE_REGIONS);
 
-	/* Merge with existing active regions if possible */
+	/* Merge with existing active regions if possible 
+	 * 看是否有合并的可能，如果能合并，就合并掉了。
+     */
 	for (i = 0; i < nr_nodemap_entries; i++) {
 		if (early_node_map[i].nid != nid)
 			continue;
@@ -4569,7 +4669,9 @@ void __init free_area_init_nodes(unsigned long *max_zone_pfn /* 记录了各个�
 	/* 计算ZONE_MOVABLE域的起始编号 */
 	find_zone_movable_pfns_for_nodes(zone_movable_pfn);
 
-	/* Print out the zone ranges */
+	/* Print out the zone ranges 
+	 * 打印zone信息
+	 */
 	printk("Zone PFN ranges:\n");
 	for (i = 0; i < MAX_NR_ZONES; i++) {
 		if (i == ZONE_MOVABLE)
@@ -4600,6 +4702,7 @@ void __init free_area_init_nodes(unsigned long *max_zone_pfn /* 记录了各个�
 	*/
 	setup_nr_node_ids();
 	for_each_online_node(nid) {
+		                  //node_data[nid]
 		pg_data_t *pgdat = NODE_DATA(nid);
 
 		/* 初始化pg_data_t对象 */
@@ -4609,6 +4712,7 @@ void __init free_area_init_nodes(unsigned long *max_zone_pfn /* 记录了各个�
 		/* Any memory on that node,节点上是否有内存 */
 		if (pgdat->node_present_pages)
 			node_set_state(nid, N_HIGH_MEMORY);
+		
 		check_for_regular_memory(pgdat);/* 检查低于ZONE_HIGHMEM的内存域中是否有内存，并据此在节点位图中相应的设置N_NORMAL_MEMORY */
 	}
 }
@@ -4738,6 +4842,9 @@ static void calculate_totalreserve_pages(void)
  *	sysctl_lower_zone_reserve_ratio changes.  Ensures that each zone
  *	has a correct pages reserved value, so an adequate number of
  *	pages are left in the zone after a successful __alloc_pages().
+ *
+ * init_per_zone_pages_min()
+ *  setup_per_zone_lowmem_reserve()
  */
 static void setup_per_zone_lowmem_reserve(void)
 {
@@ -4780,6 +4887,8 @@ static void setup_per_zone_lowmem_reserve(void)
  *
  * 计算出zone->pages_min,zone->pages_low,zone->pages_high，在内存回收的时候会用到这些值
  *
+ * init_per_zone_pages_min()
+ *  setup_per_zone_pages_min()
  */
 void setup_per_zone_pages_min(void)
 {
@@ -4801,6 +4910,7 @@ void setup_per_zone_pages_min(void)
 		spin_lock_irqsave(&zone->lru_lock, flags);
 		tmp = (u64)pages_min * zone->present_pages;
 		do_div(tmp, lowmem_pages);
+		//先计算出zone->pages_min
 		if (is_highmem(zone)) {
 			/*
 			 * __GFP_HIGH and PF_MEMALLOC allocations usually don't
@@ -4814,7 +4924,7 @@ void setup_per_zone_pages_min(void)
 			int min_pages;
 
 			min_pages = zone->present_pages / 1024;
-			if (min_pages < SWAP_CLUSTER_MAX) 
+			if (min_pages < SWAP_CLUSTER_MAX)  // SWAP_CLUSTER_MAX == 32
 				min_pages = SWAP_CLUSTER_MAX;
 			if (min_pages > 128)
 				min_pages = 128;
@@ -4827,6 +4937,7 @@ void setup_per_zone_pages_min(void)
 			zone->pages_min = tmp;
 		}
 
+        //然后计算出zone->pages_low, zone_pages_high
 		zone->pages_low   = zone->pages_min + (tmp >> 2);
 		zone->pages_high  = zone->pages_min + (tmp >> 1);
 		/* 确定zone的miggrate类型 */
@@ -5158,7 +5269,7 @@ unsigned long get_pageblock_flags_group(struct page *page,
 
 	for (; start_bitidx <= end_bitidx; start_bitidx++, value <<= 1)
 		if (test_bit(bitidx + start_bitidx, bitmap))
-			flags |= value;
+			flags |= value;//不断的累计
 
 	return flags;
 }
@@ -5185,11 +5296,13 @@ void set_pageblock_flags_group(struct page *page, unsigned long flags,
 
 	zone = page_zone(page);
 	pfn = page_to_pfn(page);
+	
 	/* 得到zone->pageblock_flags */
 	bitmap = get_pageblock_bitmap(zone, pfn);
 	/* 得到page在pageblock_flags中对应的位置 */
 	bitidx = pfn_to_bitidx(zone, pfn);
 
+    //设置到zone->pageblock_flags相应的bit中去
 	for (; start_bitidx <= end_bitidx; start_bitidx++, value <<= 1)
 		if (flags & value)
 			__set_bit(bitidx + start_bitidx, bitmap);

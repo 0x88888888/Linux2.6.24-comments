@@ -142,6 +142,9 @@ enum {
 	SWP_SCANNING	= (1 << 8),	/* refcount in scan_swap_map */
 };
 
+/*
+ * 页面回收子系统和setup_per_zone_min中用
+ */
 #define SWAP_CLUSTER_MAX 32
 
 #define SWAP_MAP_MAX	0x7fff

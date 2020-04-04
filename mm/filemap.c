@@ -601,6 +601,10 @@ static int __sleep_on_page_lock(void *word)
  * sure the appropriate page became available, this saves space
  * at a cost of "thundering herd" phenomena during rare hash
  * collisions.
+ *
+ * wait_on_page_locked()
+ *  wait_on_page_bit()
+ *   page_waitqueue()
  */
 static wait_queue_head_t *page_waitqueue(struct page *page)
 {
@@ -617,7 +621,11 @@ static inline void wake_up_page(struct page *page, int bit)
 	__wake_up_bit(page_waitqueue(page), &page->flags, bit);
 }
 
-/* 在PG_locked，PG_writeback之类的page上等待 */
+/* 在PG_locked，PG_writeback之类的page上等待 
+ *
+ * wait_on_page_locked()
+ *  wait_on_page_bit()
+ */
 void fastcall wait_on_page_bit(struct page *page, int bit_nr)
 {
     /* 定义一个局部等待队列对象 */

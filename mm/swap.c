@@ -37,6 +37,7 @@ int page_cluster;
 static DEFINE_PER_CPU(struct pagevec, lru_add_pvecs) = { 0, };
 // 暂存active 的page
 static DEFINE_PER_CPU(struct pagevec, lru_add_active_pvecs) = { 0, };
+
 static DEFINE_PER_CPU(struct pagevec, lru_rotate_pvecs) = { 0, };
 
 /*
@@ -252,11 +253,11 @@ static void drain_cpu_pagevecs(int cpu)
 
 	pvec = &per_cpu(lru_add_pvecs, cpu);
 	if (pagevec_count(pvec))
-		__pagevec_lru_add(pvec); /* pvec中的page 返回到zone->inactive_list */
+		__pagevec_lru_add(pvec); /* lru_add_pvecs中的page 返回到zone->inactive_list */
 
 	pvec = &per_cpu(lru_add_active_pvecs, cpu);
 	if (pagevec_count(pvec))
-		__pagevec_lru_add_active(pvec); /* pvec中的page返回到zone->active_list */
+		__pagevec_lru_add_active(pvec); /* lru_add_active_pvecs中的page返回到zone->active_list */
 
 	pvec = &per_cpu(lru_rotate_pvecs, cpu);
 	if (pagevec_count(pvec)) {
@@ -329,6 +330,7 @@ int lru_add_drain_all(void)
  *   lru_cache_add()
  *    __pagevec_lru_add()
  *     release_pages()
+ *
  */
 void release_pages(struct page **pages, int nr, int cold)
 {
@@ -341,6 +343,7 @@ void release_pages(struct page **pages, int nr, int cold)
 	for (i = 0; i < nr; i++) {
 		struct page *page = pages[i];
 
+        //是compound page
 		if (unlikely(PageCompound(page))) {
 			if (zone) {
 				spin_unlock_irqrestore(&zone->lru_lock, flags);
@@ -353,7 +356,9 @@ void release_pages(struct page **pages, int nr, int cold)
 		if (!put_page_testzero(page))
 			continue;
 
+        //page在zone->active或者zone->inactive链表中,或者别的链表
 		if (PageLRU(page)) {
+			//从page->flags中提取出来zone_type
 			struct zone *pagezone = page_zone(page);
 			if (pagezone != zone) {
 				if (zone)
@@ -367,6 +372,7 @@ void release_pages(struct page **pages, int nr, int cold)
 			del_page_from_lru(zone, page);
 		}
 
+        //添加page到pages_to_free
 		if (!pagevec_add(&pages_to_free, page)) {
 			if (zone) {
 				spin_unlock_irqrestore(&zone->lru_lock, flags);
@@ -376,9 +382,11 @@ void release_pages(struct page **pages, int nr, int cold)
 			pagevec_reinit(&pages_to_free);
   		}
 	}
+	
 	if (zone)
 		spin_unlock_irqrestore(&zone->lru_lock, flags);
 
+    //去释放到 zone->pcp[]缓存中
 	pagevec_free(&pages_to_free);
 }
 
@@ -450,6 +458,7 @@ void __pagevec_lru_add(struct pagevec *pvec)
     
 	for (i = 0; i < pagevec_count(pvec); i++) {
 		struct page *page = pvec->pages[i];
+		//page所在的zone
 		struct zone *pagezone = page_zone(page);
 	
 		if (pagezone != zone) {
@@ -460,7 +469,7 @@ void __pagevec_lru_add(struct pagevec *pvec)
 		}
 		
 		VM_BUG_ON(PageLRU(page));
-		SetPageLRU(page);
+ 		SetPageLRU(page); //设置page->flags 的PG_lru标记
 		/* 设置zone->inactive_list = page->lru */
 		add_page_to_inactive_list(zone, page);
 	}
@@ -487,6 +496,7 @@ void __pagevec_lru_add_active(struct pagevec *pvec)
 
 	for (i = 0; i < pagevec_count(pvec); i++) {
 		struct page *page = pvec->pages[i];
+		//从page->flags中获取page所对应的zone
 		struct zone *pagezone = page_zone(page);
 
 		if (pagezone != zone) {
@@ -495,15 +505,20 @@ void __pagevec_lru_add_active(struct pagevec *pvec)
 			zone = pagezone;
 			spin_lock_irq(&zone->lru_lock);
 		}
+		
 		VM_BUG_ON(PageLRU(page));
 		SetPageLRU(page);
 		VM_BUG_ON(PageActive(page));
 		SetPageActive(page);
+		//添加到zone->active_list
 		add_page_to_active_list(zone, page);
 	}
+	
 	if (zone)
 		spin_unlock_irq(&zone->lru_lock);
+
 	release_pages(pvec->pages, pvec->nr, pvec->cold);
+	
 	pagevec_reinit(pvec);
 }
 
@@ -592,6 +607,7 @@ static int cpu_swap_callback(struct notifier_block *nfb,
 			     unsigned long action,
 			     void *hcpu)
 {
+
 	long *committed;
 
 	committed = &per_cpu(committed_space, (long)hcpu);

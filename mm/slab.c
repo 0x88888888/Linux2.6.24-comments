@@ -309,6 +309,9 @@ struct arraycache_init {
  *  用于管理slab链表表头,放在kmem_cache->nodelist[]数组中
  */
 struct kmem_list3 {
+    /*
+     * 链接slab对象
+     */
 	struct list_head slabs_partial;	/* 部分空闲链表 partial list first, better asm code */
 	struct list_head slabs_full;    /* 全满 */
 	struct list_head slabs_free;    /* 全空 */
@@ -427,16 +430,17 @@ struct kmem_cache {
     可调整的缓存参数,有cache_chain_mutex保护
  */
     //本地高速缓存换入换出的批对象数量
-	unsigned int batchcount; /* array中没有空闲对象时，每次为array分配的对象数目 */
+	unsigned int batchcount; /* array中没有空闲对象时，每次为array分配的对象数目(从slab中获取) */
 	// 本地高速缓存中空闲对象的最大数量
 	unsigned int limit;/* array中允许的最大对象数目，超出后会将batchcount个对象返回给slab。如果超出该值,内核会将batchcount个对象返回slab(如果接下来内核缩减缓存，则释放的内存从slab返回到伙伴系统) */
 	unsigned int shared; /* 是否存在共享CPU高速缓存 */
  
-	unsigned int buffer_size; /* 指定了缓存中管理对象的大小,对象长度+填充字节 */
+	unsigned int buffer_size; /* 指定了slab中管理对象的大小,对象长度+填充字节 */
 	u32 reciprocal_buffer_size; // buff_size的倒数值
 	
 /* 3) touched by every alloc & free from the backend */
 
+    //CFLGS_OFF_SLAB 
 	unsigned int flags;		/* 如果管理结构存储在slab外部,就职位CFLGS_OFF_SLAB ,constant flags */
 	unsigned int num;		/* 每个slab中对象的最大数量 # of objs per slab */
 
@@ -938,13 +942,14 @@ static void cache_estimate(unsigned long gfporder, size_t buffer_size,
 		/*
 		 * This calculated number will be either the right
 		 * amount, or one greater than what we want.
+		 *
+		 * 如果对齐后大小超过slab总大小，需要减去一个对象
 		 */
-		 /*如果对齐后大小超过slab总大小，需要减去一个对象*/
 		if (slab_mgmt_size(nr_objs, align) + nr_objs*buffer_size
 		       > slab_size)
 			nr_objs--;
 
-         /*对象个数不许超限*//
+         /*对象个数不许超限*/
 		if (nr_objs > SLAB_LIMIT)
 			nr_objs = SLAB_LIMIT;
 
@@ -1523,8 +1528,9 @@ static void init_list(struct kmem_cache *cachep, struct kmem_list3 *list,
 /*
  * Initialisation.  Called after the page allocator have been initialised and
  * before smp_init().
-  调用过程
-     start_kernel()->kmem_cache_init()
+ * 调用过程
+ * start_kernel()
+ *  kmem_cache_init()
  */
 void __init kmem_cache_init(void)
 {
@@ -1608,7 +1614,9 @@ void __init kmem_cache_init(void)
 	INIT_LIST_HEAD(&cache_chain); //初始化保存所有slab cache的全局链表cache_chain
 	
 	list_add(&cache_cache.next, &cache_chain);//将cache_cache加入到slab cache链表
-	
+
+
+	//32
 	cache_cache.colour_off = cache_line_size();//设置cache着色基本单位为cache line的大小：32字节
     //初始化cache_cache的local cache，同样这里也不能使用kmalloc，需要使用静态分配的全局变量initarray_cache
 	cache_cache.array[smp_processor_id()] = &initarray_cache.cache;
@@ -2232,6 +2240,7 @@ static void __kmem_cache_destroy(struct kmem_cache *cachep)
  * @flags: slab allocation flags
  *
  * Also calculates the number of objects per slab.
+ * 计算出每一个slab上的对象数量。
  *
  * This could be made much more intelligent.  For now, try to avoid using
  * high order pages for slabs.  When the gfp() functions are more friendly
@@ -2265,7 +2274,7 @@ static size_t calculate_slab_order(struct kmem_cache *cachep,
           来计算数目、浪费的空间、着色所需的空间。
         */
 		cache_estimate(gfporder, size, align, flags, &remainder, &num);
-		/* 如果num为0，则代表当前order的页面数连一个对象都无放入，需要扩大页面数 */
+		/* 如果num为0，则代表当前order的页面数连一个对象都无法放入，需要扩大页面数 */
 		if (!num)
 			continue;
 
@@ -2331,8 +2340,8 @@ static size_t calculate_slab_order(struct kmem_cache *cachep,
 
 		/*
 		 * Acceptable internal fragmentation?
-		 */
-		 /*slab所占页面的大小是碎片大小的8倍以上，页面利用率较高，可以接受这样的order */
+		 *
+		 * slab所占页面的大小是碎片大小的8倍以上，页面利用率较高，可以接受这样的order */
 		 /* 判断一下，当前页面的利用率，当利用率满足下方条件时，不再继续循环 */
 		if (left_over * 8 <= (PAGE_SIZE << gfporder))
 			break;
@@ -2456,6 +2465,8 @@ static int __init_refok setup_cpu_cache(struct kmem_cache *cachep)
  * cacheline.  This can be beneficial if you're counting cycles as closely
  * as davem.
  *
+ * 创建一个kmem_cache对象
+ *
  * 创建成功后，cache中没有任何slab及对象，当分配对象时才会创建新的slab
  */
 struct kmem_cache *
@@ -2526,6 +2537,7 @@ kmem_cache_create (const char *name, size_t size, size_t align,
 	if (size < 4096 || fls(size - 1) == fls(size-1 + REDZONE_ALIGN +
 						2 * sizeof(unsigned long long)))
 		flags |= SLAB_RED_ZONE | SLAB_STORE_USER;
+	
 	if (!(flags & SLAB_DESTROY_BY_RCU))
 		flags |= SLAB_POISON;
 #endif
@@ -2547,7 +2559,7 @@ kmem_cache_create (const char *name, size_t size, size_t align,
 	 *
 	 * size 按照BYTES_PER_WORD对齐
 	 */
-	if (size & (BYTES_PER_WORD - 1)) {
+	if (size & (BYTES_PER_WORD - 1)) { //对象大小不是BYTES_PER_WORD对齐，需要调整到BYTES_PER_WORD对齐
 		size += (BYTES_PER_WORD - 1);
 		size &= ~(BYTES_PER_WORD - 1);
 	}
@@ -2563,11 +2575,17 @@ kmem_cache_create (const char *name, size_t size, size_t align,
 		 * an object is really small, then squeeze multiple objects into
 		 * one cacheline.
 		 */
-		ralign = cache_line_size();
+		ralign = cache_line_size(); //32
+
+        /*
+         * 如果对象大小小于对齐数字的 1/2，就说明一个cache line 可以存放多个对象，
+         * 所有需要调整对齐大小的值了，将尽量多的对象存放在一个缓存行里？
+         */        
 		while (size <= ralign / 2)
 			ralign /= 2;
+		
 	} else {
-		ralign = BYTES_PER_WORD;
+		ralign = BYTES_PER_WORD;  //4
 	}
 
 	/*
@@ -2740,9 +2758,11 @@ kmem_cache_create (const char *name, size_t size, size_t align,
 	cachep->name = name;
 
 	
-    /*设置每个cpu上的local cache，配置local cache和slab三链
-      设置cachep->array[smp_processor_id()] = kmalloc...
-	*/
+    /*
+     * 设置每个cpu上的local cache，配置local cache和slab三链
+     * 设置cachep->array[smp_processor_id()] = kmalloc...
+     * g_cpucache_up表示....
+	 */
 	if (setup_cpu_cache(cachep)) {
 		__kmem_cache_destroy(cachep);
 		cachep = NULL;
@@ -2998,6 +3018,7 @@ static struct slab *alloc_slabmgmt(struct kmem_cache *cachep, void *objp,
 		/* slab_size是管理对象大小，包含了slab和kmem_bufctl，此处计算第一个slab对象的偏移量 */
 		colour_off += cachep->slab_size;
 	}
+	
 	/* 新申请的slab对象，已用对象数为0 */
 	slabp->inuse = 0;
 	/* 第1个对象的页面偏移 */
@@ -3058,10 +3079,12 @@ static void cache_init_objs(struct kmem_cache *cachep,
 			if (*dbg_redzone2(cachep, objp) != RED_INACTIVE)
 				slab_error(cachep, "constructor overwrote the"
 					   " end of an object");
+			
 			if (*dbg_redzone1(cachep, objp) != RED_INACTIVE)
 				slab_error(cachep, "constructor overwrote the"
 					   " start of an object");
 		}
+		
 		if ((cachep->buffer_size % PAGE_SIZE) == 0 &&
 			    OFF_SLAB(cachep) && cachep->flags & SLAB_POISON)
 			kernel_map_pages(virt_to_page(objp),
@@ -3223,6 +3246,7 @@ static int cache_grow(struct kmem_cache *cachep,
 	/* 不能超过着色区的大小，否则重新循环 */
 	if (l3->colour_next >= cachep->colour)
 		l3->colour_next = 0;
+	
 	spin_unlock(&l3->list_lock);
 
     /* 根据着色区个数*着色偏移，计算着色区的大小 */
@@ -3249,6 +3273,7 @@ static int cache_grow(struct kmem_cache *cachep,
 	 */
 	if (!objp)  /* 分配2^cachep->gfporder个page */
 		objp = kmem_getpages(cachep, local_flags, nodeid);
+	
 	if (!objp)
 		goto failed;
 
@@ -3256,6 +3281,7 @@ static int cache_grow(struct kmem_cache *cachep,
 	/* 分配slab管理对象 */
 	slabp = alloc_slabmgmt(cachep, objp, offset,
 			local_flags & ~GFP_CONSTRAINT_MASK, nodeid);
+	
 	if (!slabp)
 		goto opps1;
 
@@ -3458,7 +3484,7 @@ retry:
 	if (l3->shared && transfer_objects(ac, l3->shared, batchcount))
 		goto alloc_done;
 
-   /* 如果l3->shared==NULL，或者已无空闲对象空间，则从slab链表中分配 */
+    /* 如果l3->shared==NULL，或者已无空闲对象空间，则从slab链表中分配 */
 	while (batchcount > 0) {
 		struct list_head *entry;
 		struct slab *slabp;
@@ -3933,8 +3959,8 @@ __cache_alloc_node(struct kmem_cache *cachep, gfp_t flags, int nodeid,
 
 /*
 kmem_cache_alloc
-__cache_alloc
-   __do_cache_alloc
+ __cache_alloc
+  __do_cache_alloc
 
 */
 

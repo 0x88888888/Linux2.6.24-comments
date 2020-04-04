@@ -433,14 +433,15 @@ struct page *vm_normal_page(struct vm_area_struct *vma, unsigned long addr, pte_
  * already present in the new task to be cleared in the whole range
  * covered by this vma.
  *
- * copy_process()
- *	copy_mm()
- *	 dup_mm()
- *	  copy_page_range()
- *	   copy_pud_range()
- *		copy_pmd_range()
- *       copy_pte_range()
- *        copy_one_pte()
+ * do_fork()
+ *  copy_process()
+ *	 copy_mm()
+ *	  dup_mm()
+ *	   copy_page_range()
+ *	    copy_pud_range()
+ *		 copy_pmd_range()
+ *        copy_pte_range()
+ *         copy_one_pte()
  */
 
 static inline void
@@ -458,7 +459,8 @@ copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	 * 但是缺页中断本身所用的内存及其页表是不可交换的，因此内核使用的页表是不可交换的.
 	 */
 	if (unlikely(!pte_present(pte))) {
-		if (!pte_file(pte)) {
+		
+		if (!pte_file(pte)) { //不是swap空间的
 			swp_entry_t entry = pte_to_swp_entry(pte);
 
 			swap_duplicate(entry);
@@ -520,6 +522,7 @@ copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	page = vm_normal_page(vma, addr, pte);
 	
 	if (page) {
+		//增加page->_count计数
 		get_page(page);
 		page_dup_rmap(page, vma, addr);
 		rss[!!PageAnon(page)]++;
@@ -530,13 +533,14 @@ out_set_pte:
 }
 
 /*
- * copy_process()
- *	copy_mm()
- *	 dup_mm()
- *	  copy_page_range()
- *	   copy_pud_range()
- *		copy_pmd_range()
- *       copy_pte_range()
+ * do_fork()
+ *  copy_process()
+ *	 copy_mm()
+ *	  dup_mm()
+ *	   copy_page_range()
+ *	    copy_pud_range()
+ *		 copy_pmd_range()
+ *        copy_pte_range()
  */
 static int copy_pte_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		pmd_t *dst_pmd, pmd_t *src_pmd, struct vm_area_struct *vma,
@@ -589,12 +593,13 @@ again:
 }
 
 /*
- * copy_process()
- *	copy_mm()
- *	 dup_mm()
- *	  copy_page_range()
- *	   copy_pud_range()
- *      copy_pmd_range()
+ * do_fork()
+ *  copy_process()
+ *	 copy_mm()
+ *	  dup_mm()
+ *	   copy_page_range()
+ *	    copy_pud_range()
+ *       copy_pmd_range()
  */
 static inline int copy_pmd_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		pud_t *dst_pud, pud_t *src_pud, struct vm_area_struct *vma,
@@ -611,6 +616,7 @@ static inline int copy_pmd_range(struct mm_struct *dst_mm, struct mm_struct *src
 		next = pmd_addr_end(addr, end);
 		if (pmd_none_or_clear_bad(src_pmd))
 			continue;
+		
 		if (copy_pte_range(dst_mm, src_mm, dst_pmd, src_pmd,
 						vma, addr, next))
 			return -ENOMEM;
@@ -619,11 +625,12 @@ static inline int copy_pmd_range(struct mm_struct *dst_mm, struct mm_struct *src
 }
 
 /*
- * copy_process()
- *  copy_mm()
- *   dup_mm()
- *    copy_page_range()
- *     copy_pud_range()
+ * do_fork()
+ *  copy_process()
+ *   copy_mm()
+ *    dup_mm()
+ *     copy_page_range()
+ *      copy_pud_range()
  *
  */
 static inline int copy_pud_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
@@ -641,6 +648,7 @@ static inline int copy_pud_range(struct mm_struct *dst_mm, struct mm_struct *src
 		next = pud_addr_end(addr, end);
 		if (pud_none_or_clear_bad(src_pud))
 			continue;
+		
 		if (copy_pmd_range(dst_mm, src_mm, dst_pud, src_pud,
 						vma, addr, next))
 			return -ENOMEM;
@@ -649,12 +657,17 @@ static inline int copy_pud_range(struct mm_struct *dst_mm, struct mm_struct *src
 }
 
 /*
- * copy_process()
- *  copy_mm()
- *   dup_mm()
- *    copy_page_range()
+ *
+ * do_fork() 
+ *  copy_process()
+ *   copy_mm() 
+ *    dup_mm()
+ *     dup_mmap()
+ *      copy_page_range()
  *
  * 分配对应虚拟地址空间的页表，并不需要分配物理页面,但是将可写的页表项改为只读
+ *
+ * 每个page都增加page->_count计数
  */
 int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		struct vm_area_struct *vma)
@@ -686,6 +699,7 @@ int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		next = pgd_addr_end(addr, end);
 		if (pgd_none_or_clear_bad(src_pgd))
 			continue;
+		
 		if (copy_pud_range(dst_mm, src_mm, dst_pgd, src_pgd,
 						vma, addr, next))
 			return -ENOMEM;

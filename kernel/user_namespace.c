@@ -26,6 +26,13 @@ EXPORT_SYMBOL_GPL(init_user_ns);
  * Clone a new ns copying an original user ns, setting refcount to 1
  * @old_ns: namespace to clone
  * Return NULL on error (failure to kmalloc), new ns otherwise
+ *
+ *
+ * copy_process()
+ *  copy_namespaces()
+ *   create_new_namespaces()
+ *    copy_user_ns()
+ *     clone_user_ns()
  */
 static struct user_namespace *clone_user_ns(struct user_namespace *old_ns)
 {
@@ -51,7 +58,9 @@ static struct user_namespace *clone_user_ns(struct user_namespace *old_ns)
 
 	/* Reset current->user with a new one,
        将current->user替换为一个新的user_struct
-	*/
+     *
+     *
+	 */
 	new_user = alloc_uid(ns, current->uid);
 	if (!new_user) {
 		free_uid(ns->root_user);
@@ -59,11 +68,18 @@ static struct user_namespace *clone_user_ns(struct user_namespace *old_ns)
 		return ERR_PTR(-ENOMEM);
 	}
 
+	//切换当前进程的user对象
 	switch_uid(new_user);
 	return ns;
 }
 
-/* 复制用户资源限制命名空间 */
+/* 复制用户资源限制命名空间 
+ *
+ * copy_process()
+ *  copy_namespaces()
+ *   create_new_namespaces()
+ *    copy_user_ns()
+ */
 struct user_namespace * copy_user_ns(int flags, struct user_namespace *old_ns)
 {
 	struct user_namespace *new_ns;

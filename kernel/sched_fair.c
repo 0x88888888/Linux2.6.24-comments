@@ -857,7 +857,9 @@ static void entity_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 
-/* Walk up scheduling entities hierarchy */
+/* Walk up scheduling entities hierarchy 
+ * 遍历sched_entity->parent
+ */
 #define for_each_sched_entity(se) \
 		for (; se; se = se->parent)
 
@@ -983,6 +985,11 @@ static void enqueue_task_fair(struct rq *rq, struct task_struct *p, int wakeup)
  * The dequeue_task method is called before nr_running is
  * decreased. We remove the task from the rbtree and
  * update the fair scheduling stats:
+ *
+ * schedule()
+ *  deactivate_task()
+ *   dequeue_task()
+ *    dequeue_task_fair()
  */
 static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int sleep)
 {
@@ -1045,7 +1052,13 @@ static void yield_task_fair(struct rq *rq)
 
 /*
  * Preempt the current task with a newly woken task if needed:
- * 检测抢占条件满足与否
+ * 
+ * 看看p是否可以抢占curr，如果可以抢占，就设置curr的TIF_NEED_RESCHED标记
+ *
+ * wake_up_process()
+ *  try_to_wake_up()
+ *   check_preempt_curr()
+ *    check_preempt_wakeup()
  */
 static void check_preempt_wakeup(struct rq *rq, struct task_struct *p)
 {
@@ -1054,7 +1067,7 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p)
 	struct sched_entity *se = &curr->se, *pse = &p->se;
 	unsigned long gran;
 
-	if (unlikely(rt_prio(p->prio))) {
+ 	if (unlikely(rt_prio(p->prio))) { //是实时进程,就直接设置TIF_NEED_RESCHED标记了
 		update_rq_clock(rq);
 		update_curr(cfs_rq);
 		resched_task(curr);
@@ -1063,6 +1076,8 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p)
 	/*
 	 * Batch tasks do not preempt (their preemption is driven by
 	 * the tick):
+	 * 
+	 * 跳过
 	 */
 	if (unlikely(p->policy == SCHED_BATCH))
 		return;
@@ -1079,6 +1094,9 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p)
 	if (unlikely(se->load.weight != NICE_0_LOAD))
 		gran = calc_delta_fair(gran, &se->load);
 
+	/*
+	 * 被抢占
+	 */
 	if (pse->vruntime + gran < se->vruntime)
 		resched_task(curr);
 }
@@ -1187,6 +1205,14 @@ static int cfs_rq_best_prio(struct cfs_rq *cfs_rq)
 }
 #endif
 
+/*
+ *
+ * run_rebalance_domains()  SCHEDULE_SOFTIRQ 软中断调用
+ *  rebalance_domains()
+ *   load_balance()
+ *    move_tasks()
+ *     load_balance_fair()
+ */
 static unsigned long
 load_balance_fair(struct rq *this_rq, int this_cpu, struct rq *busiest,
 		  unsigned long max_load_move,
@@ -1291,6 +1317,10 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr)
  * get a chance to run but frequent forkers are not allowed to
  * monopolize the CPU. Note: the parent runqueue is locked,
  * the child is not running yet.
+ *
+ * do_fork()
+ *  wake_up_new_task()
+ *   task_new_fair()
  */
 static void task_new_fair(struct rq *rq, struct task_struct *p)
 {

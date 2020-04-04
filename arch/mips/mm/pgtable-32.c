@@ -30,12 +30,7 @@ void pgd_init(unsigned long page)
 	}
 }
 
-/* 初始化系统的页表，以变量swapper_pg_dir为基础 
-* start_kernel()
-*	 setup_arch()
-*		paging_init()
-*          pagetable_init()
-*/
+
 void __init pagetable_init(void)
 {
 	unsigned long vaddr;
@@ -74,4 +69,5 @@ void __init pagetable_init(void)
 	pte = pte_offset_kernel(pmd, vaddr);
 	pkmap_page_table = pte;
 #endif
+
 }

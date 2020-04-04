@@ -604,6 +604,10 @@ static inline unsigned long round_hint_to_min(unsigned long hint)
  */
 #include <linux/vmstat.h>
 
+/*
+ * page_address()
+ *  lowmem_page_address()
+ */
 static __always_inline void *lowmem_page_address(struct page *page)
 {
 	return __va(page_to_pfn(page) << PAGE_SHIFT);

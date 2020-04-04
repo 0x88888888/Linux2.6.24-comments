@@ -353,10 +353,14 @@ struct rq {
 	int active_balance;  
 	int push_cpu;
 	/* cpu of this runqueue: 
-     * 该就绪队列的cpu
+     * 该就绪队列的cpu id
 	 */
 	int cpu;
 
+	/*
+	 * 内核为每个就绪队列提供一个迁移线程 migration_thread，可以接受迁移请求，
+	 * 这些请求保存在migration_queue 中，这样的请求通常发源于调度器自身，
+	 */
 	struct task_struct *migration_thread;
 	struct list_head migration_queue;
 #endif
@@ -392,6 +396,11 @@ struct rq {
 static DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 static DEFINE_MUTEX(sched_hotcpu_mutex);
 
+/*
+ * wake_up_process()
+ *  try_to_wake_up()
+ *   check_preempt_curr()
+ */
 static inline void check_preempt_curr(struct rq *rq, struct task_struct *p)
 {
 	rq->curr->sched_class->check_preempt_curr(rq, p);
@@ -745,6 +754,7 @@ static void resched_task(struct task_struct *p)
 	if (unlikely(test_tsk_thread_flag(p, TIF_NEED_RESCHED)))
 		return;
 
+    //设置TIF_NEED_RESCHED标记
 	set_tsk_thread_flag(p, TIF_NEED_RESCHED);
 
 	cpu = task_cpu(p);
@@ -1037,6 +1047,11 @@ static void enqueue_task(struct rq *rq, struct task_struct *p, int wakeup)
 	p->se.on_rq = 1;
 }
 
+/*
+ * schedule()
+ *  deactivate_task()
+ *   dequeue_task()
+ */
 static void dequeue_task(struct rq *rq, struct task_struct *p, int sleep)
 {
 	p->sched_class->dequeue_task(rq, p, sleep);
@@ -1045,6 +1060,10 @@ static void dequeue_task(struct rq *rq, struct task_struct *p, int sleep)
 
 /*
  * __normal_prio - return the priority that is based on the static prio
+ *
+ * effective_prio() 
+ *  normal_prio()
+ *   __normal_prio()
  */
 static inline int __normal_prio(struct task_struct *p)
 {
@@ -1058,6 +1077,9 @@ static inline int __normal_prio(struct task_struct *p)
  * boosted by interactivity modifiers. Changes upon fork,
  * setprio syscalls, and whenever the interactivity
  * estimator recalculates.
+ *
+ * effective_prio() 
+ *  normal_prio()
  */
 static inline int normal_prio(struct task_struct *p)
 {
@@ -1067,7 +1089,7 @@ static inline int normal_prio(struct task_struct *p)
 		prio = MAX_RT_PRIO-1 - p->rt_priority;
 	else
 		/* 得到进程的static_prio(静态优先级) */
-		prio = __normal_prio(p);
+		prio = __normal_prio(p); 
 	return prio;
 }
 
@@ -1078,6 +1100,15 @@ static inline int normal_prio(struct task_struct *p)
  * be boosted by RT tasks, or might be boosted by
  * interactivity modifiers. Will be RT if the task got
  * RT-boosted. If not then it returns p->normal_prio.
+ *
+ *
+ * do_fork()
+ *  wake_up_new_task()
+ *   effective_prio()
+ *
+ * sys_nice()
+ *  set_user_nice()
+ *   effective_prio()
  */
 static int effective_prio(struct task_struct *p)
 {
@@ -1091,6 +1122,7 @@ static int effective_prio(struct task_struct *p)
 	 */
 	if (!rt_prio(p->prio))
 		return p->normal_prio;
+	
 	return p->prio;
 }
 
@@ -1115,6 +1147,9 @@ static void activate_task(struct rq *rq, struct task_struct *p, int wakeup)
 
 /*
  * deactivate_task - remove a task from the runqueue.
+ *
+ * schedule()
+ *  deactivate_task()
  */
 static void deactivate_task(struct rq *rq, struct task_struct *p, int sleep)
 {
@@ -1219,6 +1254,12 @@ struct migration_req {
 /*
  * The task's runqueue lock must be held.
  * Returns true if you have to wait for migration thread.
+ *
+ * sys_execve系统调用
+ *  do_execve()
+ *   sched_exec()
+ *    sched_migrate_task()
+ *     migrate_task()
  */
 static int
 migrate_task(struct task_struct *p, int dest_cpu, struct migration_req *req)
@@ -1482,7 +1523,15 @@ find_idlest_cpu(struct sched_group *group, struct task_struct *p, int this_cpu)
  *
  * Returns the target CPU number, or the same CPU if no balancing is needed.
  *
+ * 
  * preempt must be disabled.
+ *
+ * sys_execve系统调用
+ *  do_execve()
+ *   sched_exec()
+ *    sched_balance_self()
+ *
+ * 挑选负载最小的CPU
  */
 static int sched_balance_self(int cpu, int flag)
 {
@@ -1606,6 +1655,9 @@ static inline int wake_idle(int cpu, struct task_struct *p)
  * runnable without the overhead of this.
  *
  * returns failure only if the task is already active.
+ *
+ * wake_up_process()
+ *  try_to_wake_up()
  */
 static int try_to_wake_up(struct task_struct *p, unsigned int state, int sync)
 {
@@ -1815,6 +1867,10 @@ static void __sched_fork(struct task_struct *p)
  * 1. 初始化新进程与调度相关的字段，
  * 2. 建立数据结构
  * 3. 确定进程的动态优先级
+ *
+ * do_fork()
+ *  copy_process()
+ *   sched_fork()
  */
 void sched_fork(struct task_struct *p, int clone_flags)
 {
@@ -1826,13 +1882,19 @@ void sched_fork(struct task_struct *p, int clone_flags)
     
 	cpu = sched_balance_self(cpu, SD_BALANCE_FORK);
 #endif
+
 	set_task_cpu(p, cpu);
 
 	/*
 	 * Make sure we do not leak PI boosting priority to the child:
-	 * 如果不是实时进程就使用公平调度
+	 *
+	 * 使用父进程的普通优先级作为子进程的优先级，
+	 * 是为了确保父进程临时提高的优先级不会被子进程继承过来
 	 */
 	p->prio = current->normal_prio;
+	/*
+	 * 如果不是实时进程就使用公平调度
+	 */
 	if (!rt_prio(p->prio))
 		p->sched_class = &fair_sched_class;
 
@@ -1872,12 +1934,15 @@ void fastcall wake_up_new_task(struct task_struct *p, unsigned long clone_flags)
 
 	p->prio = effective_prio(p);
 
+   
 	if (!p->sched_class->task_new || !current->se.on_rq) {
 		activate_task(rq, p, 0);
 	} else {
 		/*
 		 * Let the scheduling class do new task startup
 		 * management (if any):
+		 *
+		 * task_new_fair()
 		 */
 		p->sched_class->task_new(rq, p);
 		inc_nr_running(p, rq);
@@ -2297,6 +2362,11 @@ static void double_lock_balance(struct rq *this_rq, struct rq *busiest)
  * This is accomplished by forcing the cpu_allowed mask to only
  * allow dest_cpu, which will force the cpu onto dest_cpu. Then
  * the cpu_allowed mask is restored.
+ *
+ * sys_execve系统调用
+ *  do_execve()
+ *   sched_exec()
+ *    sched_migrate_task()
  */
 static void sched_migrate_task(struct task_struct *p, int dest_cpu)
 {
@@ -2329,10 +2399,15 @@ out:
 /*
  * sched_exec - execve() is a valuable balancing opportunity, because at
  * this point the task has the smallest effective memory and cache footprint.
+ *
+ * sys_execve系统调用
+ *  do_execve()
+ *   sched_exec()
  */
 void sched_exec(void)
 {
 	int new_cpu, this_cpu = get_cpu();
+	//挑选负载最小的CPU
 	new_cpu = sched_balance_self(this_cpu, SD_BALANCE_EXEC);
 	put_cpu();
 	if (new_cpu != this_cpu)
@@ -2473,6 +2548,11 @@ out:
  * Returns 1 if successful and 0 otherwise.
  *
  * Called with both runqueues locked.
+ *
+ * run_rebalance_domains()  SCHEDULE_SOFTIRQ 软中断调用
+ *  rebalance_domains()
+ *   load_balance()
+ *    move_tasks()
  */
 static int move_tasks(struct rq *this_rq, int this_cpu, struct rq *busiest,
 		      unsigned long max_load_move,
@@ -2484,6 +2564,9 @@ static int move_tasks(struct rq *this_rq, int this_cpu, struct rq *busiest,
 	int this_best_prio = this_rq->curr->prio;
 
 	do {
+		/*
+		 * 就是load_balance_fair
+		 */
 		total_load_moved +=
 			class->load_balance(this_rq, this_cpu, busiest,
 				max_load_move - total_load_moved,
@@ -2526,6 +2609,10 @@ iter_move_one_task(struct rq *this_rq, int this_cpu, struct rq *busiest,
  * Returns 1 if successful and 0 otherwise.
  *
  * Called with both runqueues locked.
+ *
+ * migration_thread()
+ *  active_load_balance()
+ *   move_one_task()
  */
 static int move_one_task(struct rq *this_rq, int this_cpu, struct rq *busiest,
 			 struct sched_domain *sd, enum cpu_idle_type idle)
@@ -2885,6 +2972,10 @@ find_busiest_queue(struct sched_group *group, enum cpu_idle_type idle,
  * 从最忙的就绪队列中移除多个进程，迁移到当前cpu的就绪队列
  * Check this_cpu to ensure it is balanced within domain. Attempt to move
  * tasks if there is an imbalance.
+ *
+ * run_rebalance_domains()  SCHEDULE_SOFTIRQ 软中断调用
+ *  rebalance_domains()
+ *   load_balance()
  */
 static int load_balance(int this_cpu, struct rq *this_rq,
 			struct sched_domain *sd, enum cpu_idle_type idle,
@@ -2907,6 +2998,7 @@ static int load_balance(int this_cpu, struct rq *this_rq,
 	    !test_sd_parent(sd, SD_POWERSAVINGS_BALANCE))
 		sd_idle = 1;
 
+	
 	schedstat_inc(sd, lb_count[idle]);
 
 redo:
@@ -3165,6 +3257,9 @@ static void idle_balance(int this_cpu, struct rq *this_rq)
  * logical imbalances.
  *
  * Called with busiest_rq locked.
+ *
+ * migration_thread()
+ *  active_load_balance()
  */
 static void active_load_balance(struct rq *busiest_rq, int busiest_cpu)
 {
@@ -3290,6 +3385,9 @@ static DEFINE_SPINLOCK(balancing);
  * and initiates a balancing operation if so.
  *
  * Balancing parameters are set up in arch_init_sched_domains.
+ *
+ * run_rebalance_domains()  SCHEDULE_SOFTIRQ 软中断调用
+ *  rebalance_domains()
  */
 static void rebalance_domains(int cpu, enum cpu_idle_type idle)
 {
@@ -3363,6 +3461,8 @@ out:
  * run_rebalance_domains is triggered when needed from the scheduler tick.
  * In CONFIG_NO_HZ case, the idle load balance owner will do the
  * rebalancing for all the cpus for whom scheduler ticks are stopped.
+ *
+ * 由函数trigger_load_balance触发SCHEDULE_SOFTIRQ软中断来执行
  */
 static void run_rebalance_domains(struct softirq_action *h)
 {
@@ -3466,8 +3566,9 @@ static inline void trigger_load_balance(struct rq *rq, int cpu)
 	    cpu_isset(cpu, nohz.cpu_mask))
 		return;
 #endif
+
 	if (time_after_eq(jiffies, rq->next_balance))
-		raise_softirq(SCHED_SOFTIRQ);
+		raise_softirq(SCHED_SOFTIRQ);  //触发软中断，执行run_rebalance_domains
 }
 
 #else	/* CONFIG_SMP */
@@ -3632,6 +3733,7 @@ void account_steal_time(struct task_struct *p, cputime_t steal)
  * It also gets called by the fork code, when changing the parent's
  * timeslices.
  *
+ *  周期性调度器
  *
  * update_process_times()
  *  scheduler_tick()  
@@ -3648,6 +3750,7 @@ void scheduler_tick(void)
 	u64 next_tick = rq->tick_timestamp + TICK_NSEC;
 
 	spin_lock(&rq->lock);
+	//更新rq->clock
 	__update_rq_clock(rq);  /* 对就绪队列的时钟更新 */
 	/*
 	 * Let rq->clock advance by at least TICK_NSEC:
@@ -3656,9 +3759,9 @@ void scheduler_tick(void)
 		rq->clock = next_tick;
 	
 	rq->tick_timestamp = rq->clock;
-	update_cpu_load(rq);  /* 负责更新cpu_load数组 */
+	update_cpu_load(rq);  /* 负责更新rq->cpu_load[]数组 */
 
-	/* 根据不同的调度算法，来计算时间片，如果时间片到了，会设置need_resched标记 */
+	/* 根据不同的调度算法，来计算时间片，如果时间片到了，会设置TF_NEED_RESECHED标记 */
 	if (curr != rq->idle) /* FIXME: needed? */
 		curr->sched_class->task_tick(rq, curr); /*函数指针为: task_tick_fair, task_tick_rt。 */
 	
@@ -3813,6 +3916,7 @@ need_resched:
 	// 当前CPU对应的运行队列rq
 	rq = cpu_rq(cpu);
 	rcu_qsctr_inc(cpu);
+	//正在运行的进程变成prev了
 	prev = rq->curr;
 	// 当前进程的切换次数
 	switch_count = &prev->nivcsw;
@@ -3832,6 +3936,9 @@ need_resched_nonpreemptible:
 	
 	clear_tsk_need_resched(prev); /* 清空TIF_NEED_RESCHED标记 */
 
+    /*
+     * !(preempt_count() & PREEMPT_ACTIVE) 说明本次调用schedule，并非由抢占函数preempt_schedule发起的
+     */
 	if (prev->state && !(preempt_count() & PREEMPT_ACTIVE)) {
 
 	    /*
@@ -3846,7 +3953,11 @@ need_resched_nonpreemptible:
 			 */
 			prev->state = TASK_RUNNING;
 		} else {
-			// 通过deactivate_task()将当前进程prev从就绪队列中删除。
+			// 
+			/*
+			 * 通过deactivate_task()将当前进程prev从就绪队列中删除。
+			 * 会调用dequeue_task
+			 */
 			deactivate_task(rq, prev, 1);
 		}
 		switch_count = &prev->nvcsw;
@@ -3855,7 +3966,9 @@ need_resched_nonpreemptible:
 	if (unlikely(!rq->nr_running))
 		idle_balance(cpu, rq);
 
-    /* 首先通知调度器类当前运行的进程将要被另一个进程替换 */
+    /* 首先通知调度器类当前运行的进程将要被另一个进程替换 
+     * 
+	 */
 	prev->sched_class->put_prev_task(rq, prev);
 	/* 调度器类选择下一个运行的进程 */
 	next = pick_next_task(rq, prev);
@@ -3893,6 +4006,7 @@ EXPORT_SYMBOL(schedule);
  * off of preempt_enable. Kernel preemptions off return from interrupt
  * occur there and call schedule directly.
  *
+ * preempt_check_resched()
  * preempt_enable()
  *  preempt_schedule()
  */
@@ -3905,6 +4019,7 @@ asmlinkage void __sched preempt_schedule(void)
 #endif
 	/*
 	 * 进程在临界区，或者不能中断
+	 * 或者禁止中断
 	 * If there is a non-zero preempt_count or interrupts are disabled,
 	 * we do not want to preempt the current task. Just return..
 	 */
@@ -3924,6 +4039,7 @@ asmlinkage void __sched preempt_schedule(void)
 		saved_lock_depth = task->lock_depth;
 		task->lock_depth = -1;
 #endif
+        //调度了
 		schedule();
 #ifdef CONFIG_PREEMPT_BKL
 		task->lock_depth = saved_lock_depth;
@@ -5350,6 +5466,10 @@ EXPORT_SYMBOL_GPL(set_cpus_allowed);
  * as the task is no longer on this CPU.
  *
  * Returns non-zero if task was successfully migrated.
+ *
+ * migration_thread()
+ *  active_load_balance() 
+ *   __migrate_task()
  */
 static int __migrate_task(struct task_struct *p, int src_cpu, int dest_cpu)
 {
@@ -5389,6 +5509,8 @@ out:
  * migration_thread - this is a highprio system thread that performs
  * thread migration by bumping thread off CPU then 'pushing' onto
  * another runqueue.
+ *
+ * 迁移进程的线程入口函数
  */
 static int migration_thread(void *data)
 {
@@ -5399,6 +5521,7 @@ static int migration_thread(void *data)
 	BUG_ON(rq->migration_thread != current);
 
 	set_current_state(TASK_INTERRUPTIBLE);
+	
 	while (!kthread_should_stop()) {
 		struct migration_req *req;
 		struct list_head *head;
@@ -5410,11 +5533,17 @@ static int migration_thread(void *data)
 			goto wait_to_die;
 		}
 
+		/*
+		 * 主动平衡
+		 */
 		if (rq->active_balance) {
 			active_load_balance(rq, cpu);
 			rq->active_balance = 0;
 		}
 
+        /*
+         * 请求迁移的task_struct
+         */
 		head = &rq->migration_queue;
 
 		if (list_empty(head)) {
@@ -5427,6 +5556,7 @@ static int migration_thread(void *data)
 		list_del_init(head->next);
 
 		spin_unlock(&rq->lock);
+		//迁移一个task_struct
 		__migrate_task(req->task, cpu, req->dest_cpu);
 		local_irq_enable();
 
@@ -5899,6 +6029,13 @@ static struct notifier_block __cpuinitdata migration_notifier = {
 	.priority = 10
 };
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    do_pre_smp_initcalls()
+ *     migration_init()
+ */
 void __init migration_init(void)
 {
 	void *cpu = (void *)(long)smp_processor_id();
@@ -6948,6 +7085,13 @@ static int update_sched_domains(struct notifier_block *nfb,
 	return NOTIFY_OK;
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    sched_init_smp()
+ *
+ */
 void __init sched_init_smp(void)
 {
 	cpumask_t non_isolated_cpus;
@@ -6957,6 +7101,7 @@ void __init sched_init_smp(void)
 	cpus_andnot(non_isolated_cpus, cpu_possible_map, cpu_isolated_map);
 	if (cpus_empty(non_isolated_cpus))
 		cpu_set(smp_processor_id(), non_isolated_cpus);
+	
 	mutex_unlock(&sched_hotcpu_mutex);
 	/* XXX: Theoretical race here - CPU may be hotplugged now */
 	hotcpu_notifier(update_sched_domains, 0);
@@ -6964,6 +7109,7 @@ void __init sched_init_smp(void)
 	/* Move init over to a non-isolated CPU */
 	if (set_cpus_allowed(current, non_isolated_cpus) < 0)
 		BUG();
+	
 	sched_init_granularity();
 }
 #else

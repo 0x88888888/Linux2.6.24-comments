@@ -24,6 +24,7 @@
  * true for the boot process anyway)
  *
  * 下面几个变量在setup_memory()中确定
+ * 保存内核可映射的最高page number
  */
 unsigned long max_low_pfn;
 
@@ -32,7 +33,7 @@ min_low_pfn is located at the beginning of the first
 page after _end which is the end of the loaded kernel image
 
 */
-unsigned long min_low_pfn;
+unsigned long min_low_pfn; //
 unsigned long max_pfn; //从e920.map[]中确定
 
 /* 用于存放bootmem分配器 */
@@ -96,6 +97,10 @@ static unsigned long __init get_mapsize(bootmem_data_t *bdata)
 /*
  * Called once to set up the allocator itself.
  *
+ * 内存不连续的系统可以有多个bootmem分配器,在NUMA机器中，
+ * 每个node都分配一个bootmem_data_t,
+ * 如果物理内存不连续，也会分配多个bootmem_data_t对象
+ *
  * start_kernel()
  *  setup_arch()
  *   setup_memory()
@@ -103,8 +108,6 @@ static unsigned long __init get_mapsize(bootmem_data_t *bdata)
  *     init_bootmem()
  *      init_bootmem_core()
  */
- 
-
 static unsigned long __init init_bootmem_core(pg_data_t *pgdat,
 	unsigned long mapstart, unsigned long start, unsigned long end)
 {
@@ -206,6 +209,11 @@ static void __init free_bootmem_core(bootmem_data_t *bdata, unsigned long addr,
  * alignment has to be a power of 2 value.
  *
  * NOTE:  This function is _not_ reentrant.
+ *
+ *
+ * __alloc_bootmem()
+ *  __alloc_bootmem_nopanic()
+ *   __alloc_bootmem_core()
  */
 void * __init
 __alloc_bootmem_core(struct bootmem_data *bdata, unsigned long size,
@@ -333,7 +341,7 @@ found:
 /*
  * start_kernel()
  *  mem_init()
- *	free_all_bootmem()
+ *	 free_all_bootmem()
  *    free_all_bootmem_core()
  *
  * 释放bootmem allocator将page给buddy system接管
@@ -478,6 +486,10 @@ unsigned long __init free_all_bootmem(void)
 	return free_all_bootmem_core(NODE_DATA(0));
 }
 
+/*
+ * __alloc_bootmem()
+ *  __alloc_bootmem_nopanic()
+ */
 void * __init __alloc_bootmem_nopanic(unsigned long size, unsigned long align,
 				      unsigned long goal)
 {

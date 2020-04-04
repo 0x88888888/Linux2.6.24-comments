@@ -19,7 +19,9 @@ struct pidmap {
  */
 struct pid_namespace {
 	struct kref kref;
-	/* 用于本pid_namespace分配唯一的pid */
+	/* 用于本pid_namespace分配唯一的pid 
+	 * 跟踪用
+	 */
 	struct pidmap pidmap[PIDMAP_ENTRIES];
 	int last_pid;
 	

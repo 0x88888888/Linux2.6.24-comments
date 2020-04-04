@@ -456,6 +456,8 @@ static void __init setup_command_line(char *command_line)
  *
  * start_kernel()
  *  rest_init()
+ *
+ * 
  */
 
 static void noinline __init_refok rest_init(void)
@@ -463,7 +465,7 @@ static void noinline __init_refok rest_init(void)
 {
 	int pid;
 
-    /* 建立kernel_init内核线程,kernel中建立init进程 */
+    /* 建立kernel_init内核线程(即内核态init线程),然后在内核态init线程中建立用户态init进程*/
 	kernel_thread(kernel_init, NULL, CLONE_FS | CLONE_SIGHAND);
 	numa_default_policy();
 	/* 建立kthreadd线程 */
@@ -476,6 +478,8 @@ static void noinline __init_refok rest_init(void)
 	 * at least once to get things moving:
 	 */
 	init_idle_bootup_task(current);
+
+	//开启抢占内核功能
 	preempt_enable_no_resched();
 	schedule();
 	preempt_disable();
@@ -589,16 +593,20 @@ asmlinkage void __init start_kernel(void)
 	 *
 	 * 看 https://blog.csdn.net/lq19880521/article/details/83572803
 	 */
+
+
+	
 	page_address_init();
 	printk(KERN_NOTICE);
 	/* 打印内核版本信息 */
 	printk(linux_banner);
 	/* 
-	 * 根据BIOS和Boot   loader传递的参数收集系统硬件信息 
-	 * 并且启动bootmem allocator 等等
+	 * 1.初始化swapper_pg_dir这个内核页表内容,开启分页机制
+	 * 2.根据BIOS和Boot   loader传递的参数收集系统硬件信息 
+	 * 3.初始化系统中所有该有的node对象，并且启动bootmem allocator 等等
 	 * 设置每个page所属的zone
 	 *
-	 * 将全局变量boot_command_line赋值给本函数局部变量command_line
+	 * 4.将全局变量boot_command_line赋值给本函数局部变量command_line
      * 也将boot_command_line所指的字符串复制给boot_command_line
      *
      * 启动acpi?
@@ -712,6 +720,7 @@ asmlinkage void __init start_kernel(void)
 	 * HACK ALERT! This is early. We're enabling the console before
 	 * we've done PCI setups etc, and console_init() must be aware of
 	 * this. But we do want output early, in case something goes wrong.
+	 *
 	 */
 	console_init();
 	if (panic_later)
@@ -747,7 +756,11 @@ asmlinkage void __init start_kernel(void)
 	/* late_time_init在time_init中设置, late_time_init == hpet_time_init */
 	if (late_time_init) 
 		late_time_init(); /* 设置0号中断处理函数 */
-	
+
+	/*
+	 * 计算MogoMIPS值，该值指定了在每个jiffiy期间可以执行多少个空循环。
+	 * 内核需要该值来估算一些进行轮询或者忙等待的任务所需的时间
+	 */
 	calibrate_delay();
 	pidmap_init(); /* 分配init_pid.pidmap[0].page，给1号进程分配pid_cache */
 	
@@ -790,6 +803,7 @@ asmlinkage void __init start_kernel(void)
 	taskstats_init_early();
 	delayacct_init();
 
+    //检测硬件是否有bug
 	check_bugs();
 
     /* 从BIOS上读取ACPI信息? */
@@ -925,6 +939,7 @@ static void __init do_basic_setup(void)
 	usermodehelper_init();
 	driver_init();
 	init_irq_proc();
+	//启动各个模块的init函数
 	do_initcalls();
 }
 
@@ -937,6 +952,13 @@ static int __init nosoftlockup_setup(char *str)
 }
 __setup("nosoftlockup", nosoftlockup_setup);
 
+/*
+ * start_kernel()
+ *   rest_init() 中调用kernel_thread()创建kernel_init线程
+ *    kernel_init()
+ *     do_pre_smp_initcalls()
+ *  
+ */
 static void __init do_pre_smp_initcalls(void)
 {
 	extern int spawn_ksoftirqd(void);
@@ -959,6 +981,7 @@ static void run_init_process(char *init_filename)
  *  rest_init()
  *   kernel_init()
  *    init_post()
+ *
  */
 static int noinline init_post(void)
 {
@@ -1011,7 +1034,7 @@ static int noinline init_post(void)
 	panic("No init found.  Try passing init= option to kernel.");
 }
 
-/* 建立init进程 
+/* 建立用户态的init进程
  *
  *
  * start_kernel()
@@ -1032,6 +1055,8 @@ static int __init kernel_init(void * unused)
 	 * We don't want people to have to make incorrect
 	 * assumptions about where in the task array this
 	 * can be found.
+	 *
+	 * 公开宣布，我将成为孤儿进程的收割者
 	 */
 	init_pid_ns.child_reaper = current;
 
@@ -1042,14 +1067,25 @@ static int __init kernel_init(void * unused)
      * 这个函数在include/asm-x86/smp_32.h中
      *
      * 设置irq_desc[irq]->handle_irq=handle_edge_irq或者handle_fasteoi_irq
+     * 设置备用CPU的一些参数？
 	 */
 	smp_prepare_cpus(max_cpus);
 
 	do_pre_smp_initcalls();
 
+    /*
+     * 启动剩余的CPU
+     */
 	smp_init();
+	/*
+	 *
+	 */
 	sched_init_smp();
 
+    /*
+     * 将cpus_allowed和mems_allwed更新为在线的cpu和在线的内存结点.
+     * 最后为cpu热插拨和内存热插拨注册了hook.
+     */
 	cpuset_init_smp();
 
 	/*
@@ -1075,6 +1111,8 @@ static int __init kernel_init(void * unused)
 	 * Ok, we have completed the initial bootup, and
 	 * we're essentially up and running. Get rid of the
 	 * initmem segments and start the user-mode stuff..
+	 *
+	 * 在内核态init线程中建立用户态init进程
 	 */
 	init_post();
 	return 0;

@@ -33,6 +33,15 @@ static inline void smpboot_restore_warm_reset_vector(void)
 	*((volatile long *) phys_to_virt(0x467)) = 0;
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    smp_prepare_cpus()
+ *     native_smp_prepare_cpus()
+ *      smp_boot_cpus()
+ *       smpboot_setup_io_apic()
+ */
 static inline void smpboot_setup_io_apic(void)
 {
 	/*
