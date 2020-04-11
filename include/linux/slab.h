@@ -38,6 +38,9 @@
 #define SLAB_TRACE		0x00200000UL	/* Trace allocations and frees */
 
 /* The following flags affect the page allocator grouping pages by mobility */
+/*
+ * 内核检查用户态程序有没有足够内存可用，被标记为这个标志的Slab将作为通缉对象。
+ */
 #define SLAB_RECLAIM_ACCOUNT	0x00020000UL		/* Objects are reclaimable */
 #define SLAB_TEMPORARY		SLAB_RECLAIM_ACCOUNT	/* Objects are short-lived */
 /*

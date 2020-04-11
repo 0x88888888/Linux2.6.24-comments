@@ -214,6 +214,10 @@ static void flush_arg_page(struct linux_binprm *bprm, unsigned long pos,
 	flush_cache_page(bprm->vma, pos, page_to_pfn(page));
 }
 
+/*
+ * bprm_mm_init()
+ *  __bprm_mm_init()
+ */
 static int __bprm_mm_init(struct linux_binprm *bprm)
 {
 	int err = -ENOMEM;

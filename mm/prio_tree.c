@@ -121,6 +121,12 @@ void vma_prio_tree_insert(struct vm_area_struct *vma,
 	}
 }
 
+/*
+ * sys_remap_file_pages()
+ *  vma_prio_tree_remove()
+ *
+ *从prio_tree中删除
+ */
 void vma_prio_tree_remove(struct vm_area_struct *vma,
 			  struct prio_tree_root *root)
 {

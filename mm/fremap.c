@@ -46,6 +46,7 @@ static void zap_pte(struct mm_struct *mm, struct vm_area_struct *vma,
 	} else {
 		if (!pte_file(pte))
 			free_swap_and_cache(pte_to_swp_entry(pte));
+		
 		pte_clear_not_present_full(mm, addr, ptep, 0);
 	}
 }
@@ -156,7 +157,7 @@ asmlinkage long sys_remap_file_pages(unsigned long start, unsigned long size,
 
 	/* Does the address range wrap, or is the span zero-sized? 
        一些检查，不涉及核心内容，省略。
-	*/
+	 */
 	if (start + size <= start)
 		return err;
 
@@ -177,7 +178,7 @@ asmlinkage long sys_remap_file_pages(unsigned long start, unsigned long size,
 	 * the single existing vma.  vm_private_data is used as a
 	 * swapout cursor in a VM_NONLINEAR vma.
 	 * 
-	 必须存在vma能够包含start地址，而且该vma的vm_flags中必须有VM_SHARED
+	 * 必须存在vma能够包含start地址，而且该vma的vm_flags中必须有VM_SHARED
 	 */
 	if (!vma || !(vma->vm_flags & VM_SHARED))
 		goto out;
@@ -223,6 +224,7 @@ asmlinkage long sys_remap_file_pages(unsigned long start, unsigned long size,
 			unsigned long addr;
 
 			flags &= MAP_NONBLOCK;
+		    //这里会分配vma，并且插入到rb_tree
 			addr = mmap_region(vma->vm_file, start, size,
 					flags, vma->vm_flags, pgoff, 1);
 			if (IS_ERR_VALUE(addr)) {
@@ -230,6 +232,7 @@ asmlinkage long sys_remap_file_pages(unsigned long start, unsigned long size,
 			} else {
 				BUG_ON(addr != start);
 				err = 0;
+				
 			}
 			goto out;
 		}
@@ -239,7 +242,7 @@ asmlinkage long sys_remap_file_pages(unsigned long start, unsigned long size,
 		flush_dcache_mmap_lock(mapping);
 		vma->vm_flags |= VM_NONLINEAR; //设置非线性映射的标志，下次如果再有同一个vma区域中的非线性映射，就不会再走这个分支了，将会直接跳到下面去修改页表。
 		//nolinear map不能出现在address_space->i_mmap中,只能出现在address_space->i_mmap_nonlinear中
-		vma_prio_tree_remove(vma, &mapping->i_mmap); //将该vma从该文件的线性映射相关的数据结构（优先树）上删除
+		vma_prio_tree_remove(vma, &mapping->i_mmap); //将该vma从该文件的线性映射相关的数据结构（address_space）上删除
 		vma_nonlinear_insert(vma, &mapping->i_mmap_nonlinear); //将该vma->shared.vm_set.list插入到该文件的address_space->i_mmap_nonlinear链表中去
 		flush_dcache_mmap_unlock(mapping);
 		spin_unlock(&mapping->i_mmap_lock);

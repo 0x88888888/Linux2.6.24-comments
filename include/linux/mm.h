@@ -168,6 +168,10 @@ struct vm_fault {
 struct vm_operations_struct {
 	void (*open)(struct vm_area_struct * area);
 	void (*close)(struct vm_area_struct * area);
+	/*
+	 * page fault 异常处理函数
+	 * 已经映射但是没有读取到内存中来
+	 */
 	int (*fault)(struct vm_area_struct *vma, struct vm_fault *vmf);
 	struct page *(*nopage)(struct vm_area_struct *area,
 			unsigned long address, int *type);

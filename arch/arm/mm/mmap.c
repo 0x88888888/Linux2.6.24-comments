@@ -20,6 +20,9 @@
  *
  * We unconditionally provide this function for all cases, however
  * in the VIVT case, we optimise out the alignment rules.
+ *
+ * 在MAP 区域中获取一个没有被映射的空间
+ * 
  */
 unsigned long
 arch_get_unmapped_area(struct file *filp, unsigned long addr,
@@ -50,6 +53,8 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 
 	/*
 	 * We enforce the MAP_FIXED case.
+	 *
+	 * 指定地址了
 	 */
 	if (flags & MAP_FIXED) {
 		if (aliasing && flags & MAP_SHARED && addr & (SHMLBA - 1))
@@ -60,6 +65,7 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 	if (len > TASK_SIZE)
 		return -ENOMEM;
 
+    //指定参考地址了
 	if (addr) {
 		if (do_align)
 			addr = COLOUR_ALIGN(addr, pgoff);
@@ -68,9 +74,10 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 
 		vma = find_vma(mm, addr);
 		if (TASK_SIZE - len >= addr &&
-		    (!vma || addr + len <= vma->vm_start))
+		    (!vma || addr + len <= vma->vm_start)) 
 			return addr;
 	}
+	
 	if (len > mm->cached_hole_size) {
 	        start_addr = addr = mm->free_area_cache;
 	} else {
@@ -101,12 +108,16 @@ full_search:
 		if (!vma || addr + len <= vma->vm_start) {
 			/*
 			 * Remember the place where we stopped the search:
+			 * 记住搜索结束的位置
 			 */
 			mm->free_area_cache = addr + len;
 			return addr;
 		}
+
+		//离搜索结束最近的某一个空闲的位置
 		if (addr + mm->cached_hole_size < vma->vm_start)
 		        mm->cached_hole_size = vma->vm_start - addr;
+		
 		addr = vma->vm_end;
 		if (do_align)
 			addr = COLOUR_ALIGN(addr, pgoff);

@@ -352,7 +352,13 @@ void validate_mm(struct mm_struct *mm)
 #define validate_mm(mm) do { } while (0)
 #endif
 
-/* 返回addr所在vma,并且pprev中待会addr所在的vma的前一个vma，以及红黑树相关的节点 */
+/*
+ * 返回addr所在vma,并且pprev中待会addr所在的vma的前一个vma，以及红黑树相关的节点 
+ *
+ * insert_vm_struct()
+ *  find_vma_prepare()
+ *
+ */
 static struct vm_area_struct *
 find_vma_prepare(struct mm_struct *mm, unsigned long addr,
 		struct vm_area_struct **pprev, struct rb_node ***rb_link,
@@ -446,6 +452,10 @@ static inline void __vma_link_file(struct vm_area_struct *vma)
 	}
 }
 
+/*
+ * vma_link()
+ *  __vma_link()
+ */
 static void
 __vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
 	struct vm_area_struct *prev, struct rb_node **rb_link,
@@ -752,8 +762,8 @@ static int
 can_vma_merge_after(struct vm_area_struct *vma, unsigned long vm_flags,
 	struct anon_vma *anon_vma, struct file *file, pgoff_t vm_pgoff)
 {
-	if (is_mergeable_vma(vma, file, vm_flags) &&
-	    is_mergeable_anon_vma(anon_vma, vma->anon_vma)) {
+	if (is_mergeable_vma(vma, file, vm_flags) /* 文件映射的判断条件 */&&
+	    is_mergeable_anon_vma(anon_vma, vma->anon_vma) /* 匿名映射的判断条件 */ ) {
 		pgoff_t vm_pglen;
 		vm_pglen = (vma->vm_end - vma->vm_start) >> PAGE_SHIFT;
 		if (vma->vm_pgoff + vm_pglen == vm_pgoff)
@@ -2322,6 +2332,14 @@ void exit_mmap(struct mm_struct *mm)
 /* Insert vm structure into process list sorted by address
  * and into the inode's i_mmap tree.  If vm_file is non-NULL
  * then i_mmap_lock is taken here.
+ *
+ * syscall32_setup_pages()
+ *  install_special_mapping()
+ *   insert_vm_struct()
+ *
+ * bprm_mm_init()
+ *  __bprm_mm_init()
+ *   insert_vm_struct()
  */
 int insert_vm_struct(struct mm_struct * mm, struct vm_area_struct * vma)
 {
@@ -2339,20 +2357,26 @@ int insert_vm_struct(struct mm_struct * mm, struct vm_area_struct * vma)
 	 * vma, merges and splits can happen in a seamless way, just
 	 * using the existing file pgoff checks and manipulations.
 	 * Similarly in do_mmap_pgoff and in do_brk.
+	 *
+	 * 有后备文件的vma
 	 */
 	if (!vma->vm_file) {
 		BUG_ON(vma->anon_vma);
+		/*
+		 * 
+		 */
 		vma->vm_pgoff = vma->vm_start >> PAGE_SHIFT;
 	}
 	/*
-	   __vma表示带插入新区域的前一个节点
-	   查找到待插入vma的父节点(rb_parent), 
-	   
+	 *  __vma表示带插入新区域的前一个节点
+	 *  查找到待插入vma的父节点(rb_parent), 
+	 *  
 	 */
 	__vma = find_vma_prepare(mm,vma->vm_start,&prev,&rb_link,&rb_parent);
 	
 	if (__vma && __vma->vm_start < vma->vm_end)
 		return -ENOMEM;
+	
 	if ((vma->vm_flags & VM_ACCOUNT) &&
 	     security_vm_enough_memory_mm(mm, vma_pages(vma)))
 		return -ENOMEM;
@@ -2476,6 +2500,9 @@ static struct vm_operations_struct special_mapping_vmops = {
  * The region past the last page supplied will always produce SIGBUS.
  * The array pointer and the pages it points to are assumed to stay alive
  * for as long as this mapping might exist.
+ *
+ * syscall32_setup_pages()
+ *  install_special_mapping()
  */
 int install_special_mapping(struct mm_struct *mm,
 			    unsigned long addr, unsigned long len,

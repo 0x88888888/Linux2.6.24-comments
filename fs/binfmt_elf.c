@@ -879,8 +879,10 @@ static int load_elf_binary(struct linux_binprm *bprm, struct pt_regs *regs)
 
 		if (elf_ppnt->p_flags & PF_R)
 			elf_prot |= PROT_READ;
+		
 		if (elf_ppnt->p_flags & PF_W)
 			elf_prot |= PROT_WRITE;
+		
 		if (elf_ppnt->p_flags & PF_X)
 			elf_prot |= PROT_EXEC;
 
@@ -919,6 +921,7 @@ static int load_elf_binary(struct linux_binprm *bprm, struct pt_regs *regs)
 		k = elf_ppnt->p_vaddr;
 		if (k < start_code)
 			start_code = k;
+		
 		if (start_data < k)
 			start_data = k;
 

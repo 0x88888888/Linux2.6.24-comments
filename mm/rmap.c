@@ -86,6 +86,7 @@ int anon_vma_prepare(struct vm_area_struct *vma)
 	
         /*根据vma的属性看vma->next和vma->prev是否可以共享anon_vma */
 		anon_vma = find_mergeable_anon_vma(vma);
+		
 		if (anon_vma) {
 			allocated = NULL;
 			locked = anon_vma;
@@ -102,6 +103,7 @@ int anon_vma_prepare(struct vm_area_struct *vma)
 
 		/* page_table_lock to protect against threads */
 		spin_lock(&mm->page_table_lock);
+		
 		if (likely(!vma->anon_vma)) { 
 			/* 设置anon_vma */
 			vma->anon_vma = anon_vma;
@@ -339,13 +341,14 @@ static int page_referenced_one(struct page *page,
 	spinlock_t *ptl;
 	int referenced = 0;
 
-	address = vma_address(page, vma);
-	if (address == -EFAULT)
+    //返回page在vma中对应的虚拟地址。
+	address = vma_address(page, vma); 
+	if (address == -EFAULT) //不能在vma中找到page对应的虚拟地址
 		goto out;
 
     /* 获取address对应的pte */
 	pte = page_check_address(page, mm, address, &ptl);
-	if (!pte)
+	if (!pte)//page没有被映射到mm中
 		goto out;
 
 	/* 清空pte的PAGE_ACCESSED标记 */
@@ -417,6 +420,8 @@ static int page_referenced_anon(struct page *page)
  *
  * This function is only called from page_referenced for object-based pages.
  *
+ * 从address_space中查找page被引用的次数
+ *
  * shrink_page_list()
  *  page_referenced()
  *   page_referenced_file()
@@ -457,6 +462,9 @@ static int page_referenced_file(struct page *page)
 	 */
 	mapcount = page_mapcount(page);
 
+    /*
+     * 遍历address_space中所有的VMA
+     */
 	vma_prio_tree_foreach(vma, &iter, &mapping->i_mmap, pgoff, pgoff) {
 		if ((vma->vm_flags & (VM_LOCKED|VM_MAYSHARE))
 				  == (VM_LOCKED|VM_MAYSHARE)) {

@@ -12,6 +12,7 @@ In order to switch debugging on one can add a option "slub_debug"
 to the kernel command line. That will enable full debugging for
 all slabs.
 
+
 Typically one would then use the "slabinfo" command to get statistical
 data and perform operation on the slabs. By default slabinfo only lists
 slabs that have data in them. See "slabinfo -h" for more options when
