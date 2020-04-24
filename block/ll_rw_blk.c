@@ -478,6 +478,16 @@ static inline struct request *start_ordered(struct request_queue *q,
 	return rq;
 }
 
+
+/*
+ * blk_unplug_work()
+ *	generic_unplug_device()
+ *	 __generic_unplug_device()
+ *	  scsi_request_fn()
+ *	   elv_next_request()
+ *		__elv_next_request()
+ *       blk_do_ordered()
+ */
 int blk_do_ordered(struct request_queue *q, struct request **rqp)
 {
 	struct request *rq = *rqp;
@@ -1376,8 +1386,21 @@ EXPORT_SYMBOL(blk_rq_map_sg);
 /*
  * the standard queue merge functions, can be overridden with device
  * specific ones if so desired
+ *
+ * 重新确定req->nr_phys_segments
+ *
+ * read_pages()
+ *  ext2_readpages()
+ *   mpage_readpages()
+ *    do_mpage_readpage()
+ *     mpage_bio_submit()
+ *      submit_bio()
+ *       generic_make_request()
+ *        __generic_make_request()
+ *         __make_request()
+ *          ll_back_merge_fn()
+ *           ll_new_mergeable()
  */
-
 static inline int ll_new_mergeable(struct request_queue *q,
 				   struct request *req,
 				   struct bio *bio)
@@ -1399,6 +1422,19 @@ static inline int ll_new_mergeable(struct request_queue *q,
 	return 1;
 }
 
+/*
+ * read_pages()
+ *  ext2_readpages()
+ *	 mpage_readpages()
+ *	  do_mpage_readpage()
+ *	   mpage_bio_submit()
+ *	    submit_bio()
+ *		 generic_make_request()
+ *		  __generic_make_request()
+ *		   __make_request()
+ *		    ll_back_merge_fn()
+ *           ll_new_hw_segment()
+ */
 static inline int ll_new_hw_segment(struct request_queue *q,
 				    struct request *req,
 				    struct bio *bio)
@@ -1408,6 +1444,7 @@ static inline int ll_new_hw_segment(struct request_queue *q,
 
 	if (req->nr_hw_segments + nr_hw_segs > q->max_hw_segments
 	    || req->nr_phys_segments + nr_phys_segs > q->max_phys_segments) {
+	    
 		req->cmd_flags |= REQ_NOMERGE;
 		if (req == q->last_merge)
 			q->last_merge = NULL;
@@ -1423,6 +1460,18 @@ static inline int ll_new_hw_segment(struct request_queue *q,
 	return 1;
 }
 
+/*
+ * read_pages()
+ *  ext2_readpages()
+ *   mpage_readpages()
+ *    do_mpage_readpage()
+ *     mpage_bio_submit()
+ *      submit_bio()
+ *       generic_make_request()
+ *        __generic_make_request()
+ *         __make_request()
+ *          ll_back_merge_fn()
+ */
 static int ll_back_merge_fn(struct request_queue *q, struct request *req,
 			    struct bio *bio)
 {
@@ -1434,16 +1483,19 @@ static int ll_back_merge_fn(struct request_queue *q, struct request *req,
 	else
 		max_sectors = q->max_sectors;
 
-	if (req->nr_sectors + bio_sectors(bio) > max_sectors) {
+	if (req->nr_sectors + bio_sectors(bio) > max_sectors) { //合并之后就太大了，不能合并
+		
 		req->cmd_flags |= REQ_NOMERGE;
 		if (req == q->last_merge)
 			q->last_merge = NULL;
 		return 0;
 	}
 	if (unlikely(!bio_flagged(req->biotail, BIO_SEG_VALID)))
-		blk_recount_segments(q, req->biotail);
+		blk_recount_segments(q, req->biotail); //重新计算q->nr_phys_segments,q->nr_hw_segments
+	
 	if (unlikely(!bio_flagged(bio, BIO_SEG_VALID)))
 		blk_recount_segments(q, bio);
+	
 	len = req->biotail->bi_hw_back_size + bio->bi_hw_front_size;
 	if (BIOVEC_VIRT_MERGEABLE(__BVEC_END(req->biotail), __BVEC_START(bio)) &&
 	    !BIOVEC_VIRT_OVERSIZE(len)) {
@@ -1452,6 +1504,7 @@ static int ll_back_merge_fn(struct request_queue *q, struct request *req,
 		if (mergeable) {
 			if (req->nr_hw_segments == 1)
 				req->bio->bi_hw_front_size = len;
+			
 			if (bio->bi_hw_segments == 1)
 				bio->bi_hw_back_size = len;
 		}
@@ -1482,8 +1535,10 @@ static int ll_front_merge_fn(struct request_queue *q, struct request *req,
 	len = bio->bi_hw_back_size + req->bio->bi_hw_front_size;
 	if (unlikely(!bio_flagged(bio, BIO_SEG_VALID)))
 		blk_recount_segments(q, bio);
+	
 	if (unlikely(!bio_flagged(req->bio, BIO_SEG_VALID)))
 		blk_recount_segments(q, req->bio);
+	
 	if (BIOVEC_VIRT_MERGEABLE(__BVEC_END(bio), __BVEC_START(req->bio)) &&
 	    !BIOVEC_VIRT_OVERSIZE(len)) {
 		int mergeable =  ll_new_mergeable(q, req, bio);
@@ -1579,6 +1634,7 @@ void blk_plug_device(struct request_queue *q)
 		return;
 
 	if (!test_and_set_bit(QUEUE_FLAG_PLUGGED, &q->queue_flags)) {
+		//q->unplug_timer == blk_unplug_timeout
 		mod_timer(&q->unplug_timer, jiffies + q->unplug_delay);
 		blk_add_trace_generic(q, NULL, 0, BLK_TA_PLUG);
 	}
@@ -1617,6 +1673,10 @@ EXPORT_SYMBOL(blk_remove_plug);
  *         __elv_add_request()
  *          elv_insert()
  *           __generic_unplug_device()
+ *
+ * blk_unplug_work()
+ *  generic_unplug_device()
+ *   __generic_unplug_device()
  */
 void __generic_unplug_device(struct request_queue *q)
 {
@@ -1626,7 +1686,7 @@ void __generic_unplug_device(struct request_queue *q)
 	if (!blk_remove_plug(q))
 		return;
 
-	q->request_fn(q);
+	q->request_fn(q); /* scsi_request_fn(q) 或者do_ide_request(q) */
 }
 EXPORT_SYMBOL(__generic_unplug_device);
 
@@ -1640,6 +1700,9 @@ EXPORT_SYMBOL(__generic_unplug_device);
  *   is still adding and merging requests on the queue. Once the queue
  *   gets unplugged, the request_fn defined for the queue is invoked and
  *   transfers started.
+ *
+ * blk_unplug_work()
+ *  generic_unplug_device()
  **/
 void generic_unplug_device(struct request_queue *q)
 {
@@ -1665,9 +1728,12 @@ static void blk_unplug_work(struct work_struct *work)
 	blk_add_trace_pdu_int(q, BLK_TA_UNPLUG_IO, NULL,
 				q->rq.count[READ] + q->rq.count[WRITE]);
 
-	q->unplug_fn(q);
+	q->unplug_fn(q); /* dm_unplug_all() ,linear_unplug() ,generic_unplug_device() ,loop_unplug() */
 }
 
+/*
+ * 处理磁盘IO
+ */
 static void blk_unplug_timeout(unsigned long data)
 {
 	struct request_queue *q = (struct request_queue *)data;
@@ -1675,7 +1741,7 @@ static void blk_unplug_timeout(unsigned long data)
 	blk_add_trace_pdu_int(q, BLK_TA_UNPLUG_TIMER, NULL,
 				q->rq.count[READ] + q->rq.count[WRITE]);
 
-	kblockd_schedule_work(&q->unplug_work);
+	kblockd_schedule_work(&q->unplug_work); //处理函数为blk_unplug_work
 }
 
 void blk_unplug(struct request_queue *q)
@@ -1887,6 +1953,11 @@ static struct kobj_type queue_ktype;
  * blk_alloc_queue()
  *  blk_alloc_queue_node()
  * 
+ * scsi_alloc_queue()
+ *  __scsi_alloc_queue( , request_fn==scsi_request_fn)
+ *   blk_init_queue( rfn ==scsi_request_fn )
+ *    blk_init_queue_node(rfn ==scsi_request_fn)
+ *     blk_alloc_queue_node()
  */
 struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id)
 {
@@ -1954,6 +2025,9 @@ EXPORT_SYMBOL(blk_alloc_queue_node);
  * floppy_init()
  *  blk_init_queue()
  *
+ * scsi_alloc_queue()
+ *  __scsi_alloc_queue( , request_fn==scsi_request_fn)
+ *   blk_init_queue()
  * 
  **/
 
@@ -1966,6 +2040,12 @@ EXPORT_SYMBOL(blk_init_queue);
 /* 产生一个标准的request_queue对象 
  * ide_init_queue()
  *  blk_init_queue_node()
+ *
+ * scsi_alloc_queue()
+ *  __scsi_alloc_queue( , request_fn==scsi_request_fn)
+ *   blk_init_queue( rfn ==scsi_request_fn )
+ *    blk_init_queue_node(rfn ==scsi_request_fn)
+ *
  */
 struct request_queue *
 blk_init_queue_node(request_fn_proc *rfn, spinlock_t *lock, int node_id)
@@ -1990,7 +2070,7 @@ blk_init_queue_node(request_fn_proc *rfn, spinlock_t *lock, int node_id)
 		lock = &q->__queue_lock;
 	}
 
-	q->request_fn		= rfn;
+	q->request_fn		= rfn;  // rfn == scsi_request_fn
 	q->prep_rq_fn		= NULL;
 	q->unplug_fn		= generic_unplug_device;
 	q->queue_flags		= (1 << QUEUE_FLAG_CLUSTER);
@@ -3019,6 +3099,18 @@ static inline int attempt_front_merge(struct request_queue *q,
 	return 0;
 }
 
+/*
+ * read_pages()
+ *  ext2_readpages()
+ *   mpage_readpages()
+ *    do_mpage_readpage()
+ *	   mpage_bio_submit()
+ *	    submit_bio()
+ *	     generic_make_request()
+ *		  __generic_make_request()
+ *		   __make_request()
+ *          init_request_from_bio()
+ */
 static void init_request_from_bio(struct request *req, struct bio *bio)
 {
 	req->cmd_type = REQ_TYPE_FS;
@@ -3037,6 +3129,7 @@ static void init_request_from_bio(struct request *req, struct bio *bio)
 
 	if (bio_sync(bio))
 		req->cmd_flags |= REQ_RW_SYNC;
+	
 	if (bio_rw_meta(bio))
 		req->cmd_flags |= REQ_RW_META;
 
@@ -3086,12 +3179,14 @@ static int __make_request(struct request_queue *q, struct bio *bio)
 	const int sync = bio_sync(bio);
 	int rw_flags;
 
+    //本bio需要操作的sector数量
 	nr_sectors = bio_sectors(bio);
 
 	/*
 	 * low level driver can indicate that it wants pages above a
 	 * certain limit bounced to low memory (ie for highmem, or even
 	 * ISA dma in theory)
+	 *
 	 */
 	blk_queue_bounce(q, &bio);
 
@@ -3118,6 +3213,7 @@ static int __make_request(struct request_queue *q, struct bio *bio)
 
 			blk_add_trace_bio(q, bio, BLK_TA_BACKMERGE);
 
+			//直接链接到末尾上去
 			req->biotail->bi_next = bio;
 			req->biotail = bio;
 			req->nr_sectors = req->hard_nr_sectors += nr_sectors;
@@ -3135,6 +3231,7 @@ static int __make_request(struct request_queue *q, struct bio *bio)
 
 			blk_add_trace_bio(q, bio, BLK_TA_FRONTMERGE);
 
+			//链接到req的头上去
 			bio->bi_next = req->bio;
 			req->bio = bio;
 
@@ -3165,7 +3262,7 @@ get_rq:
 	 * but we need to set it earlier to expose the sync flag to the
 	 * rq allocator and io schedulers.
 	 */
-	rw_flags = bio_data_dir(bio);
+	rw_flags = bio_data_dir(bio); //读、写方向
 	if (sync)
 		rw_flags |= REQ_RW_SYNC;
 
@@ -3193,8 +3290,9 @@ get_rq:
 	   然后，重新启动q->unplug_timer字段中的内嵌动态定时器 
 	 * 这个处理函数为blk_unplug_timeout
 	 */
-	if (elv_queue_empty(q))
+	if (elv_queue_empty(q)) //request_queue中还有request需要处理
 		blk_plug_device(q); /* 主要是设置一个定时器，处理这个q */
+
 	
 	add_request(q, req);
 out:
@@ -3211,14 +3309,35 @@ end_io:
 
 /*
  * If bio->bi_dev is a partition, remap the location
+ * 重新确定分区信息
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read() 
+ *      do_generic_mapping_read()
+ *       page_cache_sync_readahead()
+ *        ondemand_readahead()
+ *         __do_page_cache_readahead()
+ *          read_pages()
+ *           ext2_readpages()
+ *            mpage_readpages()
+ *             do_mpage_readpage()
+ *              mpage_bio_submit()
+ *               submit_bio()
+ *                generic_make_request()
+ *                 __generic_make_request()
+ *                  blk_partition_remap()
  */
 static inline void blk_partition_remap(struct bio *bio)
 {
 	struct block_device *bdev = bio->bi_bdev;
 
-	if (bio_sectors(bio) && bdev != bdev->bd_contains) {
-		struct hd_struct *p = bdev->bd_part;
-		const int rw = bio_data_dir(bio);
+	if (bio_sectors(bio) && bdev != bdev->bd_contains) { //是一个子分区
+		
+		struct hd_struct *p = bdev->bd_part; //分区信息
+		const int rw = bio_data_dir(bio); //确定是读是写
 
 		p->sectors[rw] += bio_sectors(bio);
 		p->ios[rw]++;
@@ -3362,17 +3481,21 @@ static inline int bio_check_eod(struct bio *bio, unsigned int nr_sectors)
  *                generic_make_request()
  *                 __generic_make_request()
  *
+ *
  */
 static inline void __generic_make_request(struct bio *bio)
 {
 	struct request_queue *q;
 	sector_t old_sector;
+
+	//这一个bio需要的扇区
 	int ret, nr_sectors = bio_sectors(bio);
 	dev_t old_dev;
 	int err = -EIO;
 
 	might_sleep();
 
+    //确保扇区没有越界
 	if (bio_check_eod(bio, nr_sectors))
 		goto end_io;
 
@@ -3389,9 +3512,9 @@ static inline void __generic_make_request(struct bio *bio)
 	do {
 		char b[BDEVNAME_SIZE];
 
-	    /* 找到请求所涉及的请求队列 */
+	    /* 找到请求所涉及的request_queue对象 */
 		q = bdev_get_queue(bio->bi_bdev);
-		if (!q) {
+		if (!q) { //出现错误
 			printk(KERN_ERR
 			       "generic_make_request: Trying to access "
 				"nonexistent block-device %s (%Lu)\n",
@@ -3402,7 +3525,8 @@ end_io:
 			break;
 		}
 
-		if (unlikely(nr_sectors > q->max_hw_sectors)) {
+	    // 一次操作的sector太多了
+ 		if (unlikely(nr_sectors > q->max_hw_sectors)) {
 			printk("bio too big device %s (%u > %u)\n", 
 				bdevname(bio->bi_bdev, b),
 				bio_sectors(bio),
@@ -3410,14 +3534,18 @@ end_io:
 			goto end_io;
 		}
 
+		
+
 		if (unlikely(test_bit(QUEUE_FLAG_DEAD, &q->queue_flags)))
 			goto end_io;
 
+        //确定一些不应该操作bio的条件
 		if (should_fail_request(bio))
 			goto end_io;
 
 		/*
-		 * 如果是分区设备，则需要重新调整起始扇区
+		 * 如果是分区设备，则blk_partition_remap会要求重新映射该请求,以确保读写正确的区域
+		 * 
 		 * 
 		 * If this device has partitions, remap block n
 		 * of partition p to block n+start(p) of the disk.
@@ -3441,7 +3569,7 @@ end_io:
 			goto end_io;
 		}
 
-		/* 添加request到队列    ,默认为__make_request函数*/
+		/* 添加request到request_queue,默认为__make_request函数*/
 		ret = q->make_request_fn(q, bio);
 	} while (ret);
 }
@@ -3478,11 +3606,14 @@ end_io:
  *         __do_page_cache_readahead()
  *          read_pages()
  *           ext2_readpages()
- *            mpage_readpages()
+ *            mpage_readpages()  这里会多次调用do_mpage_readpage，每一次都生产一个新的bio对象
  *             do_mpage_readpage()
  *              mpage_bio_submit()
  *               submit_bio()
  *                generic_make_request()
+ *
+ * 看 https://blog.csdn.net/huoshanbaofa123/article/details/51163708
+ *    http://www.voidcn.com/article/p-oqxemcfj-hs.html 
  */
 void generic_make_request(struct bio *bio)
 {
@@ -3491,7 +3622,11 @@ void generic_make_request(struct bio *bio)
 		/* 
 		 *  在__generic_make_request中调用make_request_fn可能会递归到generic_make_request
          *  所以用current->bio_tail 来阻止递归调用
+         *
+         * 先设置bio_tail,
+         * 然后bio_tail又指向bio->next的地址
 		 */
+		 
 		/* make_request is active */
 		*(current->bio_tail) = bio;
 		bio->bi_next = NULL;
@@ -4005,6 +4140,19 @@ void end_request(struct request *req, int uptodate)
 }
 EXPORT_SYMBOL(end_request);
 
+/*
+ * read_pages()
+ *  ext2_readpages()
+ *   mpage_readpages()
+ *    do_mpage_readpage()
+ *	   mpage_bio_submit()
+ *	    submit_bio()
+ *	     generic_make_request()
+ *		  __generic_make_request()
+ *		   __make_request()
+ *          init_request_from_bio()
+ *           blk_rq_bio_prep()
+ */
 static void blk_rq_bio_prep(struct request_queue *q, struct request *rq,
 			    struct bio *bio)
 {

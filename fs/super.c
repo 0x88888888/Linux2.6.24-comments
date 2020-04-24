@@ -988,6 +988,7 @@ static struct vfsmount *fs_set_subtype(struct vfsmount *mnt, const char *fstype)
 struct vfsmount *
 do_kern_mount(const char *fstype, int flags, const char *name, void *data)
 {
+    //获取文件系统类型
 	struct file_system_type *type = get_fs_type(fstype);
 	struct vfsmount *mnt;
 	if (!type)

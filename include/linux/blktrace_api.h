@@ -265,6 +265,17 @@ static inline void blk_add_trace_pdu_int(struct request_queue *q, u32 what,
  *     Device mapper or raid target sometimes need to split a bio because
  *     it spans a stripe (or similar). Add a trace for that action.
  *
+ *
+ * read_pages()
+ *  ext2_readpages()
+ *   mpage_readpages()
+ *    do_mpage_readpage()
+ *     mpage_bio_submit()
+ *      submit_bio()
+ *       generic_make_request()
+ *        __generic_make_request()
+ *         blk_partition_remap() 
+ *          blk_add_trace_remap()
  **/
 static inline void blk_add_trace_remap(struct request_queue *q, struct bio *bio,
 				       dev_t dev, sector_t from, sector_t to)

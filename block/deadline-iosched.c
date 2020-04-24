@@ -166,7 +166,9 @@ static void deadline_merged_request(struct request_queue *q,
 		deadline_add_rq_rb(dd, req);
 	}
 }
-
+/*
+ * 尝试req和next合并
+ */
 static void
 deadline_merged_requests(struct request_queue *q, struct request *req,
 			 struct request *next)
@@ -176,7 +178,9 @@ deadline_merged_requests(struct request_queue *q, struct request *req,
 	 * and move into next position (next will be deleted) in fifo
 	 */
 	if (!list_empty(&req->queuelist) && !list_empty(&next->queuelist)) {
+		
 		if (time_before(rq_fifo_time(next), rq_fifo_time(req))) {
+			
 			list_move(&req->queuelist, &next->queuelist);
 			rq_set_fifo_time(req, rq_fifo_time(next));
 		}
@@ -241,6 +245,14 @@ static inline int deadline_check_fifo(struct deadline_data *dd, int ddir)
 /*
  * deadline_dispatch_requests selects the best request according to
  * read/write expire, fifo_batch, etc
+ *
+ * blk_unplug_work()
+ *  generic_unplug_device()
+ *   __generic_unplug_device()
+ *    scsi_request_fn()
+ *     elv_next_request()
+ *      __elv_next_request()
+ *       deadline_dispatch_requests()
  */
 static int deadline_dispatch_requests(struct request_queue *q, int force)
 {

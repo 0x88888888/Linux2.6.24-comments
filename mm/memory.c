@@ -392,6 +392,10 @@ static inline int is_cow_mapping(unsigned int flags)
  *       copy_pte_range()
  *        copy_one_pte()
  *         vm_normal_page()
+ *
+ * do_swap_page()
+ *  do_wp_page()
+ *   vm_normal_page()
  */
 struct page *vm_normal_page(struct vm_area_struct *vma, unsigned long addr, pte_t pte)
 {
@@ -401,6 +405,7 @@ struct page *vm_normal_page(struct vm_area_struct *vma, unsigned long addr, pte_
 		unsigned long off = (addr - vma->vm_start) >> PAGE_SHIFT;
 		if (pfn == vma->vm_pgoff + off)
 			return NULL;
+		
 		if (!is_cow_mapping(vma->vm_flags)) /* flags有VM_SHARED|VM_MAYWRITE标记就是cow了 */
 			return NULL;
 	}
@@ -1691,6 +1696,7 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	 */
 	if (PageAnon(old_page)) { //是anonymous页面
 		if (!TestSetPageLocked(old_page)) {
+			
 			reuse = can_share_swap_page(old_page);
 			unlock_page(old_page);
 		}
@@ -1804,8 +1810,10 @@ gotten:
 	
 	if (new_page)
 		page_cache_release(new_page);
+	
 	if (old_page)
 		page_cache_release(old_page);
+	
 unlock:
 	pte_unmap_unlock(page_table, ptl);
 	if (dirty_page) {
@@ -2481,6 +2489,7 @@ static int __do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 		if (!(vma->vm_flags & VM_SHARED)) {
 			//不是几个进程共享一个page
 			anon = 1;
+			//分配anon_vma
 			if (unlikely(anon_vma_prepare(vma))) {
 				ret = VM_FAULT_OOM;
 				goto out;
@@ -2634,6 +2643,11 @@ static int do_linear_fault(struct mm_struct *mm, struct vm_area_struct *vma,
  * for a given virtual mapping.
  *
  * Mark this `noinline' to prevent it from bloating the main pagefault code.
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_no_pfn()
  */
 static noinline int do_no_pfn(struct mm_struct *mm, struct vm_area_struct *vma,
 		     unsigned long address, pte_t *page_table, pmd_t *pmd,
@@ -2772,7 +2786,7 @@ static inline int handle_pte_fault(struct mm_struct *mm,
 		goto unlock;
 	
 	if (write_access) { /* 已经被赋予写权限 */
-		if (!pte_write(entry)) /* flag 可以写 */
+		if (!pte_write(entry)) /* pte标记为不可写 */
 			// COW操作了
 			return do_wp_page(mm, vma, address,
 					pte, pmd, ptl, entry); /* 负责创建该页的副本，并插入到进程的页表中。该机制称为COW(copy on write) */

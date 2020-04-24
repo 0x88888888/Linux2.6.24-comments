@@ -812,8 +812,20 @@ static const struct file_operations kmsg_fops = {
 	.write =	kmsg_write,
 };
 
+/*
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    nameidata_to_filp()
+ * 	   __dentry_open()
+ *      chrdev_open()
+ *       memory_open()
+ */
 static int memory_open(struct inode * inode, struct file * filp)
 {
+    /*
+     * 根据从设备号，确定filp->f_op
+     */
 	switch (iminor(inode)) {
 		case 1:
 			filp->f_op = &mem_fops;

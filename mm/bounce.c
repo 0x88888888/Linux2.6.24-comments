@@ -175,6 +175,19 @@ static void bounce_end_io_read_isa(struct bio *bio, int err)
 	__bounce_end_io_read(bio, isa_page_pool, err);
 }
 
+/*
+ * read_pages()
+ *  ext2_readpages()
+ *   mpage_readpages()
+ *    do_mpage_readpage()
+ *     mpage_bio_submit()
+ *      submit_bio()
+ *       generic_make_request()
+ *        __generic_make_request()
+ *         __make_request()
+ *          blk_queue_bounce()
+ *           __blk_queue_bounce()
+ */
 static void __blk_queue_bounce(struct request_queue *q, struct bio **bio_orig,
 			       mempool_t *pool)
 {
@@ -183,6 +196,7 @@ static void __blk_queue_bounce(struct request_queue *q, struct bio **bio_orig,
 	int i, rw = bio_data_dir(*bio_orig);
 	struct bio_vec *to, *from;
 
+    //遍历bio_orig->bi_io_vec
 	bio_for_each_segment(from, *bio_orig, i) {
 		page = from->bv_page;
 
@@ -260,12 +274,26 @@ static void __blk_queue_bounce(struct request_queue *q, struct bio **bio_orig,
 	*bio_orig = bio;
 }
 
+/*
+ * read_pages()
+ *  ext2_readpages()
+ *   mpage_readpages()
+ *    do_mpage_readpage()
+ *     mpage_bio_submit()
+ *      submit_bio()
+ *       generic_make_request()
+ *        __generic_make_request()
+ *         __make_request()
+ *          blk_queue_bounce()
+ */
 void blk_queue_bounce(struct request_queue *q, struct bio **bio_orig)
 {
 	mempool_t *pool;
 
 	/*
 	 * Data-less bio, nothing to bounce
+	 *
+	 * bio_orig中没有需要操作的数据
 	 */
 	if (bio_empty_barrier(*bio_orig))
 		return;

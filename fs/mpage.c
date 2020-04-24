@@ -114,6 +114,14 @@ static struct bio *mpage_bio_submit(int rw, struct bio *bio)
 	return NULL;
 }
 
+/*
+ *
+ * read_pages()
+ *  ext2_readpages()
+ *   mpage_readpages()
+ *    do_mpage_readpage()
+ *     mpage_alloc()
+ */
 static struct bio *
 mpage_alloc(struct block_device *bdev,
 		sector_t first_sector, int nr_vecs,
@@ -401,7 +409,7 @@ do_mpage_readpage(struct bio *bio, struct page *page, unsigned nr_pages,
 	/*
 	 * This page will go to BIO.  Do we need to send this BIO off first?
 	 */
-    /*bio 为NULL，目前分析的场景可以跳过去*/ 
+    /*bio 不为NULL，目前分析的场景可以跳过去*/ 
 	if (bio && (*last_block_in_bio != blocks[0] - 1))
 		bio = mpage_bio_submit(READ, bio);
 
@@ -527,6 +535,7 @@ mpage_readpages(struct address_space *mapping, struct list_head *pages,
 	/*
 	 * 在循环的每一遍中,首先将该页添加到address_space相关的页缓存中，
 	 * 然后创建一个bio请求，从块层读取所需的数据.
+	 * 所以每个page 对应一个bio对象了
 	 */
 	for (page_idx = 0; page_idx < nr_pages; page_idx++) {
 		

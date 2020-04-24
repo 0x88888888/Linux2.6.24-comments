@@ -660,6 +660,13 @@ struct net_device *dev_get_by_name(struct net *net, const char *name)
  *	had its reference counter increased so the caller must be careful
  *	about locking. The caller must hold either the RTNL semaphore
  *	or @dev_base_lock.
+ *
+ *  cs89x0_probe1()
+ *   register_netdev()
+ *    register_netdevice()
+ *     dev_new_index()
+ *      __dev_get_by_index()
+ *
  */
 
 struct net_device *__dev_get_by_index(struct net *net, int ifindex)
@@ -667,6 +674,7 @@ struct net_device *__dev_get_by_index(struct net *net, int ifindex)
 	struct hlist_node *p;
 
 	hlist_for_each(p, dev_index_hash(net, ifindex)) {
+		
 		struct net_device *dev
 			= hlist_entry(p, struct net_device, index_hlist);
 		if (dev->ifindex == ifindex)
@@ -3827,6 +3835,11 @@ int dev_ioctl(struct net *net, unsigned int cmd, void __user *arg)
  *	number.  The caller must hold the rtnl semaphore or the
  *	dev_base_lock to be sure it remains unique.
  *  分配网络接口号
+ *
+ *  cs89x0_probe1()
+ *   register_netdev()
+ *    register_netdevice()
+ *     dev_new_index()
  */
 static int dev_new_index(struct net *net)
 {
@@ -4059,7 +4072,10 @@ int register_netdevice(struct net_device *dev)
 
 	set_bit(__LINK_STATE_PRESENT, &dev->state);
 
-	/* 初始化排队规则 */
+	/* 
+	 * 初始化排队规则 
+	 * 即 dev->qdisc_list 
+	 */
 	dev_init_scheduler(dev);
 	
 	dev_hold(dev);

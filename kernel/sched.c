@@ -4001,14 +4001,16 @@ EXPORT_SYMBOL(schedule);
 
 #ifdef CONFIG_PREEMPT
 /*
- * 进程抢占
+ * 内核进程抢占
+ *
  * this is the entry point to schedule() from in-kernel preemption
  * off of preempt_enable. Kernel preemptions off return from interrupt
  * occur there and call schedule directly.
  *
  * preempt_check_resched()
- * preempt_enable()
- *  preempt_schedule()
+ *  preempt_enable()
+ *   preempt_schedule()
+ *
  */
 asmlinkage void __sched preempt_schedule(void)
 {
@@ -4032,15 +4034,17 @@ asmlinkage void __sched preempt_schedule(void)
 
 		/*
 		 * We keep the big kernel semaphore locked, but we
-		 * clear ->lock_depth so that schedule() doesnt
+		 * clear task->lock_depth so that schedule() doesnt
 		 * auto-release the semaphore:
 		 */
+		 
 #ifdef CONFIG_PREEMPT_BKL
 		saved_lock_depth = task->lock_depth;
 		task->lock_depth = -1;
 #endif
         //调度了
 		schedule();
+
 #ifdef CONFIG_PREEMPT_BKL
 		task->lock_depth = saved_lock_depth;
 #endif

@@ -111,6 +111,7 @@ static int ext2_create (struct inode * dir, struct dentry * dentry, int mode, st
 	int err = PTR_ERR(inode);
 	if (!IS_ERR(inode)) {
 		inode->i_op = &ext2_file_inode_operations;
+		
 		if (ext2_use_xip(inode->i_sb)) {
 			inode->i_mapping->a_ops = &ext2_aops_xip;
 			inode->i_fop = &ext2_xip_file_operations;

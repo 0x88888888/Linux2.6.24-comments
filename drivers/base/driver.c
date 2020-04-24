@@ -149,6 +149,9 @@ void put_driver(struct device_driver * drv)
  *	We pass off most of the work to the bus_add_driver() call,
  *	since most of the things we have to do deal with the bus
  *	structures.
+ *
+ * __pci_register_driver()
+ *  driver_register()
  */
 int driver_register(struct device_driver * drv)
 {
@@ -158,6 +161,7 @@ int driver_register(struct device_driver * drv)
 		printk(KERN_WARNING "Driver '%s' needs updating - please use bus_type methods\n", drv->name);
 	}
 	klist_init(&drv->klist_devices, NULL, NULL);
+		
 	return bus_add_driver(drv);
 }
 

@@ -710,6 +710,11 @@ static ide_driver_t idescsi_driver = {
 #endif
 };
 
+/*
+ * blkdev_open()
+ *  do_open()
+ *   idescsi_ide_open()
+ */
 static int idescsi_ide_open(struct inode *inode, struct file *filp)
 {
 	struct gendisk *disk = inode->i_bdev->bd_disk;

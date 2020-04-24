@@ -15,7 +15,7 @@ struct cdev {
 	struct kobject kobj; /* 用于该结构一般管理 */
 	struct module *owner; /* 指向驱动程序的模块 */
 	const struct file_operations *ops; /*  */
-	struct list_head list; /* 包含所有表示该设备的设备特殊文件的inode */
+	struct list_head list; /* 包含所有表示该设备的设备特殊文件的inode,就是一个cdev对象可以有多个inode与之对应 */
 	dev_t dev; /* 设备号 */
 	unsigned int count; /* 表示与该设备关联的从设备号的数目 */
 };

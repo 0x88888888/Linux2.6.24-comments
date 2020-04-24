@@ -474,6 +474,9 @@ __vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
  *
  * copy_vma()
  *  vma_link()
+ *
+ * mmap_region()
+ *  vma_link()
  */
 static void vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
 			struct vm_area_struct *prev, struct rb_node **rb_link,
@@ -488,6 +491,7 @@ static void vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
 		spin_lock(&mapping->i_mmap_lock);
 		vma->vm_truncate_count = mapping->truncate_count;
 	}
+	
 	anon_vma_lock(vma); //vma->anon_vma->lock
 
     /*
@@ -1298,6 +1302,7 @@ munmap_back:
 		goto unacct_error;
 	}
 
+
 	/* 从新分配的vma，填上 */
 	vma->vm_mm = mm;
 	vma->vm_start = addr;
@@ -1362,6 +1367,9 @@ munmap_back:
 			vma->vm_flags, NULL, file, pgoff, vma_policy(vma))) {
 		/* 不能合并，根据vma的属性，链接到各个链表，红黑树，优先树 */
 		file = vma->vm_file;
+		/*
+		 * 连接好address_space和anon
+		 */
 		vma_link(mm, vma, prev, rb_link, rb_parent);
 		if (correct_wcount)
 			atomic_inc(&inode->i_writecount);
@@ -2250,7 +2258,10 @@ unsigned long do_brk(unsigned long addr, unsigned long len)
 		goto munmap_back;
 	}
 
-	/* Check against address space limits *after* clearing old maps... */
+	/*
+	 * Check against address space limits *after* clearing old maps... 
+	 * 查找是否超过限制条件
+	 */
 	if (!may_expand_vm(mm, len >> PAGE_SHIFT))
 		return -ENOMEM;
 
@@ -2287,6 +2298,7 @@ unsigned long do_brk(unsigned long addr, unsigned long len)
 	vma->vm_page_prot = vm_get_page_prot(flags);
 	
 	vma_link(mm, vma, prev, rb_link, rb_parent);
+	
 out:
 	mm->total_vm += len >> PAGE_SHIFT;
 	if (flags & VM_LOCKED) {
@@ -2413,14 +2425,16 @@ struct vm_area_struct *copy_vma(struct vm_area_struct **vmap,
 	find_vma_prepare(mm, addr, &prev, &rb_link, &rb_parent);
 	new_vma = vma_merge(mm, prev, addr, addr + len, vma->vm_flags,
 			vma->anon_vma, vma->vm_file, pgoff, vma_policy(vma));
+	
 	if (new_vma) {
 		/*
 		 * Source vma may have been merged into new_vma
 		 */
-		if (vma_start >= new_vma->vm_start &&
-		    vma_start < new_vma->vm_end)
+		if ( vma_start >= new_vma->vm_start &&
+		     vma_start < new_vma->vm_end)
 			*vmap = new_vma;
 	} else {
+		//分配新的vma对象
 		new_vma = kmem_cache_alloc(vm_area_cachep, GFP_KERNEL);
 		if (new_vma) {
 			*new_vma = *vma;
@@ -2433,10 +2447,13 @@ struct vm_area_struct *copy_vma(struct vm_area_struct **vmap,
 			new_vma->vm_start = addr;
 			new_vma->vm_end = addr + len;
 			new_vma->vm_pgoff = pgoff;
+			
 			if (new_vma->vm_file)
-				get_file(new_vma->vm_file);
+				get_file(new_vma->vm_file); // 就是file->f_count++
+			
 			if (new_vma->vm_ops && new_vma->vm_ops->open)
 				new_vma->vm_ops->open(new_vma);
+			//插入到链表中去
 			vma_link(mm, new_vma, prev, rb_link, rb_parent);
 		}
 	}
@@ -2446,6 +2463,11 @@ struct vm_area_struct *copy_vma(struct vm_area_struct **vmap,
 /*
  * Return true if the calling process may expand its vm space by the passed
  * number of pages
+ * 检测
+ *
+ * sys_brk()
+ *  do_brk()
+ *   may_expand_vm()
  */
 int may_expand_vm(struct mm_struct *mm, unsigned long npages)
 {

@@ -406,6 +406,10 @@ static struct kobj_type pci_driver_kobj_type = {
  * Returns a negative value on error, otherwise 0. 
  * If no error occurred, the driver remains registered even if 
  * no device was claimed during registration.
+ *
+ * pci_register_driver()
+ *  __pci_register_driver()
+ *
  */
 int __pci_register_driver(struct pci_driver *drv, struct module *owner,
 			  const char *mod_name)

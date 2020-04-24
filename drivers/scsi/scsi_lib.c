@@ -1493,6 +1493,11 @@ static void scsi_softirq_done(struct request *rq)
  * Returns:     Nothing
  *
  * Lock status: IO request lock assumed to be held when called.
+ *
+ * blk_unplug_work()
+ *  generic_unplug_device()
+ *   __generic_unplug_device()
+ *    scsi_request_fn()
  */
 static void scsi_request_fn(struct request_queue *q)
 {
@@ -1517,18 +1522,23 @@ static void scsi_request_fn(struct request_queue *q)
 	 * the host is no longer able to accept any more requests.
 	 */
 	shost = sdev->host;
+	/*
+	 * 逐个处理request_queue->request
+	 */
 	while (!blk_queue_plugged(q)) {
 		int rtn;
 		/*
 		 * get next queueable request.  We do this early to make sure
 		 * that the request is fully prepared even if we cannot 
 		 * accept it.
+		 *
+		 * 下一个request对象
 		 */
 		req = elv_next_request(q);
 		if (!req || !scsi_dev_queue_ready(q, sdev))
 			break;
 
-		if (unlikely(!scsi_device_online(sdev))) {
+		if (unlikely(!scsi_device_online(sdev))) { //掉线了
 			sdev_printk(KERN_ERR, sdev,
 				    "rejecting I/O to offline device\n");
 			scsi_kill_request(req, q);
@@ -1557,10 +1567,12 @@ static void scsi_request_fn(struct request_queue *q)
 
 		if (!scsi_host_queue_ready(q, shost, sdev))
 			goto not_ready;
+		
 		if (sdev->single_lun) {
 			if (scsi_target(sdev)->starget_sdev_user &&
 			    scsi_target(sdev)->starget_sdev_user != sdev)
 				goto not_ready;
+			
 			scsi_target(sdev)->starget_sdev_user = sdev;
 		}
 		shost->host_busy++;
@@ -1641,6 +1653,10 @@ u64 scsi_calculate_bounce_limit(struct Scsi_Host *shost)
 }
 EXPORT_SYMBOL(scsi_calculate_bounce_limit);
 
+/*
+ * scsi_alloc_queue()
+ *  __scsi_alloc_queue( , request_fn==scsi_request_fn)
+ */
 struct request_queue *__scsi_alloc_queue(struct Scsi_Host *shost,
 					 request_fn_proc *request_fn)
 {

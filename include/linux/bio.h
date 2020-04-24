@@ -76,12 +76,12 @@ struct bio {
 	sector_t		bi_sector;	/* 指定传输的扇区起始号, device address in 512 byte
 						   sectors */
 	struct bio		*bi_next;	/* request queue link */
-	struct block_device	*bi_bdev;
+	struct block_device	*bi_bdev; //指向请求所属设备的block_device
 	unsigned long		bi_flags;	/* status, command, etc */
-	unsigned long		bi_rw;		/* bottom bits READ/WRITE,
+	unsigned long		bi_rw;		/* 区分是读还是写操作 bottom bits READ/WRITE,
 						 * top bits priority
 						 */
-
+    // bi_io_vec 数组的长度
 	unsigned short		bi_vcnt;	/* how many bio_vec's */
 	unsigned short		bi_idx;		/* current index into bvl_vec */
 
@@ -113,7 +113,14 @@ struct bio {
 	struct bio_vec		*bi_io_vec;	/* bio_vec数组, bio涉及到的page, 这里的page可以是高端内存页,这些page无法直接映射到内核中，因而无法直接通过内核虚拟地址访问,可以利用这个特点将I/O数据直接复制给用户空间应用程序,而应用程序可以使用页表访问高端内存页
 	                                    the actual vec list */
 
-    /* 硬件传输完成时,设备驱动调用bi_end_io */
+    /* 硬件传输完成时,设备驱动调用bi_end_io
+     *
+     * mpage_end_io_write(),
+     * bounce_end_io_write(),
+     * bounce_end_io_read()
+     * bounce_end_io_write_isa()
+     * bounce_end_io_read_isa()
+     */
 	bio_end_io_t		*bi_end_io;
 	atomic_t		bi_cnt;		/* pin count */
 

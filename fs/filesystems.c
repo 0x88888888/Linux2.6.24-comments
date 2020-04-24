@@ -41,6 +41,10 @@ void put_filesystem(struct file_system_type *fs)
 	module_put(fs->owner);
 }
 
+/*
+ * get_fs_type()
+ *  find_filesystem()
+ */
 static struct file_system_type **find_filesystem(const char *name, unsigned len)
 {
 	struct file_system_type **p;
@@ -62,6 +66,21 @@ static struct file_system_type **find_filesystem(const char *name, unsigned len)
  *	The &struct file_system_type that is passed is linked into the kernel 
  *	structures and must not be freed until the file system has been
  *	unregistered.
+ *
+ *  注册file_system_type到file_systems
+ *
+ * anon_inode_init()
+ * init_misc_binfmt()
+ * bdev_cache_init()
+ * cgroup_init()
+ * init_ext2_fs()
+ * init_ext3_fs()
+ * init_ext4_fs()
+ * proc_root_init()
+ * init_pipe_fs()
+ * sysfs_init()
+ * init_rootfs()
+ *  register_filesystem()
  */
  
 int register_filesystem(struct file_system_type * fs)
@@ -214,6 +233,16 @@ int get_filesystem_list(char * buf)
 	return len;
 }
 
+
+/*
+ * 获取文件系统类行
+ *
+ * sys_mount()
+ *  do_mount()
+ *	 do_new_mount()
+ *    do_kern_mount() 
+ *     get_fs_type()
+ */
 struct file_system_type *get_fs_type(const char *name)
 {
 	struct file_system_type *fs;
@@ -221,12 +250,14 @@ struct file_system_type *get_fs_type(const char *name)
 	unsigned len = dot ? dot - name : strlen(name);
 
 	read_lock(&file_systems_lock);
+	//遍历file_systems对象，查找
 	fs = *(find_filesystem(name, len));
 	if (fs && !try_module_get(fs->owner))
 		fs = NULL;
 	read_unlock(&file_systems_lock);
 	if (!fs && (request_module("%.*s", len, name) == 0)) {
 		read_lock(&file_systems_lock);
+		//遍历file_systems对象，查找
 		fs = *(find_filesystem(name, len));
 		if (fs && !try_module_get(fs->owner))
 			fs = NULL;

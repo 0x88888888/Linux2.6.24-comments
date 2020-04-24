@@ -88,6 +88,11 @@ static struct attribute_group pm_attr_group = {
 	.attrs	= power_attrs,
 };
 
+/*
+ * device_register()
+ *  device_add()
+ *   dpm_sysfs_add()
+ */
 int dpm_sysfs_add(struct device * dev)
 {
 	return sysfs_create_group(&dev->kobj, &pm_attr_group);

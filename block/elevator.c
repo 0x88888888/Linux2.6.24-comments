@@ -451,7 +451,9 @@ void elv_dispatch_add_tail(struct request_queue *q, struct request *rq)
 
 EXPORT_SYMBOL(elv_dispatch_add_tail);
 
-/*  */
+/*
+ * 确定bio可以在哪个方向上合并
+ */
 int elv_merge(struct request_queue *q, struct request **req, struct bio *bio)
 {
 	elevator_t *e = q->elevator;
@@ -687,7 +689,7 @@ void __elv_add_request(struct request_queue *q, struct request *rq, int where,
 		 * this request is scheduling boundary, update
 		 * end_sector
 		 */
-		if (blk_fs_request(rq)) {
+		if (blk_fs_request(rq)) { //判断REQ_TYPE_FS
 			q->end_sector = rq_end_sector(rq);
 			q->boundary_rq = rq;
 		}
@@ -714,6 +716,14 @@ void elv_add_request(struct request_queue *q, struct request *rq, int where,
 
 EXPORT_SYMBOL(elv_add_request);
 
+/*
+ * blk_unplug_work()
+ *  generic_unplug_device()
+ *   __generic_unplug_device()
+ *    scsi_request_fn()
+ *     elv_next_request()
+ *      __elv_next_request()
+ */
 static inline struct request *__elv_next_request(struct request_queue *q)
 {
 	struct request *rq;
@@ -725,11 +735,19 @@ static inline struct request *__elv_next_request(struct request_queue *q)
 				return rq;
 		}
 
+		// deadline_dispatch_requests()
 		if (!q->elevator->ops->elevator_dispatch_fn(q, 0))
 			return NULL;
 	}
 }
 
+/*
+ * blk_unplug_work()
+ *  generic_unplug_device()
+ *   __generic_unplug_device()
+ *    scsi_request_fn()
+ *     elv_next_request()
+ */
 struct request *elv_next_request(struct request_queue *q)
 {
 	struct request *rq;

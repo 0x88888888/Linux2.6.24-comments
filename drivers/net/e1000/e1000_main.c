@@ -257,6 +257,10 @@ MODULE_PARM_DESC(debug, "Debug level (0=none,...,16=all)");
  *
  * e1000_init_module is the first routine called when the driver is
  * loaded. All it does is register with the PCI subsystem.
+ *
+ * e1000网卡驱动程序入口
+ *
+ * 该函数所做的只是向PCI子系统注册，这样CPU就可以访问网卡了，因为CPU和网卡是通过PCI总线相连的。
  **/
 
 static int __init
@@ -268,6 +272,9 @@ e1000_init_module(void)
 
 	printk(KERN_INFO "%s\n", e1000_copyright);
 
+    /*
+     * 将e1000_driver这个驱动程序注册到PCI子系统。
+     */
 	ret = pci_register_driver(&e1000_driver);
 	if (copybreak != COPYBREAK_DEFAULT) {
 		if (copybreak == 0)
@@ -276,6 +283,7 @@ e1000_init_module(void)
 			printk(KERN_INFO "e1000: copybreak enabled for "
 			       "packets <= %u bytes\n", copybreak);
 	}
+	
 	return ret;
 }
 
@@ -854,6 +862,9 @@ e1000_reset(struct e1000_adapter *adapter)
  * e1000_probe initializes an adapter identified by a pci_dev structure.
  * The OS initialization, configuring of the adapter private structure,
  * and a hardware reset occur.
+ *
+ * 
+ *
  **/
 
 static int __devinit
@@ -875,10 +886,16 @@ e1000_probe(struct pci_dev *pdev,
 	if ((err = pci_enable_device(pdev)))
 		return err;
 
+    /*
+     * 如果是64位DMA地址，则把pci_using_dac标记为1，表示可以使用64位硬件，挂起32位的硬件
+     * 对dma_mask和coherent_dma_mask赋值。
+     * dma_mask表示的是该设备通过DMA方式可寻址的物理地址范围，coherent_dma_mask表示所有设备通过DMA方式可寻址的公共的物理地址范围
+     */
 	if (!(err = pci_set_dma_mask(pdev, DMA_64BIT_MASK)) &&
 	    !(err = pci_set_consistent_dma_mask(pdev, DMA_64BIT_MASK))) {
 		pci_using_dac = 1;
 	} else {
+		// 如果是32位DMA地址，则使用32位硬件；若不是64位也不是32位，则报错“没有可用的DMA配置，中止程序”。
 		if ((err = pci_set_dma_mask(pdev, DMA_32BIT_MASK)) &&
 		    (err = pci_set_consistent_dma_mask(pdev, DMA_32BIT_MASK))) {
 			E1000_ERR("No usable DMA configuration, aborting\n");
@@ -987,6 +1004,7 @@ e1000_probe(struct pci_dev *pdev,
 
 	if (adapter->hw.mac_type > e1000_82547_rev_2)
 		netdev->features |= NETIF_F_TSO6;
+	
 	if (pci_using_dac)
 		netdev->features |= NETIF_F_HIGHDMA;
 
@@ -1747,8 +1765,13 @@ e1000_configure_tx(struct e1000_adapter *adapter)
  * @rxdr:    rx descriptor ring (for a specific queue) to setup
  *
  * Returns 0 on success, negative on failure
+ *
+ * 初始化某个CPU(adapter)的接收环形缓冲区
+ *
+ * e1000_open()
+ *  e1000_setup_all_rx_resources()
+ *   e1000_setup_rx_resources()
  **/
-
 static int
 e1000_setup_rx_resources(struct e1000_adapter *adapter,
                          struct e1000_rx_ring *rxdr)
@@ -1795,6 +1818,10 @@ e1000_setup_rx_resources(struct e1000_adapter *adapter,
 	rxdr->size = rxdr->count * desc_len;
 	rxdr->size = ALIGN(rxdr->size, 4096);
 
+    /*
+     * pci_alloc_consistent 就直接调用dma_alloc_coherent函数了，
+     * dma_alloc_coherent()的作用是申请一块DMA可使用的内存，它的返回值是这块内存的虚拟地址，赋值给rxdr->desc
+     */
 	rxdr->desc = pci_alloc_consistent(pdev, rxdr->size, &rxdr->dma);
 
 	if (!rxdr->desc) {
@@ -1852,13 +1879,16 @@ setup_rx_desc_die:
  * @adapter: board private structure
  *
  * Return 0 on success, negative on failure
+ *
+ * e1000_open()
+ *  e1000_setup_all_rx_resources()
  **/
-
 int
 e1000_setup_all_rx_resources(struct e1000_adapter *adapter)
 {
 	int i, err = 0;
 
+    //对于现在的多核CPU，每个CPU都有自己的接收环形缓冲区
 	for (i = 0; i < adapter->num_rx_queues; i++) {
 		err = e1000_setup_rx_resources(adapter, &adapter->rx_ring[i]);
 		if (err) {

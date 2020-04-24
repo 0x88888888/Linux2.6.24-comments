@@ -1459,6 +1459,7 @@ void __init inode_init(void)
 /*
  * 设置indoe->i_fop, inode->i_rdev
  *
+ * shmem_get_inode()
  * ext2_mknod()
  * ext3_mknod()
  * ext4_mknod()

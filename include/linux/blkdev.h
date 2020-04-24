@@ -221,18 +221,21 @@ struct request {
 	struct list_head queuelist; /* request 链表?*/
 	struct list_head donelist;  /* 已完成的request链表? */
 
-	struct request_queue *q;   /**/
+	struct request_queue *q;   /*  管理本request的request_queue对象 */
 
 	unsigned int cmd_flags;
 	enum rq_cmd_type_bits cmd_type;
 
 	/* Maintain bio traversal state for part by part I/O submission.
 	 * hard_* are block layer internals, no driver should touch them!
+	 *
+	 * 有hard_前缀的成员和没有hard_前缀的成员语义相同，
+	 * 但是操作的物理设备，不是虚拟设备
 	 */
-
-	sector_t sector;		/* 指定数据的起始扇区,next sector to submit */
+	sector_t sector;		/* 指定数据传输的起始扇区,next sector to submit */
+	
 	sector_t hard_sector;		/*,next sector to complete */
-	unsigned long nr_sectors;	/* no. of sectors left to submit */
+	unsigned long nr_sectors;	/* 指定了当前request还需要传输的扇区数目，no. of sectors left to submit */
 	unsigned long hard_nr_sectors;	/* no. of sectors left to complete */
 	/* no. of sectors left to submit in the current segment */
 	unsigned int current_nr_sectors; /* 当前请求在当前段中还需要传输的扇区数目 */
@@ -288,6 +291,7 @@ struct request {
 
 	/*
 	 * when request is used as a packet command carrier
+	 * 当request作为传输命令的载体时，会用到下面两个成员
 	 */
 	unsigned int cmd_len;
 	unsigned char cmd[BLK_MAX_CDB];
@@ -355,7 +359,7 @@ struct request_queue
 	/*
 	 * Together with queue_head for cacheline sharing
 	 */
-	struct list_head	queue_head; //元素类型为request
+	struct list_head	queue_head; //元素类型为request,每个request中包含多个bio
 	struct request		*last_merge;
 	elevator_t		*elevator;
 
@@ -364,10 +368,11 @@ struct request_queue
 	 */
  	struct request_list	rq;   /* request实例的缓存, */
 
-	request_fn_proc		*request_fn; /* do_ide_request,内核希望驱动程序执行某些工作，比如从磁盘读取或者写入数据时，会调用这个函数 */
+    //向request_queue中添加新的request的标准函数
+	request_fn_proc		*request_fn; /* do_ide_request或者scsi_request_fn,内核希望驱动程序执行某些工作，比如从磁盘读取或者写入数据时，会调用这个函数 */
 	make_request_fn		*make_request_fn; /* 创建新的request,内核对该函数的标准实现是向请求链接(queue_head?)添加request。如果链表中有足够多的请求，就会调用特定于驱动程序的request_fn函数  ,默认__make_request*/
 	prep_rq_fn		*prep_rq_fn; /* 这个函数通产不用，如果实现该函数，会产生所需的硬件命令 */
-	unplug_fn		*unplug_fn;  /* generic_unplug_device */
+	unplug_fn		*unplug_fn;  /* dm_unplug_all() ,linear_unplug() ,generic_unplug_device() ,loop_unplug() */
 	merge_bvec_fn		*merge_bvec_fn; /* 用于确定是否向请求队列添加更多的数据 */
 	prepare_flush_fn	*prepare_flush_fn;
 	softirq_done_fn		*softirq_done_fn; /* 对于完成大的I/O请求来说，是一个耗时的过程，所以会用到SOFTIRQ异步完成请求。在blk_complete_request中要求通知异步完成请求了，softirq_done_fn此时 作为回调函数通知驱动I/O已经完成 */
@@ -384,7 +389,7 @@ struct request_queue
 	struct timer_list	unplug_timer; /* 超时,处理函数blk_unplug_timeout */
 	int			unplug_thresh;	/* After this many requests */
 	unsigned long		unplug_delay;	/* After this many jiffies */
-	struct work_struct	unplug_work;
+	struct work_struct	unplug_work;  /* 在unplug_timer超时的时候，会激活这个worker，处理函数为blk_unplug_work */
 
 	struct backing_dev_info	backing_dev_info;
 

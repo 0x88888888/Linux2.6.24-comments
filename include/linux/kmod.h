@@ -67,6 +67,9 @@ void call_usermodehelper_freeinfo(struct subprocess_info *info);
 /*
  * kobject_uevent_env()
  *  call_usermodehelper()
+ *
+ * request_module()
+ *  call_usermodehelper()
  */
 static inline int
 call_usermodehelper(char *path, char **argv, char **envp, enum umh_wait wait)

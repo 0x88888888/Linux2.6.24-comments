@@ -48,8 +48,23 @@ struct vfsmount {
 	struct list_head mnt_mounts;	/* list of children, anchored here */
 	// 当前文件系统将通过该字段与其他父文件系统下的子文件系统组成一个链表
 	struct list_head mnt_child;	/* and going through their mnt_child */
-	
-	int mnt_flags;
+
+	/*
+	 * MNT_NOSUID 
+	 * MNT_NODEV
+	 * MNT_NOEXEC
+	 * MNT_NOATIME
+	 * MNT_NODIRATIME
+	 * MNT_RELATIME
+	 *
+	 * MNT_SHRINKABLE
+	 *
+	 * MNT_SHARD
+	 * MNT_UNBINDABLE
+	 * MNT_PNODE_MASK
+	 *
+	 */
+	int mnt_flags; 
 	/* 4 bytes hole on 64bits arches */
 	char *mnt_devname;		/* Name of device e.g. /dev/dsk/hda1 */
 	// 所有处于一个名字空间的文件系统通过mnt_list字段链接在一起，而该链表的表头为该名字空间结构中的list字段

@@ -50,7 +50,9 @@ extern int __must_check bus_create_file(struct bus_type *,
 extern void bus_remove_file(struct bus_type *, struct bus_attribute *);
 
 /*
- * 内核通过struct bus_type结构，抽象Bus
+ * 内核通过struct bus_type结构来抽象系统总线(bus)
+ *
+ *
  */
 struct bus_type {
     /* 该bus的名称，会在sysfs中以目录的形式存在，如platform bus在sysfs中表现为"/sys/bus/platform”。 */
@@ -58,11 +60,11 @@ struct bus_type {
 	struct module		* owner;
 
 	struct kset		subsys; //代表了本bus
-	struct kset		drivers;
-	struct kset		devices;
+	struct kset		drivers; //与本总线关联的所有device_driver对象
+	struct kset		devices; //与本总线关联的所有device对象
 	/* klist_devices和klist_drivers是两个链表，分别保存了本bus下所有的device和device_driver的指针，以方便查找。 */
-	struct klist		klist_devices;
-	struct klist		klist_drivers;
+	struct klist		klist_devices; //也是与本总线关联的所有device_driver对象
+	struct klist		klist_drivers; //也是与本总线关联的所有device对象
 
 	struct blocking_notifier_head bus_notifier;
 
@@ -159,6 +161,8 @@ extern int bus_unregister_notifier(struct bus_type *bus,
  * 当设备没有插入时，其Device结构不存在，因而其Driver也就不执行初始化操作。
  * 当设备插入时，内核会创建一个Device结构（名称和Driver相同），
  * 此时就会触发Driver的执行。这就是即插即用的概念。
+ *
+ * 通用设备结构为device
  */
 struct device_driver {
     /* 该driver的名称 
@@ -170,7 +174,7 @@ struct device_driver {
 
 	struct kobject		kobj;
 	struct klist		klist_devices;
-	struct klist_node	knode_bus;
+	struct klist_node	knode_bus; //用于链接到一条公共总线上所有的设备
 
 	struct module		* owner;
 	const char 		* mod_name;	/* used for built-in modules */
@@ -184,6 +188,8 @@ struct device_driver {
      *  在设备模型的结构下，只有driver和device同时存在时，才需要开始执行driver的代码逻辑。
      * 这也是probe和remove两个接口名称的由来：
      *  检测到了设备和移除了设备（就是为热拔插起的！）。
+     *
+     * 用于检测系统中是否能够使用本device_driver驱动对象的设备
 	 */
 	int	(*probe)	(struct device * dev);
 	int	(*remove)	(struct device * dev);
@@ -459,10 +465,16 @@ extern int devres_release_group(struct device *dev, void *id);
 extern void *devm_kzalloc(struct device *dev, size_t size, gfp_t gfp);
 extern void devm_kfree(struct device *dev, void *p);
 
+/*
+ * 设备驱动模型的通用设备结构，这个device结构通常用来嵌入到其他具体的设备对象中的
+ * 通用驱动结构为device_driver
+ * 
+ */
 struct device {
-	struct klist		klist_children;
+	
+	struct klist		klist_children;     //子设备
 	struct klist_node	knode_parent;		/* node in sibling list */
-	struct klist_node	knode_driver;
+	struct klist_node	knode_driver;   /* 一个驱动程序可能会服务多个设备，knode_driver用于链接被同一驱动程序所管理的设备 */
 	struct klist_node	knode_bus;
 	struct device		*parent;
 

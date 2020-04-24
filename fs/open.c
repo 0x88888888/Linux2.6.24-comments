@@ -762,7 +762,14 @@ static struct file *__dentry_open(struct dentry *dentry, struct vfsmount *mnt,
 	f->f_path.dentry = dentry;
 	f->f_path.mnt = mnt;
 	f->f_pos = 0;
-	/* 将inode->i_fop和file->f_op关联起来 */
+	/* 将inode->i_fop和file->f_op关联起来 
+	 * ext2_file_operations ,
+	 * shmem_file_operations
+	 * def_chr_fops,
+	 * def_blk_fops,
+	 * def_fifo_fops,
+     * bad_sock_fops
+	 */
 	f->f_op = fops_get(inode->i_fop);
 	file_move(f, &inode->i_sb->s_files);
 
@@ -770,12 +777,15 @@ static struct file *__dentry_open(struct dentry *dentry, struct vfsmount *mnt,
 	if (error)
 		goto cleanup_all;
 
-	if (!open && f->f_op)
+	if (!open && f->f_op)  /*
+	                        * 字符设备chrdev_open(),块设备blkdev_open
+	                        * fifo_open, sock_open
+	                        */
 		open = f->f_op->open;
 	
 	if (open) { 
 		/*
-		 * chrdev_open,
+		 * chrdev_open, blkdev_open, fifo_open, sock_open
 		 */
 		error = open(inode, f);
 		if (error)

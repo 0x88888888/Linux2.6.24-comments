@@ -257,8 +257,9 @@ static inline pmd_t *vmalloc_sync_one(pgd_t *pgd, unsigned long address)
  *
  * This assumes no large pages in there.
  *
- * do_page_fault()
- *  vmalloc_fault()
+ * page_fault()
+ *  do_page_fault()
+ *   vmalloc_fault()
  *
  * 对于发生缺页异常的指针位于vmalloc区情况的处理，主要是将
  * 主内核页表向当前进程的内核页表同步。
@@ -330,7 +331,7 @@ fastcall void __kprobes do_page_fault(struct pt_regs *regs,
 	 */
 	trace_hardirqs_fixup();
 
-	/* get the address, 出现异常时的虚拟地址 */
+	/* get the address, 保存出现异常时的虚拟地址 */
     address = read_cr2();
 
 	tsk = current;
@@ -359,12 +360,14 @@ fastcall void __kprobes do_page_fault(struct pt_regs *regs,
            因此该进程的页表必须与内核的主页表中的信息同步，
            实际上,只有访问发生在核心太,而且异常不是由保护错误触发时,才能允许这样做,
            内核使用vmalloc_fault同步页表，该函数从init_mm.pgd中复制相关的项到当前页表.
-	    */
+	     */
 		if (!(error_code & 0x0000000d) && vmalloc_fault(address) >= 0)
 			//  (1101)b,缺页,写访问,内核态, */) 
 			return;
 		
-		/* kprobes don't want to hook the spurious faults: */
+		/* kprobes don't want to hook the spurious faults:
+		 * kprobe处理
+		 */
 		if (notify_page_fault(regs))
 			return;
 		/*
@@ -381,7 +384,9 @@ fastcall void __kprobes do_page_fault(struct pt_regs *regs,
 		return;
 
 	/* It's safe to allow irq's after cr2 has been saved and the vmalloc
-	   fault has been handled. */
+	   fault has been handled. 
+	 * 重新开启中断处理。
+	 */
 	if (regs->eflags & (X86_EFLAGS_IF|VM_MASK))
 		local_irq_enable();
 
@@ -395,6 +400,8 @@ fastcall void __kprobes do_page_fault(struct pt_regs *regs,
 	 *
 	 * 当缺页异常发生于中断或其它atomic上下文中时，则产生异常。
      * 这种情况下，不应该再产生page fault 
+     *
+     * 中断期间，并且没有用户态的mm
 	 */
 	if (in_atomic() || !mm)
 		goto bad_area_nosemaphore;
@@ -429,7 +436,7 @@ fastcall void __kprobes do_page_fault(struct pt_regs *regs,
 		down_read(&mm->mmap_sem);
 	}
 
-	/* 非中断期间，检查进程地址空间address对应的vma */
+	/* 非中断期间，检查进程用户态地址空间address对应的vma */
 	vma = find_vma(mm, address);/* 对应的vma */
 	// 如果没找到VMA
 	if (!vma)
@@ -464,7 +471,7 @@ fastcall void __kprobes do_page_fault(struct pt_regs *regs,
 			goto bad_area;
 	}
 
-    /*
+   /*
     * 运行到这里，说明设置了VM_GROWSDOWN标记，表示缺页异常地址位于堆栈区
     * 需要扩展堆栈。说明: 堆栈区的虚拟地址空间也是动态分配和扩展的，不是
     * 一开始就分配好的。

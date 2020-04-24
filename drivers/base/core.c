@@ -343,6 +343,11 @@ static void device_remove_groups(struct device *dev,
 			sysfs_remove_group(&dev->kobj, groups[i]);
 }
 
+/*
+ * device_register()
+ *  device_add()
+ *   device_add_attrs()
+ */
 static int device_add_attrs(struct device *dev)
 {
 	struct class *class = dev->class;
@@ -412,6 +417,10 @@ decl_subsys(devices, &device_ktype, &device_uevent_ops);
  *	device_create_file - create sysfs attribute file for device.
  *	@dev:	device.
  *	@attr:	device attribute descriptor.
+ *
+ * device_register()
+ *  device_add()
+ *   device_create_file()
  */
 
 int device_create_file(struct device * dev, struct device_attribute * attr)
@@ -521,6 +530,9 @@ static void klist_children_put(struct klist_node *n)
  *	It is the first half of device_register(), if called by
  *	that, though it can also be called separately, so one
  *	may use @dev's fields (e.g. the refcount).
+ *
+ * device_register()
+ *  device_initialize()
  */
 
 void device_initialize(struct device *dev)
@@ -619,6 +631,11 @@ static int setup_parent(struct device *dev, struct device *parent)
 	return 0;
 }
 
+/*
+ * device_register()
+ *  device_add()
+ *   device_add_class_symlinks()
+ */
 static int device_add_class_symlinks(struct device *dev)
 {
 	int error;
@@ -721,6 +738,9 @@ static void device_remove_class_symlinks(struct device *dev)
  *	This adds it to the kobject hierarchy via kobject_add(), adds it
  *	to the global and sibling lists for the device, then
  *	adds it to the other relevant subsystems of the driver model.
+ *
+ * device_register()
+ *  device_add()
  */
 int device_add(struct device *dev)
 {
@@ -735,13 +755,16 @@ int device_add(struct device *dev)
 	pr_debug("DEV: registering device: ID = '%s'\n", dev->bus_id);
 
 	parent = get_device(dev->parent);
+	//设置dev.kobj.parent = parent
 	error = setup_parent(dev, parent);
 	if (error)
 		goto Error;
 
-	/* first, register with generic layer. */
+	/* first, register with generic layer. 
+	 * 设备名称
+	 */
 	kobject_set_name(&dev->kobj, "%s", dev->bus_id);
-	error = kobject_add(&dev->kobj);
+	error = kobject_add(&dev->kobj); // 添加到sysfs
 	if (error)
 		goto Error;
 
@@ -767,19 +790,29 @@ int device_add(struct device *dev)
 	error = device_add_class_symlinks(dev);
 	if (error)
 		goto SymlinkError;
+	
 	error = device_add_attrs(dev);
 	if (error)
 		goto AttrsError;
+	
 	error = dpm_sysfs_add(dev);
 	if (error)
 		goto PMError;
 	
 	device_pm_add(dev);
+
+	/*
+	 * 在sysfs中添加两个链接：一个在总线目录下指向设备,
+	 *                        另一个在设备的目录下指向总线子系统
+	 *
+	*/
 	error = bus_add_device(dev);
 	if (error)
 		goto BusError;
 	kobject_uevent(&dev->kobj, KOBJ_ADD);
+	// 将dev添加到bus->klist_devices上去
 	bus_attach_device(dev);
+	
 	if (parent)
 		klist_add_tail(&dev->knode_parent, &parent->klist_children);
 
@@ -852,11 +885,12 @@ int device_add(struct device *dev)
  *	I.e. you should only call the two helpers separately if
  *	have a clearly defined need to use and refcount the device
  *	before it is added to the hierarchy.
+ *
+ *
  */
-
 int device_register(struct device *dev)
 {
-	device_initialize(dev);
+	device_initialize(dev); //初始化device设备中的各种链表、锁
 	return device_add(dev);
 }
 

@@ -175,6 +175,13 @@ out:
 	return bio;
 }
 
+/*
+ * submit_bh()
+ *  bio_alloc()
+ *
+ * mpage_alloc()
+ *  bio_alloc()
+ */
 struct bio *bio_alloc(gfp_t gfp_mask, int nr_iovecs)
 {
 	struct bio *bio = bio_alloc_bioset(gfp_mask, nr_iovecs, fs_bio_set);
@@ -999,6 +1006,18 @@ void bio_check_pages_dirty(struct bio *bio)
  *   something went wrong. Noone should call bi_end_io() directly on a
  *   bio unless they own it and thus know that it has an end_io
  *   function.
+ *
+ * read_pages()
+ *  ext2_readpages()
+ *   mpage_readpages()
+ *    do_mpage_readpage()
+ *     mpage_bio_submit()
+ *      submit_bio()
+ *       generic_make_request()
+ *        __generic_make_request()
+ *         __make_request()
+ *          blk_queue_bounce()
+ *           bio_endio()
  **/
 void bio_endio(struct bio *bio, int error)
 {

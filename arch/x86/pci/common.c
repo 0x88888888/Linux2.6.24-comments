@@ -24,6 +24,7 @@ static int pci_bf_sort;
 int pci_routeirq;
 int pcibios_last_bus = -1;
 unsigned long pirq_table_addr;
+
 struct pci_bus *pci_root_bus;
 struct pci_raw_ops *raw_pci_ops;
 

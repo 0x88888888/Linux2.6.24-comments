@@ -192,19 +192,29 @@ struct e1000_tx_ring {
 };
 
 struct e1000_rx_ring {
-	/* pointer to the descriptor ring memory */
+	/* pointer to the descriptor ring memory 
+	 * 环形缓冲区的描述符的指针(虚拟地址)
+     */
 	void *desc;
 	/* physical address of the descriptor ring */
-	dma_addr_t dma;
-	/* length of descriptor ring in bytes */
+	dma_addr_t dma; //desc的物理地址
+	/* length of descriptor ring in bytes 
+	 * desc的大小
+	 */
 	unsigned int size;
-	/* number of descriptors in the ring */
+	/* number of descriptors in the ring 
+	 * 环里desc的数量
+	 */
 	unsigned int count;
-	/* next descriptor to associate a buffer with */
+	/* next descriptor to associate a buffer with
+	 * 下一个可用的desc
+	 */
 	unsigned int next_to_use;
 	/* next descriptor to check for DD status bit */
 	unsigned int next_to_clean;
-	/* array of buffer information structs */
+	/* array of buffer information structs 
+	 * 缓冲区信息结构数组
+	 */
 	struct e1000_buffer *buffer_info;
 	/* arrays of page information for packet split */
 	struct e1000_ps_page *ps_page;

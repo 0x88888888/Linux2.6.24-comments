@@ -460,6 +460,12 @@ static inline void scsi_cmd_get_serial(struct Scsi_Host *host, struct scsi_cmnd 
  * Arguments:   cmd - command block we are dispatching.
  *
  * Notes:
+ *
+ * blk_unplug_work()
+ *  generic_unplug_device()
+ *   __generic_unplug_device()
+ *    scsi_request_fn()
+ *     scsi_dispatch_cmd()
  */
 int scsi_dispatch_cmd(struct scsi_cmnd *cmd)
 {
@@ -533,6 +539,7 @@ int scsi_dispatch_cmd(struct scsi_cmnd *cmd)
 	/* 
 	 * AK: unlikely race here: for some reason the timer could
 	 * expire before the serial number is set up below.
+	 *
 	 */
 	scsi_add_timer(cmd, cmd->timeout_per_command, scsi_times_out);
 

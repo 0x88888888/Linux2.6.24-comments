@@ -136,27 +136,27 @@ struct pci_cap_saved_state {
  * 而pci总线则由pci_bus来表示
  */
 struct pci_dev {
-	struct list_head global_list;	/* node in list of all PCI devices */
-	struct list_head bus_list;	/* node in per-bus list */
-	struct pci_bus	*bus;		/* bus this device is on */
-	struct pci_bus	*subordinate;	/* bus this device bridges to */
+	struct list_head global_list;	/* 链接到pci_devices， node in list of all PCI devices */
+	struct list_head bus_list;	/* 链接到pci_bus->devices, node in per-bus list */
+	struct pci_bus	*bus;		/* 设备所在的总线 bus this device is on */
+	struct pci_bus	*subordinate;	/* 桥接到此设备的pci_bus对象, bus this device bridges to */
 
 	void		*sysdata;	/* hook for sys-specific extension */
 	struct proc_dir_entry *procent;	/* device entry in /proc/bus/pci */
 
-	unsigned int	devfn;		/* encoded device & function index */
+	unsigned int	devfn;		/* 编码过的设备和功能索引,encoded device & function index */
 	unsigned short	vendor;
 	unsigned short	device;
 	unsigned short	subsystem_vendor;
 	unsigned short	subsystem_device;
 	unsigned int	class;		/* 3 bytes: (base,sub,prog-if) */
-	u8		revision;	/* PCI revision, low byte of class word */
-	u8		hdr_type;	/* PCI header type (`multi' flag masked out) */
-	u8		pcie_type;	/* PCI-E device/port type */
-	u8		rom_base_reg;	/* which config register controls the ROM */
-	u8		pin;  		/* which interrupt pin this device uses */
+	u8		revision;	/* pci修订版本号, PCI revision, low byte of class word */
+	u8		hdr_type;	/* pci首部类型,PCI header type (`multi' flag masked out) */
+	u8		pcie_type;	/* pcie设备/端口类型 PCI-E device/port type */
+	u8		rom_base_reg;	/*使用哪个配置寄存器来控制ROM, which config register controls the ROM */
+	u8		pin;  		/* 设备使用的中断引脚， which interrupt pin this device uses */
 
-	struct pci_driver *driver;	/* which driver has allocated this device */
+	struct pci_driver *driver;	/* 当前设备对应的驱动对象， which driver has allocated this device */
 	u64		dma_mask;	/* Mask of the bits of bus address this
 					   device implements.  Normally this is
 					   0xffffffff.  You only need to change
@@ -168,13 +168,13 @@ struct pci_dev {
 					   and D3 being off. */
 
 	pci_channel_state_t error_state;	/* current connectivity state */
-	struct	device	dev;		/* Generic device interface */
+	struct	device	dev;		/* 嵌入的通用设备对象， Generic device interface */
 
 	/* device is compatible with these IDs */
 	unsigned short vendor_compatible[DEVICE_COUNT_COMPATIBLE];
 	unsigned short device_compatible[DEVICE_COUNT_COMPATIBLE];
 
-	int		cfg_size;	/* Size of configuration space */
+	int		cfg_size;	/* 配置空间的长度， Size of configuration space */
 
 	/*
 	 * Instead of touching interrupt line and base address registers
@@ -264,22 +264,22 @@ static inline void pci_add_saved_cap(struct pci_dev *pci_dev,
  *
  */
 struct pci_bus {
-	struct list_head node;		/* node in list of buses */
-	struct pci_bus	*parent;	/* parent bus this bridge is on */
-	struct list_head children;	/* list of child buses */
-	struct list_head devices;	/* list of devices on this bus */
+	struct list_head node;		/* 链接到bus_root_buses链表，   node in list of buses */
+	struct pci_bus	*parent;	/* 此桥接器(即此总线)的父总线,  parent bus this bridge is on */
+	struct list_head children;	/* 子总线链表 list of child buses */
+	struct list_head devices;	/* 此总线上所有的设备 list of devices on this bus */
 	struct pci_dev	*self;		/* bridge device as seen by parent */
 	struct resource	*resource[PCI_BUS_NUM_RESOURCES];
-					/* address space routed to this bus */
+					/* 通向此总线的地址空间(虚拟地址空间和I/O地址空间), address space routed to this bus */
 
-	struct pci_ops	*ops;		/* configuration access functions */
+	struct pci_ops	*ops;		/* 访问配置信息的函数 configuration access functions */
 	void		*sysdata;	/* hook for sys-specific extension */
 	struct proc_dir_entry *procdir;	/* directory entry in /proc/bus/pci */
 
-	unsigned char	number;		/* bus number */
-	unsigned char	primary;	/* number of primary bridge */
+	unsigned char	number;		/* 总线号 bus number */
+	unsigned char	primary;	/* 主桥接器编号 number of primary bridge */
 	unsigned char	secondary;	/* number of secondary bridge */
-	unsigned char	subordinate;	/* max number of subordinate buses */
+	unsigned char	subordinate;	/* 下级总线的最大数目,  max number of subordinate buses */
 
 	char		name[48];
 
@@ -456,7 +456,10 @@ extern struct bus_type pci_bus_type;
 
 /* Do NOT directly access these two variables, unless you are arch specific pci
  * code, or pci core code. */
+
+//系统中所有pci总线
 extern struct list_head pci_root_buses;	/* list of all known PCI buses */
+//系统中所有的pci设备
 extern struct list_head pci_devices;	/* list of all devices */
 /* Some device drivers need know if pci is initiated */
 extern int no_pci_devices(void);
@@ -641,6 +644,7 @@ void pci_enable_bridges(struct pci_bus *bus);
 /* Proper probing supporting hot-pluggable devices */
 int __must_check __pci_register_driver(struct pci_driver *, struct module *,
 				       const char *mod_name);
+
 static inline int __must_check pci_register_driver(struct pci_driver *driver)
 {
 	return __pci_register_driver(driver, THIS_MODULE, KBUILD_MODNAME);

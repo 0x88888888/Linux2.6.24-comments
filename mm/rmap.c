@@ -103,7 +103,8 @@ int anon_vma_prepare(struct vm_area_struct *vma)
 
 		/* page_table_lock to protect against threads */
 		spin_lock(&mm->page_table_lock);
-		
+
+		//还没有设置anon_vma
 		if (likely(!vma->anon_vma)) { 
 			/* 设置anon_vma */
 			vma->anon_vma = anon_vma;

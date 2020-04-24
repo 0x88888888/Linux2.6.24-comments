@@ -115,8 +115,10 @@ struct disk_stats {
 };
 
 /*
-  每个分区都对应一个block_device,同一个磁盘中的所有分区(hd_struct)都指向同一个gendisk
-  整个系统的gendisk对象都链接到block_subsys中
+ * gendisk 表示整个磁盘设备
+ *
+ * 个分区都对应一个block_device,同一个磁盘中的所有分区(hd_struct)都指向同一个gendisk
+ * 个系统的gendisk对象都链接到block_subsys中
 */	
 struct gendisk {
 	int major;			/*  驱动程序的主设备号, major number of driver */

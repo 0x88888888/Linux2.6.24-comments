@@ -288,8 +288,12 @@ static struct device * next_device(struct klist_iter * i)
  *	in any way, nor is its refcount incremented. If the caller needs
  *	to retain this data, it should do, and increment the reference
  *	count in the supplied callback.
+ *
+ * driver_register()
+ *  bus_add_driver()
+ *   driver_attach( fn == __driver_attach)
+ *    bus_for_each_dev()
  */
-
 int bus_for_each_dev(struct bus_type * bus, struct device * start,
 		     void * data, int (*fn)(struct device *, void *))
 {
@@ -302,8 +306,10 @@ int bus_for_each_dev(struct bus_type * bus, struct device * start,
 
 	klist_iter_init_node(&bus->klist_devices, &i,
 			     (start ? &start->knode_bus : NULL));
+	
 	while ((dev = next_device(&i)) && !error)
 		error = fn(dev, data);
+	
 	klist_iter_exit(&i);
 	return error;
 }
@@ -438,6 +444,10 @@ static inline void remove_deprecated_bus_links(struct device *dev) { }
  *
  *	- Add the device to its bus's list of devices.
  *	- Create link to device's bus.
+ *
+ * device_register()
+ *  device_add()
+ *   bus_add_device()
  */
 int bus_add_device(struct device * dev)
 {
@@ -625,6 +635,11 @@ static DRIVER_ATTR(uevent, S_IWUSR, NULL, driver_uevent_store);
  *	bus_add_driver - Add a driver to the bus.
  *	@drv:	driver.
  *
+ * __pci_register_driver()
+ *  driver_register()
+ *   bus_add_driver()
+ *
+ * 将device_driver加入到bus上
  */
 int bus_add_driver(struct device_driver *drv)
 {
@@ -634,6 +649,7 @@ int bus_add_driver(struct device_driver *drv)
 	if (!bus)
 		return -EINVAL;
 
+    //驱动名称
 	pr_debug("bus %s: add driver %s\n", bus->name, drv->name);
 	error = kobject_set_name(&drv->kobj, "%s", drv->name);
 	if (error)
@@ -643,6 +659,7 @@ int bus_add_driver(struct device_driver *drv)
 	if (error)
 		goto out_put_bus;
 
+    // 总线支持auto probe
 	if (drv->bus->drivers_autoprobe) {
 		error = driver_attach(drv);
 		if (error)
@@ -839,6 +856,10 @@ static BUS_ATTR(uevent, S_IWUSR, NULL, bus_uevent_store);
  *	Once we have that, we registered the bus with the kobject
  *	infrastructure, then register the children subsystems it has:
  *	the devices and drivers that belong to the bus.
+ *
+ * isa_bus_init()
+ *  bus_register()
+ *
  */
 int bus_register(struct bus_type * bus)
 {
@@ -846,6 +867,7 @@ int bus_register(struct bus_type * bus)
 
 	BLOCKING_INIT_NOTIFIER_HEAD(&bus->bus_notifier);
 
+    //总线名称
 	retval = kobject_set_name(&bus->subsys.kobj, "%s", bus->name);
 	if (retval)
 		goto out;
@@ -863,14 +885,14 @@ int bus_register(struct bus_type * bus)
 
 	kobject_set_name(&bus->devices.kobj, "devices");
 	bus->devices.kobj.parent = &bus->subsys.kobj;
-	retval = kset_register(&bus->devices);
+	retval = kset_register(&bus->devices); // 与本总线相关的设备kset
 	if (retval)
 		goto bus_devices_fail;
 
 	kobject_set_name(&bus->drivers.kobj, "drivers");
 	bus->drivers.kobj.parent = &bus->subsys.kobj;
 	bus->drivers.ktype = &driver_ktype;
-	retval = kset_register(&bus->drivers);
+	retval = kset_register(&bus->drivers); // 与本总线相关的device_driver kset
 	if (retval)
 		goto bus_drivers_fail;
 

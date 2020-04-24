@@ -208,6 +208,10 @@ void unlink_gendisk(struct gendisk *disk)
  *
  * This function gets the structure containing partitioning
  * information for the given device @dev.
+ *
+ * blkdev_open()
+ *  do_open()
+ *   get_gendisk()
  */
 struct gendisk *get_gendisk(dev_t dev, int *part)
 {

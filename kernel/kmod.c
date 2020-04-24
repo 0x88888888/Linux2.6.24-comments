@@ -61,6 +61,10 @@ char modprobe_path[KMOD_PATH_LEN] = "/sbin/modprobe";
  *
  * If module auto-loading support is disabled then this function
  * becomes a no-operation.
+ *
+ * inet_create()
+ *  request_module()
+ *
  */
 int request_module(const char *fmt, ...)
 {
@@ -94,9 +98,12 @@ int request_module(const char *fmt, ...)
 	 *
 	 * "trace the ppid" is simple, but will fail if someone's
 	 * parent exits.  I think this is as good as it gets. --RR
+	 *
+	 * 
 	 */
 	max_modprobes = min(max_threads/2, MAX_KMOD_CONCURRENT);
-	atomic_inc(&kmod_concurrent);
+	atomic_inc(&kmod_concurrent); //每一次调用request_module，kmod_concurrent都加 1
+	// 调用request_module次数过多
 	if (atomic_read(&kmod_concurrent) > max_modprobes) {
 		/* We may be blaming an innocent here, but unlikely */
 		if (kmod_loop_msg++ < 5)
@@ -107,6 +114,7 @@ int request_module(const char *fmt, ...)
 		return -ENOMEM;
 	}
 
+	// 通过khelper_wq， 启动 /sbin/modprobe用户态程序
 	ret = call_usermodehelper(modprobe_path, argv, envp, 1);
 	atomic_dec(&kmod_concurrent);
 	return ret;
@@ -449,6 +457,10 @@ EXPORT_SYMBOL(call_usermodehelper_stdinpipe);
  *
  *
  * kobject_uevent_env()
+ *  call_usermodehelper()
+ *   call_usermodehelper_exec()
+ *
+ * request_module()
  *  call_usermodehelper()
  *   call_usermodehelper_exec()
  */

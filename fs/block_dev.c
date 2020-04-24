@@ -1073,6 +1073,12 @@ EXPORT_SYMBOL(open_by_devnum);
  * is the best way of combining speed and utility, I think.
  * People changing diskettes in the middle of an operation deserve
  * to lose :-)
+ *
+ *
+ * blkdev_open()
+ *  do_open()
+ *   idedisk_open()
+ *    check_disk_change()
  */
 int check_disk_change(struct block_device *bdev)
 {
@@ -1121,8 +1127,8 @@ static int __blkdev_put(struct block_device *bdev, int for_part);
  *  mutex_lock(part->bd_mutex)
  *    mutex_lock_nested(whole->bd_mutex, 1)
  *
- *  blkdev_open
- *     do_open
+ * blkdev_open()
+ *  do_open()
  */
 
 static int do_open(struct block_device *bdev, struct file *file, int for_part)
@@ -1132,10 +1138,13 @@ static int do_open(struct block_device *bdev, struct file *file, int for_part)
 	int ret = -ENXIO;
 	int part;/* 是否是主设备 */
 
+    /*
+     * address_space 对象
+     */
 	file->f_mapping = bdev->bd_inode->i_mapping;
 	lock_kernel();
 	
-	/* 在bdev_map中查找 */
+	/* 在bdev_map中查找gendisk对象 */
 	disk = get_gendisk(bdev->bd_dev, &part);
 	if (!disk) {
 		unlock_kernel();
@@ -1148,13 +1157,18 @@ static int do_open(struct block_device *bdev, struct file *file, int for_part)
 	if (!bdev->bd_openers) {
 		/* 设备在此之前没有打开过 */
 		bdev->bd_disk = disk;
-		bdev->bd_contains = bdev;
+		bdev->bd_contains = bdev; //自己contain自己
+		
 		if (!part) {
 			/* 是主设备 */
 			struct backing_dev_info *bdi;
 
 		    /* 先打开主block设备 */
 			if (disk->fops->open) {
+				/*
+				 * idedisk_ops->open == idedisk_open
+				 * idescsi_ops->open == idescsi_ide_open
+				 */
 				ret = disk->fops->open(bdev->bd_inode, file);
 				if (ret)
 					goto out_first;
@@ -1167,7 +1181,7 @@ static int do_open(struct block_device *bdev, struct file *file, int for_part)
 					bdi = &default_backing_dev_info;
 				bdev->bd_inode->i_data.backing_dev_info = bdi;
 			}
-			
+			//重新读取分区信息
 			if (bdev->bd_invalidated)
 				rescan_partitions(disk, bdev);
 		} else {
@@ -1182,6 +1196,7 @@ static int do_open(struct block_device *bdev, struct file *file, int for_part)
 			ret = __blkdev_get(whole, file->f_mode, file->f_flags, 1);
 			if (ret)
 				goto out_first;
+			//上级
 			bdev->bd_contains = whole;
 			p = disk->part[part - 1];
 			bdev->bd_inode->i_data.backing_dev_info =
@@ -1199,11 +1214,16 @@ static int do_open(struct block_device *bdev, struct file *file, int for_part)
 		put_disk(disk);
 		module_put(owner);
 		if (bdev->bd_contains == bdev) {
+				/*
+				 * idedisk_ops->open == idedisk_open
+				 * idescsi_ops->open == idescsi_ide_open
+				 */
 			if (bdev->bd_disk->fops->open) {
 				ret = bdev->bd_disk->fops->open(bdev->bd_inode, file);
 				if (ret)
 					goto out;
 			}
+			//重新读取分区信息
 			if (bdev->bd_invalidated)
 				rescan_partitions(bdev->bd_disk, bdev);
 		}

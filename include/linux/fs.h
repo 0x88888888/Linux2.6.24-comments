@@ -536,8 +536,10 @@ struct address_space {
 	 * must be enforced here for CRIS, to let the least signficant bit
 	 * of struct page's "mapping" pointer be used for PAGE_MAPPING_ANON.
 	 * 
-	 * 块设备
-	 * 每个分区都对应一个block_device,同一个磁盘中的所有分区(hd_struct)都指向同一个gendisk
+	 * 裸块设备
+	 * block_device作为bdev_inode的成员出现
+	 *
+	 * 每个分区被打开的分区都对应一个block_device,同一个磁盘中的所有分区(hd_struct)都指向同一个gendisk
 	 */
 
 struct block_device {
@@ -552,6 +554,7 @@ struct block_device {
 #ifdef CONFIG_SYSFS
 	struct list_head	bd_holder_list;
 #endif
+    //本分区block_device对应的整个块设备的block_device对象
 	struct block_device *	bd_contains;
 	unsigned		bd_block_size;
 	/*
@@ -656,7 +659,7 @@ struct inode {
 	// 文件使用块的个数，通过ls -s可以查看该某个文件的块使用数目；
 	blkcnt_t		i_blocks;
 	unsigned short          i_bytes;
-	// 文件的访问权限；
+	// 文件的访问权限，也保存了文件的类型(普通文件，块设备，字符设备，socket文件)
 	umode_t			i_mode;
 	spinlock_t		i_lock;	/* i_blocks, i_bytes, maybe i_size */
 	struct mutex		i_mutex;
@@ -1063,6 +1066,8 @@ struct super_block {
 	/* 
 	 *　不同的文件系统，对应不同的super_operations 
 	 *　ext2:ext2_sops
+	 *  ext3:ext3_sops
+	 *  ext4:ext4_sops
 	 */
 	const struct super_operations	*s_op;
 	struct dquot_operations	*dq_op;
@@ -1082,6 +1087,14 @@ struct super_block {
 #ifdef CONFIG_SECURITY
 	void                    *s_security;
 #endif
+    /*
+     * 包含用于处理扩展属性的函数指针。
+     * ext2_xattr_handlers
+     * ext3_xattr_handlers
+     * ext4_xattr_handlers
+     * shmem_xattr_handlers
+     *
+     */
 	struct xattr_handler	**s_xattr;
 
 	struct list_head	s_inodes;	/* all inodes */
@@ -1090,7 +1103,7 @@ struct super_block {
 	struct list_head	s_io;		/* 等待回写, parked for writeback */
 	struct list_head	s_more_io;	/* 等待回写, parked for more writeback */
 	struct hlist_head	s_anon;		/* anonymous dentries for (nfs) exporting */
-	struct list_head	s_files;
+	struct list_head	s_files;    /* 本文件系统instance 所有已经打开的file对象实例 */
 
 	struct block_device	*s_bdev;
 	struct mtd_info		*s_mtd;
@@ -1541,13 +1554,17 @@ struct file_system_type {
 	/* 文件系统名称 */
 	const char *name;
 	int fs_flags;
-	/* super_block初始化函数指针 */
+	/* super_block初始化函数指针
+	 *
+	 * ext2_get_sb()
+	 * ext3_get_sb()
+	 */
 	int (*get_sb) (struct file_system_type *, int,
 		       const char *, void *, struct vfsmount *);
 	/* 释放super_block的函数指针 */
 	void (*kill_sb) (struct super_block *);
 	struct module *owner;
-	struct file_system_type * next;
+	struct file_system_type * next; /* 系统中所有的file_system_type 链表，表头为file_systems */
 	struct list_head fs_supers;  /* 一个文件系统类型可以装载多处，可以有多个super_block,链接到这个链表上 ,超级块之间通过s_instances字段相互链接*/
 
 	struct lock_class_key s_lock_key;

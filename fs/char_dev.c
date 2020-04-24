@@ -119,7 +119,7 @@ __register_chrdev_region(unsigned int major, unsigned int baseminor,
 	mutex_lock(&chrdevs_lock);
 
 	/* temporary */
-	if (major == 0) { //有系统来确定设备的major号码
+	if (major == 0) { //由系统来确定设备的major号码
 		for (i = ARRAY_SIZE(chrdevs)-1; i > 0; i--) {
 			if (chrdevs[i] == NULL)
 				break;
@@ -418,6 +418,7 @@ int chrdev_open(struct inode * inode, struct file * filp)
 		spin_unlock(&cdev_lock);
 		/* 从cdev_map中查找到cdev类型的实例 */
 		kobj = kobj_lookup(cdev_map, inode->i_rdev, &idx);
+		
 		if (!kobj)
 			return -ENXIO;
 		//转成cdev对象
@@ -449,6 +450,10 @@ int chrdev_open(struct inode * inode, struct file * filp)
 	/* 调用相关的open函数 */
 	if (filp->f_op->open) {
 		lock_kernel();
+		/*
+		 * null, random, mem, port等设备文件
+		 * memory_fops->open == memory_open
+		 */
 		ret = filp->f_op->open(inode,filp);
 		unlock_kernel();
 	}

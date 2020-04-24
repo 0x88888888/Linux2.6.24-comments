@@ -114,6 +114,18 @@ static u32 bio_act[9] __read_mostly = { 0, BLK_TC_ACT(BLK_TC_BARRIER), BLK_TC_AC
 /*
  * The worker for the various blk_add_trace*() types. Fills out a
  * blk_io_trace structure and places it in a per-cpu subbuffer.
+ *
+ * read_pages()
+ *  ext2_readpages()
+ *   mpage_readpages()
+ *    do_mpage_readpage()
+ *     mpage_bio_submit()
+ *      submit_bio()
+ *       generic_make_request()
+ *        __generic_make_request()
+ *         blk_partition_remap() 
+ *          blk_add_trace_remap()
+ *           __blk_add_trace()
  */
 void __blk_add_trace(struct blk_trace *bt, sector_t sector, int bytes,
 		     int rw, u32 what, int error, int pdu_len, void *pdu_data)

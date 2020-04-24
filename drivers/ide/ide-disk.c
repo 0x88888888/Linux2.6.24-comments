@@ -1041,6 +1041,11 @@ static ide_driver_t idedisk_driver = {
 #endif
 };
 
+/* 
+ * blkdev_open()
+ *  do_open()
+ *   idedisk_open()
+ */
 static int idedisk_open(struct inode *inode, struct file *filp)
 {
 	struct gendisk *disk = inode->i_bdev->bd_disk;

@@ -1015,7 +1015,7 @@ struct task_struct {
 
 	struct mm_struct *mm, *active_mm;
 
-/* task state */
+    /* task state */
 	struct linux_binfmt *binfmt;
 	int exit_state;/* EXIT_DEAD, EXIT_ZOMBIE */
 	int exit_code, exit_signal;
@@ -1183,7 +1183,18 @@ struct task_struct {
 /* journalling filesystem info */
 	void *journal_info;
 
-/* stacked block device info */
+/* stacked block device info 
+  * 下面的两个成员在generic_make_request中会用到
+  *
+  * bio_list是记录了由make_request_fn提交的request组成的链表
+  *
+  * 用task_struct中的bio_{list,tail}来保存了由某个make_request_fn()函数提交的的request 链表，
+  * 这样做的目的是内核需要保证在某个时候只允许一个make_request_fn()在执行；
+  * bio_tail还有一个作用是用来在当前task中，generic_make_request()是否是active还是inactive.
+  * 如果current->bio_tail为NULL，则表明没有任何的make_request是active.
+  * 否则，有某个make_request是active,所有新的new requests都应该加到bio_tail中
+  *
+  */
 	struct bio *bio_list, **bio_tail;
 
 /* VM state */

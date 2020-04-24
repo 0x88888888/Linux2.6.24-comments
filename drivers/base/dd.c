@@ -241,6 +241,13 @@ int device_attach(struct device * dev)
 	return ret;
 }
 
+/*
+ * driver_register()
+ *  bus_add_driver()
+ *   driver_attach( fn == __driver_attach)
+ *    bus_for_each_dev()
+ *     __driver_attach()
+ */
 static int __driver_attach(struct device * dev, void * data)
 {
 	struct device_driver * drv = data;
@@ -275,6 +282,10 @@ static int __driver_attach(struct device * dev, void * data)
  *	match the driver with each one.  If driver_probe_device()
  *	returns 0 and the @dev->driver is set, we've found a
  *	compatible pair.
+ *
+ * driver_register()
+ *  bus_add_driver()
+ *   driver_attach()
  */
 int driver_attach(struct device_driver * drv)
 {

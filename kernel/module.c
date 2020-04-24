@@ -931,6 +931,7 @@ static int check_version(Elf_Shdr *sechdrs,
 	if (!crc)
 		return 1;
 
+    //__version 段(section)
 	versions = (void *) sechdrs[versindex].sh_addr;
 	num_versions = sechdrs[versindex].sh_size
 		/ sizeof(struct modversion_info);

@@ -33,12 +33,12 @@ typedef void (elevator_exit_fn) (elevator_t *);
 /* i/o调度器 */
 struct elevator_ops
 {
-	elevator_merge_fn *elevator_merge_fn; /* 检查一个新的请求是否可以与现存请求合并 */
+	elevator_merge_fn *elevator_merge_fn; /* 检查一个新的bio是否可以与现存的request合并 */
 	elevator_merged_fn *elevator_merged_fn; 
-	elevator_merge_req_fn *elevator_merge_req_fn; /* 将两个请求合并为一个请求 */
+	elevator_merge_req_fn *elevator_merge_req_fn; /* 将两个request合并为一个request */
 	elevator_allow_merge_fn *elevator_allow_merge_fn; 
 
-	elevator_dispatch_fn *elevator_dispatch_fn; /* 从给定的请求队列中选择下一步应该调度执行的程序 */
+	elevator_dispatch_fn *elevator_dispatch_fn; /* 从给定的request_queue中选择下一步应该调度执行的request */
 	elevator_add_req_fn *elevator_add_req_fn;   /* 向队列添加请求 */
 	elevator_activate_req_fn *elevator_activate_req_fn;
 	elevator_deactivate_req_fn *elevator_deactivate_req_fn;
@@ -46,6 +46,9 @@ struct elevator_ops
 	elevator_queue_empty_fn *elevator_queue_empty_fn;
 	elevator_completed_req_fn *elevator_completed_req_fn;
 
+    /*
+     * 分别查找给定的request的前一个和后一个request
+     */
 	elevator_request_list_fn *elevator_former_req_fn;
 	elevator_request_list_fn *elevator_latter_req_fn;
 
@@ -70,7 +73,10 @@ struct elv_fs_entry {
 /*
  * identifies an elevator type, such as AS or deadline
  *
- * 调度器类，有elevator_noop,iosched_deadline,iosched_as,iosched_cfq几种调度器类
+ * 调度器类，有elevator_noop,
+ *             iosched_deadline,
+ *             iosched_as,
+ *             iosched_cfq 几种调度器类
  *
  */
 struct elevator_type
