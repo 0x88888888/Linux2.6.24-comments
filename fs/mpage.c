@@ -222,13 +222,13 @@ map_buffer_to_page(struct page *page, struct buffer_head *bh, int page_block)
  *    generic_file_aio_read()
  *     do_generic_file_read() 
  *      do_generic_mapping_read()
- *       page_cache_sync_readahead()
+ *       page_cache_sync_readahead(, hit_readahead_marker == false)
  *        ondemand_readahead()
  *         __do_page_cache_readahead()
  *          read_pages()
  *           ext2_readpages()
- *            mpage_readpages()
- *             do_mpage_readpage()
+ *            mpage_readpages(get_block == ext2_get_block)
+ *             do_mpage_readpage(get_block == ext2_get_block)
  */
 static struct bio *
 do_mpage_readpage(struct bio *bio, struct page *page, unsigned nr_pages,
@@ -511,12 +511,12 @@ confused:
  *    generic_file_aio_read()
  *     do_generic_file_read() 
  *      do_generic_mapping_read()
- *       page_cache_sync_readahead()
+ *       page_cache_sync_readahead(, hit_readahead_marker == false)
  *        ondemand_readahead()
  *         __do_page_cache_readahead()
  *          read_pages()
  *           ext2_readpages()
- *            mpage_readpages()
+ *            mpage_readpages(get_block == ext2_get_block)
  *
  */
 int

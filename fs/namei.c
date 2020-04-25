@@ -487,6 +487,19 @@ ok:
  * make sure that nobody added the entry to the dcache in the meantime..
  * SMP-safe
  *
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk()  这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             do_lookup()
+ *              real_lookup()
+ *
  * 去文件系统查找
  */
 static struct dentry * real_lookup(struct dentry * parent, struct qstr * name, struct nameidata *nd)
@@ -514,6 +527,11 @@ static struct dentry * real_lookup(struct dentry * parent, struct qstr * name, s
 		struct dentry * dentry = d_alloc(parent, name);
 		result = ERR_PTR(-ENOMEM);
 		if (dentry) {
+			/*
+			 * ext2_lookup()
+			 * ext3_lookup()
+			 * ext4_lookup()
+			 */
 			result = dir->i_op->lookup(dir, dentry, nd); /* 如果找不到，就去文件系统找查找 */
 			if (result)
 				dput(dentry);
@@ -527,6 +545,8 @@ static struct dentry * real_lookup(struct dentry * parent, struct qstr * name, s
 	/*
 	 * Uhhuh! Nasty case: the cache was re-populated while
 	 * we waited on the semaphore. Need to revalidate.
+	 *
+	 * 网络文件系统会用到这里
 	 */
 	mutex_unlock(&dir->i_mutex);
 	if (result->d_op && result->d_op->d_revalidate) {
@@ -690,7 +710,7 @@ static __always_inline int __do_follow_link(struct path *path, struct nameidata 
  *		path_lookup_open()
  *		  __path_lookup_intent_open()
  *		   do_path_lookup()
- *          path_walk()
+ *          path_walk()  这里设置 current->total_link_count = 0;
  *           link_path_walk() 
  *            __link_path_walk()
  *             do_follow_link()
@@ -698,10 +718,11 @@ static __always_inline int __do_follow_link(struct path *path, struct nameidata 
 static inline int do_follow_link(struct path *path, struct nameidata *nd)
 {
 	int err = -ELOOP;
-	if (current->link_count >= MAX_NESTED_LINKS)
+	if (current->link_count >= MAX_NESTED_LINKS) //是否
 		goto loop;
 	if (current->total_link_count >= 40)
 		goto loop;
+	
 	BUG_ON(nd->depth >= MAX_NESTED_LINKS);
 	cond_resched();
 	err = security_inode_follow_link(path->dentry, nd);
@@ -715,7 +736,8 @@ static inline int do_follow_link(struct path *path, struct nameidata *nd)
 	current->total_link_count++;
 	nd->depth++;
 	err = __do_follow_link(path, nd);
-	current->link_count--;
+	
+	current->link_count--; //返回就减1，所以这个link_count是限制递归调用到do_follow_link的
 	nd->depth--;
 	return err;
 loop:
@@ -760,17 +782,21 @@ int follow_up(struct vfsmount **mnt, struct dentry **dentry)
  *            __link_path_walk()
  *             do_lookup()
  *              __follow_mount()
+ *
+ * 如果是挂载点，需要切换
  */
 static int __follow_mount(struct path *path)
 {
 	int res = 0;
-	while (d_mountpoint(path->dentry)) {
+	while (d_mountpoint(path->dentry)) { //看dentry->d_mounted是否为 1
+	    //在mount_hashtable中查找
 		struct vfsmount *mounted = lookup_mnt(path->mnt, path->dentry);
 		if (!mounted)
 			break;
 		dput(path->dentry);
 		if (res)
 			mntput(path->mnt);
+		//新的vfsmount的对象和其root目录
 		path->mnt = mounted;
 		path->dentry = dget(mounted->mnt_root);
 		res = 1;
@@ -809,6 +835,19 @@ int follow_down(struct vfsmount **mnt, struct dentry **dentry)
 	return 0;
 }
 
+/*
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk() 这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             follow_dotdot()
+ */
 static __always_inline void follow_dotdot(struct nameidata *nd)
 {
 	struct fs_struct *fs = current->fs;
@@ -818,6 +857,7 @@ static __always_inline void follow_dotdot(struct nameidata *nd)
 		struct dentry *old = nd->dentry;
 
                 read_lock(&fs->lock);
+		//当前目录是进程的根目录了,不能在往上走
 		if (nd->dentry == fs->root &&
 		    nd->mnt == fs->rootmnt) {
                         read_unlock(&fs->lock);
@@ -825,6 +865,7 @@ static __always_inline void follow_dotdot(struct nameidata *nd)
 		}
                 read_unlock(&fs->lock);
 		spin_lock(&dcache_lock);
+		//不是vfsmount的根目录，往parent走
 		if (nd->dentry != nd->mnt->mnt_root) {
 			nd->dentry = dget(nd->dentry->d_parent);
 			spin_unlock(&dcache_lock);
@@ -833,6 +874,7 @@ static __always_inline void follow_dotdot(struct nameidata *nd)
 		}
 		spin_unlock(&dcache_lock);
 		spin_lock(&vfsmount_lock);
+		//是vfs的根目录，所以要走到挂载点去
 		parent = nd->mnt->mnt_parent;
 		if (parent == nd->mnt) {
 			spin_unlock(&vfsmount_lock);
@@ -860,7 +902,7 @@ static __always_inline void follow_dotdot(struct nameidata *nd)
  *		path_lookup_open()
  *		  __path_lookup_intent_open()
  *		   do_path_lookup()
- *          path_walk()
+ *          path_walk()  这里设置 current->total_link_count = 0;
  *           link_path_walk() 
  *            __link_path_walk()
  *             do_lookup()
@@ -871,10 +913,11 @@ static int do_lookup(struct nameidata *nd, struct qstr *name,
 	struct vfsmount *mnt = nd->mnt;
 
 	/* 在dentry_hashtable缓存中查找 */
-	struct dentry *dentry = __d_lookup(nd->dentry, name);
+	struct dentry *dentry = __d_lookup(nd->dentry /* 父目录 */, name);
 
 	if (!dentry)
-		goto need_lookup;
+		goto need_lookup; //dentry_hashtable中没有，需要从磁盘上去读取，查找了
+	
 	if (dentry->d_op && dentry->d_op->d_revalidate)
 		goto need_revalidate;
 done:
@@ -916,7 +959,7 @@ fail:
  *		path_lookup_open()
  *		  __path_lookup_intent_open()
  *		   do_path_lookup()
- *          path_walk()
+ *          path_walk() 这里设置 current->total_link_count = 0;
  *           link_path_walk() 
  *            __link_path_walk()
  */
@@ -950,6 +993,7 @@ static fastcall int __link_path_walk(const char * name, struct nameidata *nd)
 		struct qstr this;
 		unsigned int c;
 
+        //先权限检测
 		nd->flags |= LOOKUP_CONTINUE;
 		err = exec_permission_lite(inode, nd);
 		if (err == -EAGAIN)
@@ -959,10 +1003,11 @@ static fastcall int __link_path_walk(const char * name, struct nameidata *nd)
 
 		this.name = name;
 		c = *(const unsigned char *)name;
-
+      
 		hash = init_name_hash();
 		do {
 			name++;
+			//路径中的各个目录先hash
 			hash = partial_name_hash(c, hash);
 			c = *(const unsigned char *)name;
 		} while (c && (c != '/'));
@@ -1141,7 +1186,7 @@ return_err:
  *		path_lookup_open()
  *		  __path_lookup_intent_open()
  *		   do_path_lookup()
- *          path_walk()
+ *          path_walk() 这里设置 current->total_link_count = 0;
  *           link_path_walk() 
  */
 static int fastcall link_path_walk(const char *name, struct nameidata *nd)
@@ -1267,6 +1312,11 @@ set_it:
  *		path_lookup_open()
  *       __path_lookup_intent_open()
  *        do_path_lookup()
+ *
+ * sys_mount()
+ *  do_mount()
+ *   path_lookup()
+ *    do_path_lookup()
  */
 static int fastcall do_path_lookup(int dfd, const char *name,
 				unsigned int flags, struct nameidata *nd)
@@ -1339,7 +1389,12 @@ fput_fail:
 	goto out_fail;
 }
 
-/* 文件查找 */
+/* 文件查找 
+ *
+ * sys_mount()
+ *  do_mount()
+ *   path_lookup()
+ */
 int fastcall path_lookup(const char *name, unsigned int flags,
 			struct nameidata *nd)
 {

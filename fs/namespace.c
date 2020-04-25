@@ -194,12 +194,21 @@ static void detach_mnt(struct vfsmount *mnt, struct nameidata *old_nd)
 	old_nd->dentry->d_mounted--;
 }
 
+/*
+ * sys_mount()
+ *  do_mount()
+ *   do_new_mount()
+ *    do_add_mount()
+ *     graft_tree()
+ *      attach_recursive_mnt()
+ *       mnt_set_mountpoint()
+ */
 void mnt_set_mountpoint(struct vfsmount *mnt, struct dentry *dentry,
 			struct vfsmount *child_mnt)
 {
 	child_mnt->mnt_parent = mntget(mnt);
 	child_mnt->mnt_mountpoint = dget(dentry);
-	dentry->d_mounted++;
+	dentry->d_mounted++; //表示该dentry已经被mount了
 }
 
 /* 挂到vfsmount树上去 */
@@ -213,6 +222,15 @@ static void attach_mnt(struct vfsmount *mnt, struct nameidata *nd)
 
 /*
  * the caller must hold vfsmount_lock
+ *
+ * sys_mount()
+ *  do_mount()
+ *   do_new_mount()
+ *    do_add_mount()
+ *     graft_tree()
+ *      attach_recursive_mnt()
+ *       commit_tree()
+ * 将mnt添加到mount_hashtable中去,并且添加到parent->mnt_mounts
  */
 static void commit_tree(struct vfsmount *mnt)
 {
@@ -229,9 +247,10 @@ static void commit_tree(struct vfsmount *mnt)
 	
 	list_splice(&head, n->list.prev);
 
+    //将mnt添加到mount_hashtable中去
 	list_add_tail(&mnt->mnt_hash, mount_hashtable +
 				hash(parent, mnt->mnt_mountpoint));
-	
+	//添加到parent->mnt_mounts
 	list_add_tail(&mnt->mnt_child, &parent->mnt_mounts);
 	
 	touch_mnt_namespace(n);
@@ -547,6 +566,11 @@ void release_mounts(struct list_head *head)
 	}
 }
 
+/*
+ * sys_umount()
+ *  do_umount()
+ *   umount_tree()
+ */
 void umount_tree(struct vfsmount *mnt, int propagate, struct list_head *kill)
 {
 	struct vfsmount *p;
@@ -569,6 +593,10 @@ void umount_tree(struct vfsmount *mnt, int propagate, struct list_head *kill)
 	}
 }
 
+/*
+ * sys_umount()
+ *  do_umount()
+ */
 static int do_umount(struct vfsmount *mnt, int flags)
 {
 	struct super_block *sb = mnt->mnt_sb;
@@ -863,6 +891,14 @@ void drop_collected_mounts(struct vfsmount *mnt)
  * applied to each mount in the tree.
  * Must be called without spinlocks held, since this function can sleep
  * in allocations.
+ *
+ * sys_mount()
+ *  do_mount()
+ *   do_new_mount()
+ *    do_add_mount()
+ *     graft_tree()
+ *      attach_recursive_mnt()
+ *
  */
 static int attach_recursive_mnt(struct vfsmount *source_mnt,
 			struct nameidata *nd, struct nameidata *parent_nd)
@@ -875,7 +911,7 @@ static int attach_recursive_mnt(struct vfsmount *source_mnt,
 	if (propagate_mnt(dest_mnt, dest_dentry, source_mnt, &tree_list))
 		return -EINVAL;
 
-	if (IS_MNT_SHARED(dest_mnt)) {
+	if (IS_MNT_SHARED(dest_mnt)) { //所有的子vfsmount都会变成MNT_SHARED的了
 		for (p = source_mnt; p; p = next_mnt(p, source_mnt))
 			set_mnt_shared(p);/* 设置p->mnt_flags  |=MNT_SHARED标记 */
 	}
@@ -887,12 +923,16 @@ static int attach_recursive_mnt(struct vfsmount *source_mnt,
 		attach_mnt(source_mnt, nd);
 		touch_mnt_namespace(current->nsproxy->mnt_ns);
 	} else {
+		/*
+		 * 确保新的vfsmount实例的mnt_parent成员指向父文件系统的vfsmount实例
+		 */
 		mnt_set_mountpoint(dest_mnt, dest_dentry, source_mnt);
 		commit_tree(source_mnt);
 	}
 
 	list_for_each_entry_safe(child, p, &tree_list, mnt_hash) {
 		list_del_init(&child->mnt_hash);
+		//将mnt添加到mount_hashtable中去,并且添加到parent->mnt_mounts
 		commit_tree(child);
 	}
 	
@@ -900,7 +940,14 @@ static int attach_recursive_mnt(struct vfsmount *source_mnt,
 	return 0;
 }
 
-/* 将mnt挂载到vfsmount树上去 */
+/* 将mnt挂载到vfsmount树上去 
+ *
+ * sys_mount()
+ *  do_mount()
+ *   do_new_mount()
+ *    do_add_mount()
+ *     graft_tree()
+ */
 static int graft_tree(struct vfsmount *mnt, struct nameidata *nd)
 {
 	int err;
@@ -932,7 +979,12 @@ out_unlock:
 
 /*
  * recursively change the type of the mountpoint.
- * 改变挂载类型
+ *
+ * sys_mount()
+ *  do_mount()
+ *   do_change_type()
+ *
+ * 负责处理共享、从属和不可绑定的装载，它可以改变装载标志或在设计的各个vfsmount实例之间建立所需的数据结构的关联
  */
 static int do_change_type(struct nameidata *nd, int flag)
 {
@@ -958,6 +1010,10 @@ static int do_change_type(struct nameidata *nd, int flag)
 
 /*
  * do loopback mount.
+ *
+ * sys_mount()
+ *  do_mount()
+ *   do_loopback()
  */
 static int do_loopback(struct nameidata *nd, char *old_name, int recurse)
 {
@@ -1008,6 +1064,12 @@ out:
  * change filesystem flags. dir should be a physical root of filesystem.
  * If you've mounted a non-root directory somewhere and want to do remount
  * on it - tough luck.
+ *
+ * 修改挂载标记
+ *
+ * sys_mount()
+ *  do_mount()
+ *   do_remount()
  */
 static int do_remount(struct nameidata *nd, int flags, int mnt_flags,
 		      void *data)
@@ -1044,6 +1106,10 @@ static inline int tree_contains_unbindable(struct vfsmount *mnt)
 	return 0;
 }
 
+/*
+ * sys_mount()
+ *  do_mount()
+ */
 static int do_move_mount(struct nameidata *nd, char *old_name)
 {
 	struct nameidata old_nd, parent_nd;
@@ -1136,7 +1202,10 @@ static int do_new_mount(struct nameidata *nd, char *type, int flags,
 	/* we need capabilities... */
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
-
+    /*
+     * 1.找到对应的file_system_type,
+     * 2.分配vfsmmount对象，分配super_block对象
+     */
 	mnt = do_kern_mount(type, flags, name, data);
 	if (IS_ERR(mnt))
 		return PTR_ERR(mnt);
@@ -1147,6 +1216,12 @@ static int do_new_mount(struct nameidata *nd, char *type, int flags,
 /*
  * add a mount into a namespace's mount tree
  * - provide the option of adding the new mount to an expiration list
+ *
+ * sys_mount()
+ *  do_mount()
+ *   do_new_mount()
+ *    do_add_mount()
+ * 
  */
 int do_add_mount(struct vfsmount *newmnt, struct nameidata *nd,
 		 int mnt_flags, struct list_head *fslist)
@@ -1161,7 +1236,9 @@ int do_add_mount(struct vfsmount *newmnt, struct nameidata *nd,
 	if (!check_mnt(nd->mnt))
 		goto unlock;
 
-	/* Refuse the same filesystem on the same mount point */
+	/* Refuse the same filesystem on the same mount point
+	 * 同一个文件系统对象，挂载到同一个位置，要拒绝
+	 */
 	err = -EBUSY;
 	if (nd->mnt->mnt_sb == newmnt->mnt_sb &&
 	    nd->mnt->mnt_root == nd->dentry)
@@ -1468,12 +1545,11 @@ long do_mount(char *dev_name, char *dir_name, char *type_page,
 
 	/* Separate the per-mountpoint flags */
 	if (flags & MS_NOSUID)
-		mnt_flags |= MNT_NOSUID;
-	
+		mnt_flags |= MNT_NOSUID;	
 	if (flags & MS_NODEV)
-		mnt_flags |= MNT_NODEV;
+		mnt_flags |= MNT_NODEV;	
 	if (flags & MS_NOEXEC)
-		mnt_flags |= MNT_NOEXEC;
+		mnt_flags |= MNT_NOEXEC;	
 	if (flags & MS_NOATIME)
 		mnt_flags |= MNT_NOATIME;
 	if (flags & MS_NODIRATIME)
@@ -1498,10 +1574,10 @@ long do_mount(char *dev_name, char *dir_name, char *type_page,
 	if (flags & MS_REMOUNT)  /* 修改已经装载的文件系统的装载选项 */
 		retval = do_remount(&nd, flags & ~MS_REMOUNT, mnt_flags,
 				    data_page);
-	else if (flags & MS_BIND)
+	else if (flags & MS_BIND) //通过还回接口装载一个文件系统
 		retval = do_loopback(&nd, dev_name, flags & MS_REC);
 	else if (flags & (MS_SHARED | MS_PRIVATE | MS_SLAVE | MS_UNBINDABLE))
-		retval = do_change_type(&nd, flags);
+		retval = do_change_type(&nd, flags); //负责处理共享、从属和不可绑定的装载，它可以改变装载标志或在设计的各个vfsmount实例之间建立所需的数据结构的关联
 	else if (flags & MS_MOVE) /* 移动一个已经装载的文件系统 */
 		retval = do_move_mount(&nd, dev_name);
 	else /* 处理普通装载操作 */
@@ -1627,7 +1703,8 @@ asmlinkage long sys_mount(char __user * dev_name, char __user * dir_name,
 	if (retval < 0)
 		goto out3;
 
-	lock_kernel();
+    //就是current->lock_depth++
+ 	lock_kernel();
 	retval = do_mount((char *)dev_page, dir_page, (char *)type_page,
 			  flags, (void *)data_page);
 	unlock_kernel();

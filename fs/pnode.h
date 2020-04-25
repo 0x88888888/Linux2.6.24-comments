@@ -24,6 +24,13 @@
 #define CL_PROPAGATION 		0x10
 #define CL_PRIVATE 		0x20
 
+/*
+ * sys_mount()
+ *  do_mount()
+ *   do_change_type()
+ *    change_mnt_propagation()
+ *     set_mnt_shared()
+ */
 static inline void set_mnt_shared(struct vfsmount *mnt)
 {
 	mnt->mnt_flags &= ~MNT_PNODE_MASK;

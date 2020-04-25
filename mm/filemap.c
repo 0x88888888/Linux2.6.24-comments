@@ -721,6 +721,14 @@ void fastcall __lock_page_nosync(struct page *page)
  * If yes, increment its refcount and return it; if no, return NULL.
  *
  * 从address_space->page_tree中获取数据
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read() 
+ *      do_generic_mapping_read()
+ *       find_get_page()
  */
 struct page * find_get_page(struct address_space *mapping, pgoff_t offset /* page 偏移 */)
 {
@@ -730,7 +738,8 @@ struct page * find_get_page(struct address_space *mapping, pgoff_t offset /* pag
 	/* 在page_tree中查找 */
 	page = radix_tree_lookup(&mapping->page_tree, offset);
 	if (page)
-		page_cache_get(page);
+		page_cache_get(page); //page->_count +1
+	
 	read_unlock_irq(&mapping->tree_lock);
 	return page;
 }
@@ -997,8 +1006,8 @@ static void shrink_readahead_size_eio(struct file *filp,
  *  vfs_read()
  *   do_sync_read()
  *    generic_file_aio_read()
- *     do_generic_file_read() 
- *      do_generic_mapping_read()
+ *     do_generic_file_read( actor == file_read_actor ) 
+ *      do_generic_mapping_read( actor == file_read_actor)
  *  
  * ppos 为 file->f_pos 
  *
@@ -1048,7 +1057,7 @@ find_page:
 			/* 因为前面在缓存中读取没有成功，所以需要再次读取 */
 			page = find_get_page(mapping, index);
 			if (unlikely(page == NULL))
-				goto no_cached_page;
+				goto no_cached_page; //两次读取都失败了
 		}
 		
 		
@@ -1123,6 +1132,7 @@ page_ok:
 		 * pointers and the remaining count).
 		 *
 		 * 实际拷贝到用户态操作
+		 * actor == file_read_actor
 		 *
 		 */
 		ret = actor(desc, page, offset, nr);
@@ -1240,6 +1250,15 @@ out:
 }
 EXPORT_SYMBOL(do_generic_mapping_read);
 
+/*
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read( actor == file_read_actor ) 
+ *      do_generic_mapping_read( actor == file_read_actor)
+ *       file_read_actor()
+ */
 int file_read_actor(read_descriptor_t *desc, struct page *page,
 			unsigned long offset, unsigned long size)
 {
@@ -1262,7 +1281,9 @@ int file_read_actor(read_descriptor_t *desc, struct page *page,
 			goto success;
 	}
 
-	/* Do it the slow way */
+	/* Do it the slow way 
+	 * 复制到用户态内存
+	 */
 	kaddr = kmap(page);
 	left = __copy_to_user(desc->arg.buf, kaddr + offset, size);
 	kunmap(page);
@@ -1356,6 +1377,8 @@ generic_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
 	/* coalesce the iovecs and go direct-to-BIO for O_DIRECT */
 	if (filp->f_flags & O_DIRECT) { /* 直接读取，不从address_spacess->page_tree中读取 */
 		loff_t size;
+
+        //下面的这个变量多余
 		struct address_space *mapping;
 		struct inode *inode;
 
@@ -1379,6 +1402,7 @@ generic_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
 		}
 	}
 
+	//到这里，说明前面的一步没有读取到数据
 	retval = 0;
 	if (count) {
 		for (seg = 0; seg < nr_segs; seg++) {

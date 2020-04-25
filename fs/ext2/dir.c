@@ -349,6 +349,23 @@ ext2_readdir (struct file * filp, void * dirent, filldir_t filldir)
  * returns the page in which the entry was found, and the entry itself
  * (as a parameter - res_dir). Page is returned mapped and unlocked.
  * Entry is guaranteed to be valid.
+ *
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk()  这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             do_lookup()
+ *              real_lookup()
+ *               ext2_lookup()
+ *                ext2_inode_by_name()
+ *                 ext2_find_entry()
+ *
   读盘查找 
  */
 struct ext2_dir_entry_2 * ext2_find_entry (struct inode * dir,
@@ -427,7 +444,23 @@ struct ext2_dir_entry_2 * ext2_dotdot (struct inode *dir, struct page **p)
 	return de;
 }
 
-/* ext2文件系统查找dentry */
+/* ext2文件系统查找dentry 
+ *
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk()  这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             do_lookup()
+ *              real_lookup()
+ *               ext2_lookup()
+ *                ext2_inode_by_name()
+ */
 ino_t ext2_inode_by_name(struct inode * dir, struct dentry *dentry)
 {
 	ino_t res = 0;

@@ -1244,8 +1244,21 @@ struct dentry *d_splice_alias(struct inode *inode, struct dentry *dentry)
  *
  * d_lookup() is protected against the concurrent renames in some unrelated
  * directory using the seqlockt_t rename_lock.
+ *
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk()  这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             do_lookup()
+ *              real_lookup()
+ *               d_lookup()
  */
-
 struct dentry * d_lookup(struct dentry * parent, struct qstr * name)
 {
 	struct dentry * dentry = NULL;
@@ -1273,6 +1286,8 @@ struct dentry * d_lookup(struct dentry * parent, struct qstr * name)
 *			 __link_path_walk()
 *			  do_lookup()
 *              __d_lookup()
+*
+* 在父目录中查找name对应的dentry
 */
 
 struct dentry * __d_lookup(struct dentry * parent, struct qstr * name)
@@ -1310,7 +1325,7 @@ struct dentry * __d_lookup(struct dentry * parent, struct qstr * name)
 		 * change the qstr (protected by d_lock).
 		 */
 		qstr = &dentry->d_name;
-		if (parent->d_op && parent->d_op->d_compare) {
+		if (parent->d_op && parent->d_op->d_compare) { //比较
 			if (parent->d_op->d_compare(parent, qstr, name))
 				goto next;
 		} else {

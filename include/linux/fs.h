@@ -848,7 +848,16 @@ struct file {
 	struct path		f_path;
 #define f_dentry	f_path.dentry
 #define f_vfsmnt	f_path.mnt
-    /* inode->i_fops相同 */
+    /* inode->i_fops相同 
+     * 在__dentry_open中设置
+     *
+     * ext2_file_operations ,
+	 * shmem_file_operations
+	 * def_chr_fops,
+	 * def_blk_fops,
+	 * def_fifo_fops,
+     * bad_sock_fops 
+     */
 	const struct file_operations	*f_op;
     //引用次数
 	atomic_t		f_count;
@@ -860,6 +869,7 @@ struct file {
 	loff_t			f_pos;
 	struct fown_struct	f_owner;
 	unsigned int		f_uid, f_gid;
+	//在__dentry_open中调用file_ra_state_init初始化
 	struct file_ra_state	f_ra; /* 是否预读数据，如何预读数据 */
 
 	u64			f_version;
@@ -2006,7 +2016,7 @@ static inline int xip_truncate_page(struct address_space *mapping, loff_t from)
  *  vfs_read()
  *   do_sync_read()
  *    generic_file_aio_read()
- *     do_generic_file_read() 
+ *     do_generic_file_read( actor == file_read_actor) 
  *
  * ppos 为 file->f_pos 
  */

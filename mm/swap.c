@@ -190,6 +190,14 @@ void fastcall activate_page(struct page *page)
  * active,unreferenced		->	active,referenced
  *
  * 当一个页面被访问时，则调用该函数相应地修改 PG_active 和 PG_referenced。
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read( actor == file_read_actor ) 
+ *      do_generic_mapping_read( actor == file_read_actor)
+ *       mark_page_accessed()
  */
 void fastcall mark_page_accessed(struct page *page)
 {

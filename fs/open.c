@@ -758,6 +758,7 @@ static struct file *__dentry_open(struct dentry *dentry, struct vfsmount *mnt,
 			goto cleanup_file;
 	}
 
+    //设置文件的address_space对象
 	f->f_mapping = inode->i_mapping;
 	f->f_path.dentry = dentry;
 	f->f_path.mnt = mnt;
@@ -794,6 +795,9 @@ static struct file *__dentry_open(struct dentry *dentry, struct vfsmount *mnt,
 
 	f->f_flags &= ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
 
+    /*
+     * 初始化 file_ra_state对象
+     */
 	file_ra_state_init(&f->f_ra, f->f_mapping->host->i_mapping);
 
 	/* NB: we're sure to have correct a_ops only after f_op->open */

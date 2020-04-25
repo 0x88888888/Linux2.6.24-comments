@@ -132,6 +132,7 @@ struct kiocb {
 };
 
 #define is_sync_kiocb(iocb)	((iocb)->ki_key == KIOCB_SYNC_KEY)
+// 初始化一个kiocb对象，用于控制异步操作
 #define init_sync_kiocb(x, filp)			\
 	do {						\
 		struct task_struct *tsk = current;	\

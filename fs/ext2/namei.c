@@ -49,6 +49,21 @@ static inline int ext2_add_nondir(struct dentry *dentry, struct inode *inode)
 }
 
 /*
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk()  这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             do_lookup()
+ *              real_lookup()
+ *               ext2_lookup()
+ *
+ *
  * Methods themselves.
  * 在dir中查找dentry,保存信息到nd中
  */

@@ -27,6 +27,13 @@ static inline struct vfsmount *next_slave(struct vfsmount *p)
 	return list_entry(p->mnt_slave.next, struct vfsmount, mnt_slave);
 }
 
+/*
+ * sys_mount()
+ *  do_mount()
+ *   do_change_type()
+ *    change_mnt_propagation()
+ *     do_make_slave()
+ */
 static int do_make_slave(struct vfsmount *mnt)
 {
 	struct vfsmount *peer_mnt = mnt, *master = mnt->mnt_master;
@@ -72,7 +79,13 @@ static int do_make_slave(struct vfsmount *mnt)
 }
 
 
-/* 注意是设置mnt->mnt_flags信息 */
+/* 注意是设置mnt->mnt_flags信息 
+ *
+ * sys_mount()
+ *  do_mount()
+ *   do_change_type()
+ *    change_mnt_propagation()
+ */
 void change_mnt_propagation(struct vfsmount *mnt, int type)
 {
 	if (type == MS_SHARED) {
@@ -169,6 +182,14 @@ static struct vfsmount *get_source(struct vfsmount *dest,
  * @dest_dentry: destination dentry.
  * @source_mnt: source mount.
  * @tree_list : list of heads of trees to be attached.
+ *
+ * sys_mount()
+ *  do_mount()
+ *   do_new_mount()
+ *    do_add_mount()
+ *     graft_tree()
+ *      attach_recursive_mnt()
+ *       propagate_mnt()
  */
 int propagate_mnt(struct vfsmount *dest_mnt, struct dentry *dest_dentry,
 		    struct vfsmount *source_mnt, struct list_head *tree_list)

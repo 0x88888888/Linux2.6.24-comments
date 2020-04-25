@@ -33,6 +33,13 @@ EXPORT_SYMBOL_GPL(default_backing_dev_info);
 /*
  * Initialise a struct file's readahead state.  Assumes that the caller has
  * memset *ra to zero.
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    nameidata_to_filp()
+ *     __dentry_open()
+ *      file_ra_state_init()
  */
 void
 file_ra_state_init(struct file_ra_state *ra, struct address_space *mapping)
@@ -90,11 +97,10 @@ EXPORT_SYMBOL(read_cache_pages);
  *    generic_file_aio_read()
  *     do_generic_file_read() 
  *      do_generic_mapping_read()
- *       page_cache_sync_readahead()
+ *       page_cache_sync_readahead(, hit_readahead_marker == false)
  *        ondemand_readahead()
  *         __do_page_cache_readahead()
  *          read_pages()
-
  * 
  * nr_pages为链表pages的长度
  */
@@ -175,10 +181,9 @@ out:
  *    generic_file_aio_read()
  *     do_generic_file_read() 
  *      do_generic_mapping_read()
- *       page_cache_sync_readahead()
+ *       page_cache_sync_readahead(, hit_readahead_marker == false)
  *        ondemand_readahead()
  *         __do_page_cache_readahead()
- *
  *
  */
 static int
@@ -307,9 +312,15 @@ subsys_initcall(readahead_init);
 /*
  * Submit IO for the read-ahead request in file_ra_state.
  *
- * page_cache_sync_readahead()
- *  ondemand_readahead()
- *   ra_submit()
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read() 
+ *      do_generic_mapping_read()
+ *       page_cache_sync_readahead()
+ *        ondemand_readahead()
+ *         ra_submit()
  *
  * 根据file_ra_state对象，进行预读
  */
@@ -441,7 +452,7 @@ static unsigned long get_next_ra_size(struct file_ra_state *ra,
  *    generic_file_aio_read()
  *     do_generic_file_read() 
  *      do_generic_mapping_read()
- *       page_cache_sync_readahead()
+ *       page_cache_sync_readahead(, hit_readahead_marker == false)
  *        ondemand_readahead()
  */
 static unsigned long
@@ -474,6 +485,7 @@ ondemand_readahead(struct address_space *mapping,
 
     /* 页为单位 */
 	prev_offset = ra->prev_pos >> PAGE_CACHE_SHIFT;
+	//顺序读
 	sequential = offset - prev_offset <= 1UL || req_size > max;
 
 	/*
@@ -592,7 +604,16 @@ EXPORT_SYMBOL_GPL(page_cache_sync_readahead);
  * page_cache_async_ondemand() should be called when a page is used which
  * has the PG_readahead flag: this is a marker to suggest that the application
  * has used up enough of the readahead window that we should start pulling in
- * more pages. */
+ * more pages. 
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read() 
+ *      do_generic_mapping_read()
+ *       page_cache_async_readahead()
+ */
 void
 page_cache_async_readahead(struct address_space *mapping,
 			   struct file_ra_state *ra, struct file *filp,

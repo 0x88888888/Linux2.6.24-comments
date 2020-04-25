@@ -119,7 +119,7 @@ struct dentry {
 #ifdef CONFIG_PROFILING
 	struct dcookie_struct *d_cookie; /* cookie, if any */
 #endif
-	int d_mounted; /* 是否是挂载点 */
+	int d_mounted; /* 是否是挂载点，在mnt_set_mountpoint中设置 */
     /* 当目录项名称长度小于DNAME_INLINE_LEN时，则该字符串名称则直接通过该字段进行存储 */
 	unsigned char d_iname[DNAME_INLINE_LEN_MIN];	/* small names */
 };

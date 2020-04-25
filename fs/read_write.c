@@ -232,7 +232,7 @@ static void wait_on_retry_sync_kiocb(struct kiocb *iocb)
  *
  * sys_read()
  *  vfs_read()
- *   do_sync_read()
+ *   do_sync_read() ext2文件系统时
  *
  * ppos 为 file->f_pos
  */
@@ -242,6 +242,9 @@ ssize_t do_sync_read(struct file *filp, char __user *buf, size_t len, loff_t *pp
 	struct kiocb kiocb;
 	ssize_t ret;
 
+	/*
+	 * 初始化一个kiocb对象，用于控制异步操作
+	 */
 	init_sync_kiocb(&kiocb, filp);
 	kiocb.ki_pos = *ppos;
 	kiocb.ki_left = len;
@@ -254,6 +257,7 @@ ssize_t do_sync_read(struct file *filp, char __user *buf, size_t len, loff_t *pp
 						
 		if (ret != -EIOCBRETRY)
 			break;
+		//等待读取
 		wait_on_retry_sync_kiocb(&kiocb);
 	}
 
