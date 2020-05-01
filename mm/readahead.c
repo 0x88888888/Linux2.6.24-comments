@@ -185,6 +185,14 @@ out:
  *        ondemand_readahead()
  *         __do_page_cache_readahead()
  *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       do_page_cache_readahead() 
+ *        __do_page_cache_readahead()
  */
 static int
 __do_page_cache_readahead(struct address_space *mapping, struct file *filp,
@@ -206,6 +214,7 @@ __do_page_cache_readahead(struct address_space *mapping, struct file *filp,
 
 	/*
 	 * Preallocate as many pages as we will need.
+	 * 预先分配所需的page
 	 */
 	for (page_idx = 0; page_idx < nr_to_read; page_idx++) {
 		pgoff_t page_offset = offset + page_idx;
@@ -220,7 +229,7 @@ __do_page_cache_readahead(struct address_space *mapping, struct file *filp,
 		if (page) /* 找到 */
 			continue;
 
-		/* 从mapping->page_tree缓存中查找失败   */
+		/* 从mapping->page_tree缓存中查找失败   ,*/
 		page = page_cache_alloc_cold(mapping);
 		if (!page)
 			break;
@@ -282,6 +291,14 @@ int force_page_cache_readahead(struct address_space *mapping, struct file *filp,
  *
  * force_page_cache_readahead() will ignore queue congestion and will block on
  * request queues.
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       do_page_cache_readahead()
  */
 int do_page_cache_readahead(struct address_space *mapping, struct file *filp,
 			pgoff_t offset, unsigned long nr_to_read)
@@ -575,6 +592,14 @@ readit:
  *    generic_file_aio_read()
  *     do_generic_file_read() 
  *      do_generic_mapping_read()
+ *       page_cache_sync_readahead()
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
  *       page_cache_sync_readahead()
  *
  */

@@ -35,7 +35,16 @@
 // 是否是 first <= b <= first + len
 #define in_range(b, first, len)	((b) >= (first) && (b) <= (first) + (len) - 1)
 
-/* 根据block no 得到 group desc对象 */
+/* 根据block no 得到 group desc对象 
+ *
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ *    ext2_mkdir()
+ *     ext2_new_inode()
+ *      find_group_dir()
+ *       ext2_get_group_desc()
+ */
 struct ext2_group_desc * ext2_get_group_desc(struct super_block * sb,
 					     unsigned int block_group,
 					     struct buffer_head ** bh)
@@ -45,6 +54,7 @@ struct ext2_group_desc * ext2_get_group_desc(struct super_block * sb,
 	struct ext2_group_desc * desc;
 	struct ext2_sb_info *sbi = EXT2_SB(sb);
 
+    //不要越界了
 	if (block_group >= sbi->s_groups_count) {
 		ext2_error (sb, "ext2_get_group_desc",
 			    "block_group >= groups_count - "
@@ -56,7 +66,7 @@ struct ext2_group_desc * ext2_get_group_desc(struct super_block * sb,
 
 	group_desc = block_group >> EXT2_DESC_PER_BLOCK_BITS(sb);
 	offset = block_group & (EXT2_DESC_PER_BLOCK(sb) - 1);
-	if (!sbi->s_group_desc[group_desc]) {
+	if (!sbi->s_group_desc[group_desc]) { // group desc没有从磁盘上加载进来
 		ext2_error (sb, "ext2_get_group_desc",
 			    "Group descriptor not loaded - "
 			    "block_group = %d, group_desc = %lu, desc = %lu",
@@ -65,8 +75,9 @@ struct ext2_group_desc * ext2_get_group_desc(struct super_block * sb,
 	}
 
 	desc = (struct ext2_group_desc *) sbi->s_group_desc[group_desc]->b_data;
-	if (bh)
+	if (bh) //复制desc 指针到buffer_head中去
 		*bh = sbi->s_group_desc[group_desc];
+	
 	return desc + offset;
 }
 
@@ -363,6 +374,13 @@ static inline int rsv_is_empty(struct ext2_reserve_window *rsv)
  * is open for write (needs block allocation).
  *
  * Needs truncate_mutex protection prior to calling this function.
+ *
+ * ext2_writepage()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *   __block_write_full_page(, get_block == ext2_get_block)
+ *    ext2_get_block()
+ *     ext2_get_blocks()
+ *      ext2_init_block_alloc_info()
  */
 void ext2_init_block_alloc_info(struct inode *inode)
 {
@@ -612,6 +630,17 @@ find_next_usable_block(int start, struct buffer_head *bh, int maxblocks)
  *
  * If we failed to allocate the desired block then we may end up crossing to a
  * new bitmap.
+ *
+ * ext2_writepage()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *   __block_write_full_page(, get_block == ext2_get_block)
+ *    ext2_get_block()
+ *     ext2_get_blocks()
+ *      ext2_alloc_branch()
+ *       ext2_alloc_blocks()
+ *        ext2_new_blocks()
+ *         ext2_try_to_allocate_with_rsv()
+ *          ext2_try_to_allocate()
  * 
  * 从group中分配 block，首先从reserve window中分配，否则从其余的空间中分配
  * 实在不行，就失败
@@ -620,7 +649,7 @@ static int
 ext2_try_to_allocate(struct super_block *sb, int group,
 			struct buffer_head *bitmap_bh, ext2_grpblk_t grp_goal,
 			unsigned long *count,
-			struct ext2_reserve_window *my_rsv)
+			struct ext2_reserve_window *my_rsv /* 这个参数如果是NULL，表示不使用预留窗口信息*/ )
 {
 	ext2_fsblk_t group_first_block;
        	ext2_grpblk_t start, end;
@@ -856,6 +885,19 @@ static int find_next_reservable_window(
  *	@group: the group we are trying to allocate in
  *	@bitmap_bh: the block group block bitmap
  *
+ *
+ * ext2_writepage()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *   __block_write_full_page(, get_block == ext2_get_block)
+ *    ext2_get_block()
+ *     ext2_get_blocks()
+ *      ext2_alloc_branch()
+ *       ext2_alloc_blocks()
+ *        ext2_new_blocks()
+ *         ext2_try_to_allocate_with_rsv()
+ *          alloc_new_reservation()
+ *
+ * 创建新的预留窗口
  */
 static int alloc_new_reservation(struct ext2_reserve_window_node *my_rsv,
 		ext2_grpblk_t grp_goal, struct super_block *sb,
@@ -869,7 +911,9 @@ static int alloc_new_reservation(struct ext2_reserve_window_node *my_rsv,
 	int ret;
 	spinlock_t *rsv_lock = &EXT2_SB(sb)->s_rsv_window_lock;
 
+	//起始块
 	group_first_block = ext2_group_first_block_no(sb, group);
+	//结束块
 	group_end_block = group_first_block + (EXT2_BLOCKS_PER_GROUP(sb) - 1);
 
 	if (grp_goal < 0)
@@ -879,7 +923,7 @@ static int alloc_new_reservation(struct ext2_reserve_window_node *my_rsv,
 
 	size = my_rsv->rsv_goal_size;
 
-	if (!rsv_is_empty(&my_rsv->rsv_window)) {
+	if (!rsv_is_empty(&my_rsv->rsv_window)) { //已经有预留窗口了
 		/*
 		 * if the old reservation is cross group boundary
 		 * and if the goal is inside the old reservation window,
@@ -902,6 +946,8 @@ static int alloc_new_reservation(struct ext2_reserve_window_node *my_rsv,
 		if ((my_rsv->rsv_alloc_hit >
 		     (my_rsv->rsv_end - my_rsv->rsv_start + 1) / 2)) {
 			/*
+			 * 命中大于预留窗口的一半
+			 *
 			 * if the previously allocation hit ratio is
 			 * greater than 1/2, then we double the size of
 			 * the reservation window the next time,
@@ -928,12 +974,14 @@ static int alloc_new_reservation(struct ext2_reserve_window_node *my_rsv,
 	 * need to check the bitmap after we found a reservable window.
 	 */
 retry:
+    //查找一个合适的预留空闲窗口
 	ret = find_next_reservable_window(search_head, my_rsv, sb,
 						start_block, group_end_block);
 
 	if (ret == -1) {
 		if (!rsv_is_empty(&my_rsv->rsv_window))
 			rsv_window_remove(sb, my_rsv);
+		
 		spin_unlock(rsv_lock);
 		return -1;
 	}
@@ -999,6 +1047,17 @@ retry:
  * expand the reservation window size if necessary on a best-effort
  * basis before ext2_new_blocks() tries to allocate blocks.
  *
+ * ext2_writepage()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *   __block_write_full_page(, get_block == ext2_get_block)
+ *    ext2_get_block()
+ *     ext2_get_blocks()
+ *      ext2_alloc_branch()
+ *       ext2_alloc_blocks()
+ *        ext2_new_blocks()
+ *         ext2_try_to_allocate_with_rsv()
+ *          try_to_extend_reservation()
+ *
  * 扩张reserve window
  */
 static void try_to_extend_reservation(struct ext2_reserve_window_node *my_rsv,
@@ -1051,6 +1110,18 @@ static void try_to_extend_reservation(struct ext2_reserve_window_node *my_rsv,
  * being reserved.
  *
  * We use a red-black tree for the per-filesystem reservation list.
+ *
+ * ext2_writepage()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *   __block_write_full_page(, get_block == ext2_get_block)
+ *    ext2_get_block()
+ *     ext2_get_blocks()
+ *      ext2_alloc_branch()
+ *       ext2_alloc_blocks()
+ *        ext2_new_blocks()
+ *         ext2_try_to_allocate_with_rsv()
+ * 这个函数是分配新block和预留窗口的主要函数
+ *
  * 首先从group的reservation window中分配，否则从group的其余block中分配
  */
 static ext2_grpblk_t
@@ -1100,7 +1171,8 @@ ext2_try_to_allocate_with_rsv(struct super_block *sb, unsigned int group,
 	 * then we could go to allocate from the reservation window directly.
 	 */
 	while (1) {
-		if (rsv_is_empty(&my_rsv->rsv_window) || (ret < 0) ||
+		
+		if (rsv_is_empty(&my_rsv->rsv_window) /* 检查是否有预留区域 */|| (ret < 0) ||
 			!goal_in_my_reservation(&my_rsv->rsv_window,
 						grp_goal, group, sb)) {
 			/* 没有 reservation window或者grp_goal不在reservation window中 */			
@@ -1140,7 +1212,7 @@ ext2_try_to_allocate_with_rsv(struct super_block *sb, unsigned int group,
 		ret = ext2_try_to_allocate(sb, group, bitmap_bh, grp_goal,
 					   &num, &my_rsv->rsv_window);
 		if (ret >= 0) {
-			my_rsv->rsv_alloc_hit += num;
+			my_rsv->rsv_alloc_hit += num; //更新预分配命中次数
 			*count = num;
 			break;				/* succeed */
 		}
@@ -1183,6 +1255,18 @@ static int ext2_has_free_blocks(struct ext2_sb_info *sbi)
  * bitmap, and then for any free bit if that fails.
  * This function also updates quota and i_blocks field.
  * goal是否是free的，否则查找count个block
+ *
+ * ext2_writepage()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *   __block_write_full_page(, get_block == ext2_get_block)
+ *    ext2_get_block()
+ *     ext2_get_blocks()
+ *      ext2_alloc_branch()
+ *       ext2_alloc_blocks()
+ *        ext2_new_blocks()
+ *
+ * 分配连续的block
+ * 返回已分配第一个块的序号,
  */
 ext2_fsblk_t /* 块号 */ ext2_new_blocks(struct inode *inode, ext2_fsblk_t goal /* 建议而已 */ ,
 		    unsigned long *count, int *errp)
@@ -1250,7 +1334,7 @@ ext2_fsblk_t /* 块号 */ ext2_new_blocks(struct inode *inode, ext2_fsblk_t goal
 
 	/*
 	 * First, test whether the goal block is free.
-	 * goal block是否在有效的范围内
+	 * goal block是否是空闲的、有效的.
 	 */
 	if (goal < le32_to_cpu(es->s_first_data_block) ||
 	    goal >= le32_to_cpu(es->s_blocks_count))
@@ -1327,7 +1411,8 @@ retry_alloc:
 		 */
 		grp_alloc_blk = ext2_try_to_allocate_with_rsv(sb, group_no,
 					bitmap_bh, -1, my_rsv, &num);
-		if (grp_alloc_blk >= 0)
+		
+		if (grp_alloc_blk >= 0) //分配成功
 			goto allocated;
 	}
 	/*

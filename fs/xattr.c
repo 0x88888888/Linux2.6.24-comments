@@ -23,6 +23,11 @@
 /*
  * Check permissions for extended attribute access.  This is a bit complicated
  * because different namespaces have very different rules.
+ *
+ * sys_setxattr()
+ *  setxattr()
+ *   vfs_setxattr()
+ *    xattr_permission()
  */
 static int
 xattr_permission(struct inode *inode, const char *name, int mask)
@@ -30,6 +35,8 @@ xattr_permission(struct inode *inode, const char *name, int mask)
 	/*
 	 * We can never set or remove an extended attribute on a read-only
 	 * filesystem  or on an immutable / append-only inode.
+	 *
+	 * 以只读的方式挂载的文件系统，不能写扩展属性了
 	 */
 	if (mask & MAY_WRITE) {
 		if (IS_RDONLY(inode))
@@ -41,6 +48,8 @@ xattr_permission(struct inode *inode, const char *name, int mask)
 	/*
 	 * No restriction for security.* and system.* from the VFS.  Decision
 	 * on these is left to the underlying filesystem / security module.
+	 *
+	 * 对于security.*和system.*命名空间中的扩展属性,在vfs层先不管，等到后面再去验证了
 	 */
 	if (!strncmp(name, XATTR_SECURITY_PREFIX, XATTR_SECURITY_PREFIX_LEN) ||
 	    !strncmp(name, XATTR_SYSTEM_PREFIX, XATTR_SYSTEM_PREFIX_LEN))
@@ -48,6 +57,8 @@ xattr_permission(struct inode *inode, const char *name, int mask)
 
 	/*
 	 * The trusted.* namespace can only be accessed by a privileged user.
+	 *
+	 * trusted.*命名空间的扩展属性只能有特权用户才能修改
 	 */
 	if (!strncmp(name, XATTR_TRUSTED_PREFIX, XATTR_TRUSTED_PREFIX_LEN))
 		return (capable(CAP_SYS_ADMIN) ? 0 : -EPERM);
@@ -55,6 +66,9 @@ xattr_permission(struct inode *inode, const char *name, int mask)
 	/* In user.* namespace, only regular files and directories can have
 	 * extended attributes. For sticky directories, only the owner and
 	 * privileged user can write attributes.
+	 *
+	 * user.*命名空间中的属性只能普通文件和目录中使用
+	 * 并且只有owner和特权用户才能写这个扩展属性
 	 */
 	if (!strncmp(name, XATTR_USER_PREFIX, XATTR_USER_PREFIX_LEN)) {
 		if (!S_ISREG(inode->i_mode) && !S_ISDIR(inode->i_mode))
@@ -67,6 +81,11 @@ xattr_permission(struct inode *inode, const char *name, int mask)
 	return permission(inode, mask, NULL);
 }
 
+/*
+ * sys_setxattr()
+ *  setxattr()
+ *   vfs_setxattr()
+ */
 int
 vfs_setxattr(struct dentry *dentry, char *name, void *value,
 		size_t size, int flags)
@@ -74,6 +93,7 @@ vfs_setxattr(struct dentry *dentry, char *name, void *value,
 	struct inode *inode = dentry->d_inode;
 	int error;
 
+	//检查用户是否可以设置inode的xattr
 	error = xattr_permission(inode, name, MAY_WRITE);
 	if (error)
 		return error;
@@ -83,7 +103,7 @@ vfs_setxattr(struct dentry *dentry, char *name, void *value,
 	if (error)
 		goto out;
 	error = -EOPNOTSUPP;
-	if (inode->i_op->setxattr) {
+	if (inode->i_op->setxattr) { //ext2,ext3: generic_setxattr
 		error = inode->i_op->setxattr(dentry, name, value, size, flags);
 		if (!error) {
 			fsnotify_xattr(dentry);
@@ -104,6 +124,11 @@ out:
 }
 EXPORT_SYMBOL_GPL(vfs_setxattr);
 
+/*
+ * sys_getxattr()
+ *  getxattr()
+ *   vfs_getxattr()
+ */
 ssize_t
 vfs_getxattr(struct dentry *dentry, char *name, void *value, size_t size)
 {
@@ -118,7 +143,8 @@ vfs_getxattr(struct dentry *dentry, char *name, void *value, size_t size)
 	if (error)
 		return error;
 
-	if (inode->i_op->getxattr)
+    //ext2,ext3: generic_getxattr
+	if (inode->i_op->getxattr) 
 		error = inode->i_op->getxattr(dentry, name, value, size);
 	else
 		error = -EOPNOTSUPP;
@@ -190,6 +216,9 @@ EXPORT_SYMBOL_GPL(vfs_removexattr);
 
 /*
  * Extended attribute SET operations
+ *
+ * sys_setxattr()
+ *  setxattr()
  */
 static long
 setxattr(struct dentry *d, char __user *name, void __user *value,
@@ -275,6 +304,9 @@ sys_fsetxattr(int fd, char __user *name, void __user *value,
 
 /*
  * Extended attribute GET operations
+ *
+ * sys_getxattr()
+ *  getxattr()
  */
 static ssize_t
 getxattr(struct dentry *d, char __user *name, void __user *value, size_t size)
@@ -539,6 +571,11 @@ xattr_resolve_name(struct xattr_handler **handlers, const char **name)
 
 /*
  * Find the handler for the prefix and dispatch its get() operation.
+ *
+ * sys_getxattr()
+ *  getxattr()
+ *   vfs_getxattr()
+ *    generic_getxattr()
  */
 ssize_t
 generic_getxattr(struct dentry *dentry, const char *name, void *buffer, size_t size)
@@ -546,9 +583,17 @@ generic_getxattr(struct dentry *dentry, const char *name, void *buffer, size_t s
 	struct xattr_handler *handler;
 	struct inode *inode = dentry->d_inode;
 
+	/* 从super_block的xattr_handler中查找处理程序
+	 *
+	 * ext2_xattr_handler_map
+	 * ext3_xattr_handler_map
+	 * 以user.命名空间为列,得到ext3_xattr_user_handler
+	 */
+
 	handler = xattr_resolve_name(inode->i_sb->s_xattr, &name);
 	if (!handler)
 		return -EOPNOTSUPP;
+	// ext3_xattr_user_get
 	return handler->get(inode, name, buffer, size);
 }
 
@@ -583,7 +628,13 @@ generic_listxattr(struct dentry *dentry, char *buffer, size_t buffer_size)
 
 /*
  * Find the handler for the prefix and dispatch its set() operation.
- * 设置扩展属性
+ * 设置扩展属性 
+ * ext2,ext3的setxattr都是这个
+ *
+ * sys_setxattr()
+ *  setxattr()
+ *   vfs_setxattr() 
+ *    generic_setxattr()
  */
 int
 generic_setxattr(struct dentry *dentry, const char *name, const void *value, size_t size, int flags)
@@ -593,11 +644,18 @@ generic_setxattr(struct dentry *dentry, const char *name, const void *value, siz
 
 	if (size == 0)
 		value = "";  /* empty EA, do not remove */
-	/* 从super_block的xattr_handler中查找处理程序 */
-	handler = xattr_resolve_name(inode->i_sb->s_xattr, &name);
+	/* 从super_block的xattr_handler中查找处理程序
+	 *
+	 * ext2_xattr_handler_map
+	 * ext3_xattr_handler_map
+	 * 以user.命名空间为列,得到ext3_xattr_user_handler
+	 */
+	handler = xattr_resolve_name(inode->i_sb->c, &name);
 	if (!handler)
 		return -EOPNOTSUPP;
-	/* 找到了，就调用，设置 */
+	/* 找到了，就调用，设置 
+	 * ext3_xattr_user_handler->set == ext3_xattr_user_set
+	 */
 	return handler->set(inode, name, value, size, flags);
 }
 

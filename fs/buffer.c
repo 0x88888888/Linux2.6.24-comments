@@ -274,6 +274,19 @@ EXPORT_SYMBOL(thaw_bdev);
  * may be quite high.  This code could TryLock the page, and if that
  * succeeds, there is no need to take private_lock. (But if
  * private_lock is contended then so is mapping->tree_lock).
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread() 
+ *          __getblk()
+ *           __find_get_block()
+ *            __find_get_block_slow()
  */
 static struct buffer_head *
 __find_get_block_slow(struct block_device *bdev, sector_t block)
@@ -1149,6 +1162,19 @@ grow_buffers(struct block_device *bdev, sector_t block, int size)
 	return 1;
 }
 
+/*
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread() 
+ *          __getblk()
+ *           __getblk_slow()
+ */
 static struct buffer_head *
 __getblk_slow(struct block_device *bdev, sector_t block, int size)
 {
@@ -1257,6 +1283,18 @@ void __bforget(struct buffer_head *bh)
 	__brelse(bh);
 }
 
+/*
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread()
+ *          __bread_slow()
+ */
 static struct buffer_head *__bread_slow(struct buffer_head *bh)
 {
 	lock_buffer(bh);
@@ -1362,6 +1400,19 @@ static void bh_lru_install(struct buffer_head *bh)
 
 /*
  * Look up the bh in this cpu's LRU.  If it's there, move it to the head.
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread() 
+ *          __getblk()
+ *           __find_get_block()
+ *            lookup_bh_lru()
  */
 static struct buffer_head *
 lookup_bh_lru(struct block_device *bdev, sector_t block, unsigned size)
@@ -1398,6 +1449,23 @@ lookup_bh_lru(struct block_device *bdev, sector_t block, unsigned size)
  * Perform a pagecache lookup for the matching buffer.  If it's there, refresh
  * it in the LRU and mark it as accessed.  If it is not present then return
  * NULL
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread() 
+ *          __getblk()
+ *           __find_get_block()
+ *
+ * sb_bread()
+ *  __bread() 
+ *   __getblk()
+ *    __getblk_slow() 
  */
 struct buffer_head *
 __find_get_block(struct block_device *bdev, sector_t block, unsigned size)
@@ -1427,6 +1495,16 @@ EXPORT_SYMBOL(__find_get_block);
  * __getblk() will lock up the machine if grow_dev_page's try_to_free_buffers()
  * attempt is failing.  FIXME, perhaps?
  *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread() 
+ *          __getblk()
  *
  * 这个函数和__bread功能相似，但是返回__bread会读磁盘
  */
@@ -1465,6 +1543,16 @@ EXPORT_SYMBOL(__breadahead);
  *  It returns NULL if the block was unreadable.
  *
  *  看__getblk函数
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread()
  */
 struct buffer_head *
 __bread(struct block_device *bdev, sector_t block, unsigned size)
@@ -1679,8 +1767,8 @@ EXPORT_SYMBOL(unmap_underlying_metadata);
  * prevents this contention from occurring.
  *
  * ext2_writepage()
- *  block_write_full_page()
- *   __block_write_full_page()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *   __block_write_full_page(, get_block == ext2_get_block)
  */
 static int __block_write_full_page(struct inode *inode, struct page *page,
 			get_block_t *get_block, struct writeback_control *wbc)
@@ -2150,6 +2238,17 @@ EXPORT_SYMBOL(generic_write_end);
  * 
  * blkdev_readpage()
  *  block_read_full_page()
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       ext2_readpage()
+ *        mpage_readpage(get_block == ext2_get_block)
+ *         do_mpage_readpage(get_block == ext2_get_block)
+ *          block_read_full_page(get_block== ext2_get_block)
  */
 int block_read_full_page(struct page *page, get_block_t *get_block)
 {
@@ -2892,7 +2991,17 @@ out:
  * The generic ->writepage function for buffer-backed address_spaces
  *
  * ext2_writepage()
- *  block_write_full_page()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ *    ext2_mkdir()
+ *     ext2_add_link()
+ *      ext2_commit_chunk()
+ *       write_one_page()
+ *        ext2_writepage( , get_block == ext2_get_block)
+ *
  */
 int block_write_full_page(struct page *page, get_block_t *get_block,
 			struct writeback_control *wbc)

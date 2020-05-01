@@ -787,6 +787,8 @@ static struct file *__dentry_open(struct dentry *dentry, struct vfsmount *mnt,
 	if (open) { 
 		/*
 		 * chrdev_open, blkdev_open, fifo_open, sock_open
+		 *
+		 * generic_file_open, sysfs_open_file
 		 */
 		error = open(inode, f);
 		if (error)
@@ -1248,6 +1250,13 @@ asmlinkage long sys_vhangup(void)
  * We use this to disallow opening large files on 32bit systems if
  * the caller didn't specify O_LARGEFILE.  On 64bit systems we force
  * on this flag in sys_open.
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    nameidata_to_filp()
+ *     __dentry_open()
+ *      generic_file_open()
  */
 int generic_file_open(struct inode * inode, struct file * filp)
 {

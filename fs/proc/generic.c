@@ -49,6 +49,12 @@ static const struct file_operations proc_file_operations = {
 /* buffer size is one page but our output routines use some slack for overruns */
 #define PROC_BLOCK_SIZE	(PAGE_SIZE - 1024)
 
+/*
+ * sys_read()
+ *  vfs_read()
+ *   proc_file_read()
+ *
+ */
 static ssize_t
 proc_file_read(struct file *file, char __user *buf, size_t nbytes,
 	       loff_t *ppos)
@@ -384,6 +390,21 @@ static struct dentry_operations proc_dentry_operations =
 /*
  * Don't create negative dentries here, return -ENOENT by hand
  * instead.
+ *
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk()  这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             do_lookup()
+ *              real_lookup()
+ *               proc_root_lookup() 
+ *                proc_lookup()
  */
 struct dentry *proc_lookup(struct inode * dir, struct dentry *dentry, struct nameidata *nd)
 {
@@ -531,6 +552,11 @@ static const struct inode_operations proc_dir_inode_operations = {
  * proc_mkdir()
  *  proc_mkdir_mode()
  *   proc_register()
+ *
+ * create_proc_entry()
+ *  proc_register()
+ *
+ * 挂载dir到dp目录上去
  */
 static int proc_register(struct proc_dir_entry * dir, struct proc_dir_entry * dp)
 {
@@ -571,6 +597,11 @@ static int proc_register(struct proc_dir_entry * dir, struct proc_dir_entry * dp
  * proc_mkdir()
  *  proc_mkdir_mode()
  *   proc_create()
+ *
+ * create_proc_entry()
+ *  proc_create()
+ *
+ * 分配、填充proc_dir_entry
  */
 static struct proc_dir_entry *proc_create(struct proc_dir_entry **parent,
 					  const char *name,
@@ -593,6 +624,7 @@ static struct proc_dir_entry *proc_create(struct proc_dir_entry **parent,
 
 	len = strlen(fn);
 
+	//内存分配出来
 	ent = kmalloc(sizeof(struct proc_dir_entry) + len + 1, GFP_KERNEL);
 	if (!ent) goto out;
 
@@ -665,9 +697,11 @@ struct proc_dir_entry *proc_mkdir(const char *name,
 
 /*
  * proc文件系统中创建文件
+ *
+ * create_proc_entry("hypercard", S_IFREG|SIRUGO|S_IWUSR, &proc_net);
  */
-struct proc_dir_entry *create_proc_entry(const char *name, mode_t mode,
-					 struct proc_dir_entry *parent)
+struct proc_dir_entry *create_proc_entry(const char *name /* entry名称 */, mode_t mode,
+					 struct proc_dir_entry *parent /* 父目录 */)
 {
 	struct proc_dir_entry *ent;
 	nlink_t nlink;

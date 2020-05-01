@@ -103,6 +103,16 @@ static void mpage_end_io_write(struct bio *bio, int err)
  *            mpage_readpages()
  *             do_mpage_readpage()
  *              mpage_bio_submit()
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       ext2_readpage()
+ *        mpage_readpage(get_block == ext2_get_block)
+ *         mpage_bio_submit()
  */
 static struct bio *mpage_bio_submit(int rw, struct bio *bio)
 {
@@ -229,6 +239,16 @@ map_buffer_to_page(struct page *page, struct buffer_head *bh, int page_block)
  *           ext2_readpages()
  *            mpage_readpages(get_block == ext2_get_block)
  *             do_mpage_readpage(get_block == ext2_get_block)
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       ext2_readpage()
+ *        mpage_readpage(get_block == ext2_get_block)
+ *         do_mpage_readpage(get_block == ext2_get_block)
  */
 static struct bio *
 do_mpage_readpage(struct bio *bio, struct page *page, unsigned nr_pages,
@@ -575,6 +595,16 @@ EXPORT_SYMBOL(mpage_readpages);
  *  而如果不连续，函数就对页上的每一块用不同的bio描述符来读。
  * 所以，依赖于文件系统的get_block函数的一个重要作用就是：
  *  确定文件中的下一块在磁盘上是否也是下一块。
+ *
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       ext2_readpage()
+ *        mpage_readpage(get_block == ext2_get_block)
  */
 int mpage_readpage(struct page *page, get_block_t get_block)
 {

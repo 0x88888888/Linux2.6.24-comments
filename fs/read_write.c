@@ -295,8 +295,12 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 		ret = security_file_permission (file, MAY_READ);
 	
 		if (!ret) {
-			
-			if (file->f_op->read) /* ext2_file_operations.read== do_sync_read */
+			/* 
+			 * ext2_file_operations.read== do_sync_read 
+			 * proc_file_read
+			 * sysfs_read_file
+			 */
+			if (file->f_op->read) 
 				ret = file->f_op->read(file, buf, count, pos);
 			else
 				ret = do_sync_read(file, buf, count, pos);
@@ -339,6 +343,10 @@ ssize_t do_sync_write(struct file *filp, const char __user *buf, size_t len, lof
 
 EXPORT_SYMBOL(do_sync_write);
 
+/*
+ * sys_write()
+ *  vfs_write()
+ */
 ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_t *pos)
 {
 	ssize_t ret;
@@ -355,6 +363,11 @@ ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_
 		count = ret;
 		ret = security_file_permission (file, MAY_WRITE);
 		if (!ret) {
+			/*
+			 * ext2: do_sync_write()
+			 * proc: proc_file_write()
+			 * sysfs; sysfs_write_file
+			 */
 			if (file->f_op->write)
 				ret = file->f_op->write(file, buf, count, pos);
 			else

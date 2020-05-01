@@ -603,6 +603,15 @@ static void mark_files_ro(struct super_block *sb)
  *      @force: whether or not to force the change
  *
  *	Alters the mount options of a mounted file system.
+ *
+ * sys_mount()
+ *  do_mount()
+ *	 do_new_mount()
+ *    do_kern_mount() 
+ *     vfs_kern_mount() 
+ *      sysfs_get_sb()
+ *       get_sb_single(, fill_super == sysfs_fill_super,)
+ *        do_remount_sb()
  */
 int do_remount_sb(struct super_block *sb, int flags, void *data, int force)
 {
@@ -745,8 +754,14 @@ static int test_bdev_super(struct super_block *s, void *data)
 }
 
 /*
- * ext2_get_sb()
- *  get_sb_bdev()
+ * sys_mount()
+ *  do_mount()
+ *   do_new_mount()
+ *    do_kern_mount() 
+ *     vfs_kern_mount() 
+ *      ext2_get_sb()
+ *       get_sb_bdev(,fill_super==ext2_fill_super)
+ *
  */
 int get_sb_bdev(struct file_system_type *fs_type,
 	int flags, const char *dev_name, void *data,
@@ -757,6 +772,9 @@ int get_sb_bdev(struct file_system_type *fs_type,
 	struct super_block *s;
 	int error = 0;
 
+	/*
+	 * 根据路径查找到block_device对象
+	 */
 	bdev = open_bdev_excl(dev_name, flags, fs_type);
 	if (IS_ERR(bdev))
 		return PTR_ERR(bdev);
@@ -855,6 +873,14 @@ static int compare_single(struct super_block *s, void *p)
 /*
  * get_sb()
  *  get_sb_single()
+ *
+ * sys_mount()
+ *  do_mount()
+ *	 do_new_mount()
+ *    do_kern_mount() 
+ *     vfs_kern_mount() 
+ *      sysfs_get_sb()
+ *       get_sb_single(, fill_super == sysfs_fill_super,)
  */
 int get_sb_single(struct file_system_type *fs_type,
 	int flags, void *data,
@@ -919,7 +945,9 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void 
 	}
 
 	/* rootfs指向rootfs_get_sb
-	 * ext2fs指向ext2_get_sb()
+	 * ext2 fs指向ext2_get_sb()
+	 * ext3 fs指向ext3_get_sb()
+	 * sysfs 指向sysfs_get_sb
 	 */
 	error = type->get_sb(type, flags, name, data, mnt);
 	if (error < 0)

@@ -358,17 +358,19 @@ struct ext2_inode {
 /*
  * Structure of the super block
  * ext2文件系统的super_block在磁盘上的结构
+ * 在内存中对应结构为ext2_sb_info
+ *
  */
 struct ext2_super_block {
 	__le32	s_inodes_count;		/* 本分区全部inode的数量,Inodes count */
-	__le32	s_blocks_count;		/* 本分区上全部的 block, 的数量,Blocks count */
+	__le32	s_blocks_count;		/* 本分区上全部的 block的数量,Blocks count */
 	__le32	s_r_blocks_count;	/* 保留的block数量, 当s_free_blocks_count==s_r_blocks_count，用户就不能申请到空闲块了. Reserved blocks count */
-	__le32	s_free_blocks_count;	/* Free blocks count */
-	__le32	s_free_inodes_count;	/* Free inodes count */
+	__le32	s_free_blocks_count;	/* 空闲block数量 ,Free blocks count */
+	__le32	s_free_inodes_count;	/* 空闲inode数量 ,Free inodes count */
 	__le32	s_first_data_block;	/* 第一个数据块号，在s_first_data_block之前的block是不归block group管的,First Data Block */
-	__le32	s_log_block_size;	/* 数据块大小，Block size */
-	__le32	s_log_frag_size;	/* 分片长度, Fragment size */
-	__le32	s_blocks_per_group;	/* 每个块组包含的块数量, # Blocks per group */
+	__le32	s_log_block_size;	/* 每个block的长度，Block size */
+	__le32	s_log_frag_size;	/* 碎片长度, Fragment size */
+	__le32	s_blocks_per_group;	/* 每个block group包含的块数量, # Blocks per group */
 	__le32	s_frags_per_group;	/* 每组的分片数量，由于不分片，s_frags_per_group==   s_blocks_per_group         ，# Fragments per group */
 	__le32	s_inodes_per_group;	/* # Inodes per group */
 	__le32	s_mtime;		/* Mount time */

@@ -438,7 +438,18 @@ static inline size_t iov_iter_count(struct iov_iter *i)
 	return i->count;
 }
 
-
+/*
+ * def_blk_aops
+ * ext2_aops
+ * ext3_ordered_aops
+ * ext3_writeback_aops
+ * ext3_journalled_aops
+ * ext4_ordered_aops
+ * ext4_writeback_aops
+ * ext4_journalled_aops
+ * shmem_aops
+ * swap_aops
+ */
 struct address_space_operations {
 	int (*writepage)(struct page *page, struct writeback_control *wbc);
 	int (*readpage)(struct file *, struct page *);
@@ -548,7 +559,7 @@ struct block_device {
 	int			bd_openers;         /* 统计用do_open打开该块设备的次数 */
 	struct mutex		bd_mutex;	/* open/close mutex */
 	struct semaphore	bd_mount_sem;
-	struct list_head	bd_inodes;  /* 包含表本快设备的所有inode */
+	struct list_head	bd_inodes;  /* 链接表本快设备的所有inode,在bd_acquire上设置 */
 	void *			bd_holder;
 	int			bd_holders;
 #ifdef CONFIG_SYSFS
@@ -857,6 +868,7 @@ struct file {
 	 * def_blk_fops,
 	 * def_fifo_fops,
      * bad_sock_fops 
+     * proc_file_operations
      */
 	const struct file_operations	*f_op;
     //引用次数
@@ -1267,6 +1279,10 @@ typedef int (*read_actor_t)(read_descriptor_t *, struct page *, unsigned long, u
  * NOTE:
  * read, write, poll, fsync, readv, writev, unlocked_ioctl and compat_ioctl
  * can be called without the big kernel lock held in all filesystems.
+ *
+ * ext2_file_operations,
+ * ext2_dir_operations,
+ *
  */
 struct file_operations {
 	struct module *owner;
@@ -1314,6 +1330,7 @@ struct file_operations {
          ext2_dir_inode_operations， 
          ext2_fast_symlink_inode_operations, 
          ext2_special_inode_operations 
+   sysfs_dir_inode_operations      
  */
 struct inode_operations {
 	int (*create) (struct inode *,struct dentry *,int, struct nameidata *);
@@ -1365,6 +1382,8 @@ extern ssize_t vfs_writev(struct file *, const struct iovec __user *,
  * 各个文件系统的super_block不同，对super_block的操作也不同，
  * 所以super_operations实际上super_block对象的虚函数表.
  * super_block中的成员s_op
+ *
+ * ext2_sops
  */
 struct super_operations {
     /* 分配一个inode结构 */
@@ -1566,6 +1585,8 @@ struct file_system_type {
 	int fs_flags;
 	/* super_block初始化函数指针
 	 *
+	 * mount系统调用通过get_sb来读取文件系统super_block的内容
+	 * rootfs_get_sb
 	 * ext2_get_sb()
 	 * ext3_get_sb()
 	 */

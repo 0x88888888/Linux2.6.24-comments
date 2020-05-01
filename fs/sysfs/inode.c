@@ -144,8 +144,9 @@ static int sysfs_count_nlink(struct sysfs_dirent *sd)
 }
 
 /*
- * sysfs_get_inode()
- *  sysfs_init_inode()
+ * sysfs_lookup()
+ *  sysfs_get_inode()
+ *   sysfs_init_inode()
  */
 static void sysfs_init_inode(struct sysfs_dirent *sd, struct inode *inode)
 {
@@ -162,6 +163,7 @@ static void sysfs_init_inode(struct sysfs_dirent *sd, struct inode *inode)
 		/* sysfs_dirent has non-default attributes
 		 * get them for the new inode from persistent copy
 		 * in sysfs_dirent
+		 * 设置了非标准属性
 		 */
 		set_inode_attr(inode, sd->s_iattr);
 	} else

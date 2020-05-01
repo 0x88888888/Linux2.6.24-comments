@@ -565,6 +565,13 @@ static int bdev_set(struct inode *inode, void *data)
 /* 链接block_device->bd_list成员 */
 static LIST_HEAD(all_bdevs);
 
+/*
+ * get_sb_bdev()
+ *  open_bdev_excl()
+ *   lookup_bdev()
+ *    bd_acquire()
+ *     bdget()
+ */
 struct block_device *bdget(dev_t dev)
 {
 	struct block_device *bdev;
@@ -618,7 +625,15 @@ void bdput(struct block_device *bdev)
 }
 
 EXPORT_SYMBOL(bdput);
- 
+
+/*
+ * 从设备文件对应的inode找到block_device对象
+ *
+ * get_sb_bdev()
+ *  open_bdev_excl()
+ *   lookup_bdev()
+ *    bd_acquire()
+ */
 static struct block_device *bd_acquire(struct inode *inode)
 {
 	struct block_device *bdev;
@@ -632,7 +647,7 @@ static struct block_device *bd_acquire(struct inode *inode)
 	}
 	spin_unlock(&bdev_lock);
 
-	bdev = bdget(inode->i_rdev);
+	bdev = bdget(inode->i_rdev /* 设备号 */);
 	if (bdev) {
 		spin_lock(&bdev_lock);
 		if (!inode->i_bdev) {
@@ -643,8 +658,10 @@ static struct block_device *bd_acquire(struct inode *inode)
 			 * without igrab().
 			 */
 			atomic_inc(&bdev->bd_inode->i_count);
-			inode->i_bdev = bdev;
+			inode->i_bdev = bdev;//缓存起来
+			//真正的address_space设置起来
 			inode->i_mapping = bdev->bd_inode->i_mapping;
+			//链接到block_device 对象上的inode
 			list_add(&inode->i_devices, &bdev->bd_inodes);
 		}
 		spin_unlock(&bdev_lock);
@@ -1129,8 +1146,13 @@ static int __blkdev_put(struct block_device *bdev, int for_part);
  *
  * blkdev_open()
  *  do_open()
+ *
+ * get_sb_bdev()
+ *  open_bdev_excl()
+ *   blkdev_get()
+ *    __blkdev_get() 
+ *     do_open()
  */
-
 static int do_open(struct block_device *bdev, struct file *file, int for_part)
 {
 	struct module *owner = NULL;
@@ -1251,6 +1273,12 @@ out:
 	return ret;
 }
 
+/*
+ * get_sb_bdev()
+ *  open_bdev_excl()
+ *   blkdev_get()
+ *    __blkdev_get()
+ */
 static int __blkdev_get(struct block_device *bdev, mode_t mode, unsigned flags,
 			int for_part)
 {
@@ -1270,6 +1298,11 @@ static int __blkdev_get(struct block_device *bdev, mode_t mode, unsigned flags,
 	return do_open(bdev, &fake_file, for_part);
 }
 
+/*
+ * get_sb_bdev()
+ *  open_bdev_excl()
+ *   blkdev_get()
+ */
 int blkdev_get(struct block_device *bdev, mode_t mode, unsigned flags)
 {
 	return __blkdev_get(bdev, mode, flags, 0);
@@ -1424,6 +1457,11 @@ EXPORT_SYMBOL(ioctl_by_bdev);
  * Get a reference to the blockdevice at @path in the current
  * namespace if possible and return it.  Return ERR_PTR(error)
  * otherwise.
+ *
+ * 根据路径名称查找设备对应的inode
+ * get_sb_bdev()
+ *  open_bdev_excl()
+ *   lookup_bdev()
  */
 struct block_device *lookup_bdev(const char *path)
 {
@@ -1439,6 +1477,7 @@ struct block_device *lookup_bdev(const char *path)
 	if (error)
 		return ERR_PTR(error);
 
+    //设备文件对应的inode
 	inode = nd.dentry->d_inode;
 	error = -ENOTBLK;
 	if (!S_ISBLK(inode->i_mode))
@@ -1447,6 +1486,7 @@ struct block_device *lookup_bdev(const char *path)
 	if (nd.mnt->mnt_flags & MNT_NODEV)
 		goto fail;
 	error = -ENOMEM;
+	
 	bdev = bd_acquire(inode);
 	if (!bdev)
 		goto fail;
@@ -1467,6 +1507,10 @@ fail:
  *
  * Open the blockdevice described by the special file at @path, claim it
  * for the @holder.
+ *
+ * 打开设备文件
+ * get_sb_bdev()
+ *  open_bdev_excl()
  */
 struct block_device *open_bdev_excl(const char *path, int flags, void *holder)
 {
@@ -1474,6 +1518,7 @@ struct block_device *open_bdev_excl(const char *path, int flags, void *holder)
 	mode_t mode = FMODE_READ;
 	int error = 0;
 
+ 
 	bdev = lookup_bdev(path);
 	if (IS_ERR(bdev))
 		return bdev;

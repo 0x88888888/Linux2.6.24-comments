@@ -81,6 +81,9 @@ struct buffer_head {
 	char *b_data;			/* 指向页内数据的指针. pointer to data within the page */
 
 	struct block_device *b_bdev; /* 块设备指针 */
+	/*
+	 * end_buffer_read_sync,
+	 */
 	bh_end_io_t *b_end_io;		/* I/O completion */
  	void *b_private;		/* 预留给b_end_io函数使用了。reserved for b_end_io */
 	struct list_head b_assoc_buffers; /* associated with another mapping */
@@ -287,6 +290,16 @@ static inline void bforget(struct buffer_head *bh)
 		__bforget(bh);
 }
 
+/*
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ */
 static inline struct buffer_head *
 sb_bread(struct super_block *sb, sector_t block)
 {

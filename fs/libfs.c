@@ -520,6 +520,12 @@ void simple_release_fs(struct vfsmount **mount, int *count)
 	mntput(mnt);
 }
 
+/*
+ * sys_read()
+ *  vfs_read() 
+ *   sysfs_read_file()
+ *    simple_read_from_buffer()
+ */
 ssize_t simple_read_from_buffer(void __user *to, size_t count, loff_t *ppos,
 				const void *from, size_t available)
 {

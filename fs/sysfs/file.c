@@ -79,11 +79,12 @@ struct sysfs_open_dirent {
 struct sysfs_buffer {
 	size_t			count; /* page缓存的长度 */
 	loff_t			pos;   /* 内部当前的位置 */
-	char			* page;
+	char			* page; //用于存储数据,在fill_read_buffer、fill_write_buffer中用到
 	struct sysfs_ops	* ops;
 	struct mutex		mutex;
 	int			needs_read_fill; /* 缓冲区的内容是否需要填充，首次读的时候，需要填写 */
 	int			event;
+	//多个进程打开sysfs中的某个文件时，用list链接到各自的sysfs_buffer
 	struct list_head	list;
 };
 
@@ -97,6 +98,11 @@ struct sysfs_buffer {
  *	data. 
  *	This is called only once, on the file's first read unless an error
  *	is returned.
+ *
+ * sys_read()
+ *  vfs_read() 
+ *   sysfs_read_file()
+ *    fill_read_buffer()
  */
 static int fill_read_buffer(struct dentry * dentry, struct sysfs_buffer * buffer)
 {
@@ -119,7 +125,10 @@ static int fill_read_buffer(struct dentry * dentry, struct sysfs_buffer * buffer
 		return -ENODEV;
 
 	buffer->event = atomic_read(&attr_sd->s_attr.open->event);
-	/* 读取数据存储到缓冲区中去 */
+	/* 读取数据存储到缓冲区中去 
+	 *
+	 * disk_sysfs_ops->show == disk_attr_show
+	 */
 	count = ops->show(kobj, attr_sd->s_attr.attr, buffer->page);
 
 	sysfs_put_active_two(attr_sd);
@@ -156,12 +165,17 @@ static int fill_read_buffer(struct dentry * dentry, struct sysfs_buffer * buffer
  *	all the data the object has to offer for that attribute.
  *	We then call flush_read_buffer() to copy the buffer to userspace
  *	in the increments specified.
+ *
+ * sys_read()
+ *  vfs_read() 
+ *   sysfs_read_file()
  */
 
 static ssize_t
 sysfs_read_file(struct file *file, char __user *buf, size_t count, loff_t *ppos)
 {
-	struct sysfs_buffer * buffer = file->private_data;
+  
+	struct sysfs_buffer * buffer = file->private_data; //这个private_data在sysfs_open_file中打开
 	ssize_t retval = 0;
 
 	mutex_lock(&buffer->mutex);
@@ -188,8 +202,12 @@ out:
  *
  *	Allocate @buffer->page if it hasn't been already, then
  *	copy the user-supplied buffer into it.
+ *
+ * sys_write()
+ *  vfs_write() 
+ *   sysfs_write_file()
+ *    fill_write_buffer()
  */
-
 static int 
 fill_write_buffer(struct sysfs_buffer * buffer, const char __user * buf, size_t count)
 {
@@ -202,6 +220,7 @@ fill_write_buffer(struct sysfs_buffer * buffer, const char __user * buf, size_t 
 
 	if (count >= PAGE_SIZE)
 		count = PAGE_SIZE - 1;
+	//复制用户太数据到buffer->page中来
 	error = copy_from_user(buffer->page,buf,count);
 	buffer->needs_read_fill = 1;
 	/* if buf is assumed to contain a string, terminate it by \0,
@@ -220,6 +239,12 @@ fill_write_buffer(struct sysfs_buffer * buffer, const char __user * buf, size_t 
  *	Get the correct pointers for the kobject and the attribute we're
  *	dealing with, then call the store() method for the attribute, 
  *	passing the buffer that we acquired in fill_write_buffer().
+ *
+ *
+ * sys_write()
+ *  vfs_write() 
+ *   sysfs_write_file()
+ *    flush_write_buffer()
  */
 
 static int
@@ -233,7 +258,7 @@ flush_write_buffer(struct dentry * dentry, struct sysfs_buffer * buffer, size_t 
 	/* need attr_sd for attr and ops, its parent for kobj */
 	if (!sysfs_get_active_two(attr_sd))
 		return -ENODEV;
-
+    //disk_sysfs_ops->write == disk_attr_store
 	rc = ops->store(kobj, attr_sd->s_attr.attr, buffer->page, count);
 
 	sysfs_put_active_two(attr_sd);
@@ -257,8 +282,12 @@ flush_write_buffer(struct dentry * dentry, struct sysfs_buffer * buffer, size_t 
  *	on the first write. 
  *	Hint: if you're writing a value, first read the file, modify only the
  *	the value you're changing, then write entire buffer back. 
+ *
+ * sys_write()
+ *  vfs_write() 
+ *   sysfs_write_file()
+ *
  */
-
 static ssize_t
 sysfs_write_file(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 {
@@ -289,6 +318,14 @@ sysfs_write_file(struct file *file, const char __user *buf, size_t count, loff_t
  *
  *	RETURNS:
  *	0 on success, -errno on failure.
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    nameidata_to_filp()
+ *     __dentry_open()
+ *      sysfs_open_file()
+ *       sysfs_get_open_dirent()
  */
 static int sysfs_get_open_dirent(struct sysfs_dirent *sd,
 				 struct sysfs_buffer *buffer)
@@ -357,7 +394,15 @@ static void sysfs_put_open_dirent(struct sysfs_dirent *sd,
 	kfree(od);
 }
 
-/* 打开sysfs中的一个文件 */
+/* 打开sysfs中的一个文件
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    nameidata_to_filp()
+ *     __dentry_open()
+ *      sysfs_open_file()
+ */
 static int sysfs_open_file(struct inode *inode, struct file *file)
 {
 	struct sysfs_dirent *attr_sd = file->f_path.dentry->d_fsdata;
@@ -374,9 +419,9 @@ static int sysfs_open_file(struct inode *inode, struct file *file)
 	 * itself, and use ops for it.
 	 * 设置sysfs_ops
 	 */
-	if (kobj->kset && kobj->kset->ktype)
+	if (kobj->kset && kobj->kset->ktype) //如果kobj是set中的成员
 		ops = kobj->kset->ktype->sysfs_ops;
-	else if (kobj->ktype)
+	else if (kobj->ktype) //不是set中的成员
 		ops = kobj->ktype->sysfs_ops;
 	else
 		ops = &subsys_sysfs_ops;
@@ -392,7 +437,7 @@ static int sysfs_open_file(struct inode *inode, struct file *file)
 	/* File needs write support.
 	 * The inode's perms must say it's ok, 
 	 * and we must have a store method.
-	 * 以写权限打开 sysfs文件，但是对应的sysfs_ops却没有store函数
+	 * 以写权限打开 sysfs文件，但是对应的sysfs_ops却没有store函数，要报错
 	 */
 	if (file->f_mode & FMODE_WRITE) {
 		if (!(inode->i_mode & S_IWUGO) || !ops->store)
@@ -402,7 +447,7 @@ static int sysfs_open_file(struct inode *inode, struct file *file)
 	/* File needs read support.
 	 * The inode's perms must say it's ok, and we there
 	 * must be a show method for it.
-	 * 以读权限打开 sysfs文件，但是对应的sysfs_ops却没有show函数
+	 * 以读权限打开 sysfs文件，但是对应的sysfs_ops却没有show函数，要报错
 	 */
 	if (file->f_mode & FMODE_READ) {
 		if (!(inode->i_mode & S_IRUGO) || !ops->show)
@@ -414,6 +459,7 @@ static int sysfs_open_file(struct inode *inode, struct file *file)
 	 * 分配sysfs_buffer
 	 */
 	error = -ENOMEM;
+	//分配sysfs_buffer,设置到file对象上去
 	buffer = kzalloc(sizeof(struct sysfs_buffer), GFP_KERNEL);
 	if (!buffer)
 		goto err_out;
@@ -424,7 +470,9 @@ static int sysfs_open_file(struct inode *inode, struct file *file)
 	/* 将file->private_data与sysfs_buffer关联起来 */
 	file->private_data = buffer;
 
-	/* make sure we have open dirent struct */
+	/* make sure we have open dirent struct 
+	 * 确认有打开dirent
+	 */
 	error = sysfs_get_open_dirent(attr_sd, buffer);
 	if (error)
 		goto err_free;

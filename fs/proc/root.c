@@ -154,7 +154,22 @@ static int proc_root_getattr(struct vfsmount *mnt, struct dentry *dentry, struct
 	return 0;
 }
 
-/* vfs的real_lookup将走到这里 */
+/* vfs的real_lookup将走到这里 
+ *
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk()  这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             do_lookup()
+ *              real_lookup()
+ *               proc_root_lookup() 
+ */
 static struct dentry *proc_root_lookup(struct inode * dir, struct dentry * dentry, struct nameidata *nd)
 {   /* 首先查找常规数据项 */
 	if (!proc_lookup(dir, dentry, nd)) {
@@ -183,6 +198,7 @@ static int proc_root_readdir(struct file * filp,
 	}
 	unlock_kernel();
 
+    //形成进程pid目录
 	ret = proc_pid_readdir(filp, dirent, filldir);
 	return ret;
 }

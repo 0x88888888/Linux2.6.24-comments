@@ -190,6 +190,14 @@ static void sysfs_put_active(struct sysfs_dirent *sd)
  *
  *	RETURNS:
  *	Pointer to @sd on success, NULL on failure.
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    nameidata_to_filp()
+ *     __dentry_open()
+ *      sysfs_open_file()
+ *       sysfs_get_active_two()
  */
 struct sysfs_dirent *sysfs_get_active_two(struct sysfs_dirent *sd)
 {
@@ -210,6 +218,14 @@ struct sysfs_dirent *sysfs_get_active_two(struct sysfs_dirent *sd)
  *
  *	Put active references to @sd and its parent.  This function is
  *	noop if @sd is NULL.
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    nameidata_to_filp()
+ *     __dentry_open()
+ *      sysfs_open_file()
+ *       sysfs_put_active_two()
  */
 void sysfs_put_active_two(struct sysfs_dirent *sd)
 {
@@ -571,6 +587,9 @@ void sysfs_addrm_finish(struct sysfs_addrm_cxt *acxt)
  *
  *	RETURNS:
  *	Pointer to sysfs_dirent if found, NULL if not.
+ *
+ * sysfs_lookup()
+ *  sysfs_find_dirent()
  */
 struct sysfs_dirent *sysfs_find_dirent(struct sysfs_dirent *parent_sd,
 				       const unsigned char *name)
@@ -677,6 +696,7 @@ static struct dentry * sysfs_lookup(struct inode *dir, struct dentry *dentry,
 
 	mutex_lock(&sysfs_mutex);
 
+	//在parent中查找child
 	sd = sysfs_find_dirent(parent_sd, dentry->d_name.name);
 
 	/* no such entry */
@@ -685,7 +705,9 @@ static struct dentry * sysfs_lookup(struct inode *dir, struct dentry *dentry,
 		goto out_unlock;
 	}
 
-	/* attach dentry and inode */
+	/* attach dentry and inode
+	 * 给sysfs_dirent关联 dentry和inode
+	 */
 	inode = sysfs_get_inode(sd);
 	if (!inode) {
 		ret = ERR_PTR(-ENOMEM);

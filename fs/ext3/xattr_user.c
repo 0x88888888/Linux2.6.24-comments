@@ -32,6 +32,13 @@ ext3_xattr_user_list(struct inode *inode, char *list, size_t list_size,
 	return total_len;
 }
 
+/*
+ * sys_getxattr()
+ *  getxattr()
+ *   vfs_getxattr()
+ *    generic_getxattr()
+ *     ext3_xattr_user_get()
+ */
 static int
 ext3_xattr_user_get(struct inode *inode, const char *name,
 		    void *buffer, size_t size)
@@ -43,14 +50,23 @@ ext3_xattr_user_get(struct inode *inode, const char *name,
 	return ext3_xattr_get(inode, EXT3_XATTR_INDEX_USER, name, buffer, size);
 }
 
+/*
+ * sys_setxattr()
+ *  setxattr()
+ *   vfs_setxattr() 
+ *    generic_setxattr()
+ *     ext3_xattr_user_set()
+ */
 static int
 ext3_xattr_user_set(struct inode *inode, const char *name,
 		    const void *value, size_t size, int flags)
 {
 	if (strcmp(name, "") == 0)
 		return -EINVAL;
+	
 	if (!test_opt(inode->i_sb, XATTR_USER))
 		return -EOPNOTSUPP;
+	
 	return ext3_xattr_set(inode, EXT3_XATTR_INDEX_USER, name,
 			      value, size, flags);
 }

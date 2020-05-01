@@ -119,6 +119,16 @@ struct dentry *ext2_get_parent(struct dentry *child)
  *
  * If the create succeeds, we fill in the inode information
  * with d_instantiate(). 
+ *
+ * 创建新文件
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *       ext2_create()
  */
 static int ext2_create (struct inode * dir, struct dentry * dentry, int mode, struct nameidata *nd)
 {
@@ -130,10 +140,11 @@ static int ext2_create (struct inode * dir, struct dentry * dentry, int mode, st
 		if (ext2_use_xip(inode->i_sb)) {
 			inode->i_mapping->a_ops = &ext2_aops_xip;
 			inode->i_fop = &ext2_xip_file_operations;
-		} else if (test_opt(inode->i_sb, NOBH)) {
+		} else if (test_opt(inode->i_sb, NOBH)) { // No buffer_heads 
 			inode->i_mapping->a_ops = &ext2_nobh_aops;
 			inode->i_fop = &ext2_file_operations;
 		} else {
+			//普通文件
 			inode->i_mapping->a_ops = &ext2_aops;
 			inode->i_fop = &ext2_file_operations;
 		}
@@ -223,7 +234,13 @@ static int ext2_link (struct dentry * old_dentry, struct inode * dir,
 	return ext2_add_nondir(dentry, inode);
 }
 
-/* 创建ext2目录 */
+/* 创建ext2目录 
+ *
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ *    ext2_mkdir()
+ */
 static int ext2_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 {
 	struct inode * inode;
@@ -234,7 +251,7 @@ static int ext2_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 
 	inode_inc_link_count(dir);
 
-	/* 创建inode */
+	/* 创建目录对应的inode */
 	inode = ext2_new_inode (dir, S_IFDIR | mode);
 	
 	err = PTR_ERR(inode);
@@ -274,6 +291,13 @@ out_dir:
 	goto out;
 }
 
+/*
+ * sys_rmdir()
+ *  do_rmdir()
+ *   vfs_rmdir()
+ *    ext2_rmdir()
+ *     ext2_unlink()
+ */
 static int ext2_unlink(struct inode * dir, struct dentry *dentry)
 {
 	struct inode * inode = dentry->d_inode;
@@ -281,11 +305,11 @@ static int ext2_unlink(struct inode * dir, struct dentry *dentry)
 	struct page * page;
 	int err = -ENOENT;
 
-	de = ext2_find_entry (dir, dentry, &page);
+	de = ext2_find_entry (dir, dentry, &page); //根据dir查找对应的目录项
 	if (!de)
 		goto out;
 
-	err = ext2_delete_entry (de, page);
+	err = ext2_delete_entry (de, page);//删除page中对应的de
 	if (err)
 		goto out;
 
@@ -296,6 +320,12 @@ out:
 	return err;
 }
 
+/*
+ * sys_rmdir()
+ *  do_rmdir()
+ *   vfs_rmdir()
+ *    ext2_rmdir()
+ */
 static int ext2_rmdir (struct inode * dir, struct dentry *dentry)
 {
 	struct inode * inode = dentry->d_inode;
@@ -312,6 +342,13 @@ static int ext2_rmdir (struct inode * dir, struct dentry *dentry)
 	return err;
 }
 
+/*
+ * sys_renameat()
+ *  do_rename()
+ *   vfs_rename()
+ *    vfs_rename_dir()
+ *     ext2_rename()
+ */
 static int ext2_rename (struct inode * old_dir, struct dentry * old_dentry,
 	struct inode * new_dir,	struct dentry * new_dentry )
 {

@@ -179,6 +179,10 @@ EXPORT_SYMBOL(putname);
  * for filesystem access without changing the "normal" uids which
  * are used for other things..
  * 权限检查
+ *
+ * vfs_permission()
+ *  permission()
+ *   generic_permission()
  */
 int generic_permission(struct inode *inode, int mask,
 		int (*check_acl)(struct inode *inode, int mask))
@@ -229,7 +233,20 @@ int generic_permission(struct inode *inode, int mask,
 	return -EACCES;
 }
 
-/* 权限检查 */
+/* 权限检查 
+ *
+ * file_permission()
+ *  permission()
+ *
+ * lookup_hash()
+ *  permission()
+ *
+ * vfs_permission()
+ *  permission()
+ *
+ * xattr_permission()
+ *  permission()
+ */
 int permission(struct inode *inode, int mask, struct nameidata *nd)
 {
 	int retval, submask;
@@ -266,7 +283,7 @@ int permission(struct inode *inode, int mask, struct nameidata *nd)
 
 	/* Ordinary permission routines do not understand MAY_APPEND. */
 	submask = mask & ~MAY_APPEND;
-	if (inode->i_op && inode->i_op->permission) {
+	if (inode->i_op && inode->i_op->permission) { //ext2,ext3的permission函数指针 都为 NULL
 		retval = inode->i_op->permission(inode, submask, nd);
 		if (!retval) {
 			/*
@@ -283,9 +300,11 @@ int permission(struct inode *inode, int mask, struct nameidata *nd)
 	} else {
 		retval = generic_permission(inode, submask, NULL);
 	}
-	if (retval)
-		return retval;
+	
+	if (retval) //权限检测成功返回0，出错会返回非0值
+		return retval; //返回错误值
 
+    //
 	return security_inode_permission(inode, mask, nd);
 }
 
@@ -531,6 +550,7 @@ static struct dentry * real_lookup(struct dentry * parent, struct qstr * name, s
 			 * ext2_lookup()
 			 * ext3_lookup()
 			 * ext4_lookup()
+			 * proc_root_lookup
 			 */
 			result = dir->i_op->lookup(dir, dentry, nd); /* 如果找不到，就去文件系统找查找 */
 			if (result)
@@ -1317,6 +1337,12 @@ set_it:
  *  do_mount()
  *   path_lookup()
  *    do_path_lookup()
+ *
+ * get_sb_bdev()
+ *  open_bdev_excl()
+ *   lookup_bdev()
+ *    path_lookup()
+ *     do_path_lookup()
  */
 static int fastcall do_path_lookup(int dfd, const char *name,
 				unsigned int flags, struct nameidata *nd)
@@ -1394,6 +1420,11 @@ fput_fail:
  * sys_mount()
  *  do_mount()
  *   path_lookup()
+ *
+ * get_sb_bdev()
+ *  open_bdev_excl()
+ *   lookup_bdev()
+ *    path_lookup()
  */
 int fastcall path_lookup(const char *name, unsigned int flags,
 			struct nameidata *nd)
@@ -1435,10 +1466,17 @@ int vfs_path_lookup(struct dentry *dentry, struct vfsmount *mnt,
 /*
  * sys_open()
  *	do_sys_open()
- *	  do_filp_open()
- *		open_namei()
- *		  path_lookup_open()
- *          __path_lookup_intent_open()
+ *   do_filp_open()
+ *	  open_namei()
+ *	   path_lookup_open()
+ *      __path_lookup_intent_open()
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     path_lookup_create()
+ *      __path_lookup_intent_open()
  */
 static int __path_lookup_intent_open(int dfd, const char *name,
 		unsigned int lookup_flags, struct nameidata *nd,
@@ -1496,6 +1534,12 @@ int path_lookup_open(int dfd, const char *name, unsigned int lookup_flags,
  * @nd: pointer to nameidata
  * @open_flags: open intent flags
  * @create_mode: create intent flags
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     path_lookup_create()
  */
 static int path_lookup_create(int dfd, const char *name,
 			      unsigned int lookup_flags, struct nameidata *nd,
@@ -1801,6 +1845,18 @@ void unlock_rename(struct dentry *p1, struct dentry *p2)
 	}
 }
 
+/*
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *
+ * sys_mknod()
+ *  sys_mknodat()
+ *   vfs_create()
+ */
 int vfs_create(struct inode *dir, struct dentry *dentry, int mode,
 		struct nameidata *nd)
 {
@@ -1817,6 +1873,9 @@ int vfs_create(struct inode *dir, struct dentry *dentry, int mode,
 	if (error)
 		return error;
 	DQUOT_INIT(dir);
+	/*
+	 * ext2_dir_inode_operations->crate == ext2_create
+	 */
 	error = dir->i_op->create(dir, dentry, mode, nd);
 	if (!error)
 		fsnotify_create(dir, dentry);
@@ -1904,6 +1963,13 @@ int may_open(struct nameidata *nd, int acc_mode, int flag)
 	return 0;
 }
 
+/*
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ */
 static int open_namei_create(struct nameidata *nd, struct path *path,
 				int flag, int mode)
 {
@@ -2241,6 +2307,11 @@ asmlinkage long sys_mknod(const char __user *filename, int mode, unsigned dev)
 	return sys_mknodat(AT_FDCWD, filename, mode, dev);
 }
 
+/*
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ */
 int vfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 {
 	int error = may_create(dir, dentry, NULL);
@@ -2256,13 +2327,17 @@ int vfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	if (error)
 		return error;
 
-	DQUOT_INIT(dir);
+	DQUOT_INIT(dir); //ext2_mkdir
 	error = dir->i_op->mkdir(dir, dentry, mode);
 	if (!error)
 		fsnotify_mkdir(dir, dentry);
 	return error;
 }
 
+/*
+ * sys_mkdir()
+ *  sys_mkdirat()
+ */
 asmlinkage long sys_mkdirat(int dfd, const char __user *pathname, int mode)
 {
 	int error = 0;
@@ -2328,6 +2403,11 @@ void dentry_unhash(struct dentry *dentry)
 	spin_unlock(&dcache_lock);
 }
 
+/*
+ * sys_rmdir()
+ *  do_rmdir()
+ *   vfs_rmdir()
+ */
 int vfs_rmdir(struct inode *dir, struct dentry *dentry)
 {
 	int error = may_delete(dir, dentry, 1);
@@ -2342,11 +2422,12 @@ int vfs_rmdir(struct inode *dir, struct dentry *dentry)
 
 	mutex_lock(&dentry->d_inode->i_mutex);
 	dentry_unhash(dentry);
-	if (d_mountpoint(dentry))
+	if (d_mountpoint(dentry)) //有文件系统挂载这个目录上，不允许删除
 		error = -EBUSY;
 	else {
 		error = security_inode_rmdir(dir, dentry);
 		if (!error) {
+			//ext2_rmdir
 			error = dir->i_op->rmdir(dir, dentry);
 			if (!error)
 				dentry->d_inode->i_flags |= S_DEAD;
@@ -2361,6 +2442,10 @@ int vfs_rmdir(struct inode *dir, struct dentry *dentry)
 	return error;
 }
 
+/*
+ * sys_rmdir()
+ *  do_rmdir()
+ */
 static long do_rmdir(int dfd, const char __user *pathname)
 {
 	int error = 0;
@@ -2698,6 +2783,11 @@ asmlinkage long sys_link(const char __user *oldname, const char __user *newname)
  *	   in the fhandle_to_dentry code. [FIXME - current nfsfh.c relies on
  *	   ->i_mutex on parents, which works but leads to some truely excessive
  *	   locking].
+ *
+ * sys_renameat()
+ *  do_rename()
+ *   vfs_rename()
+ *    vfs_rename_dir()
  */
 static int vfs_rename_dir(struct inode *old_dir, struct dentry *old_dentry,
 			  struct inode *new_dir, struct dentry *new_dentry)
@@ -2727,6 +2817,7 @@ static int vfs_rename_dir(struct inode *old_dir, struct dentry *old_dentry,
 	if (d_mountpoint(old_dentry)||d_mountpoint(new_dentry))
 		error = -EBUSY;
 	else 
+		//ext2_rename
 		error = old_dir->i_op->rename(old_dir, old_dentry, new_dir, new_dentry);
 	if (target) {
 		if (!error)
@@ -2769,7 +2860,12 @@ static int vfs_rename_other(struct inode *old_dir, struct dentry *old_dentry,
 	dput(new_dentry);
 	return error;
 }
-
+
+/*
+ * sys_renameat()
+ *  do_rename()
+ *   vfs_rename()
+ */
 int vfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	       struct inode *new_dir, struct dentry *new_dentry)
 {
@@ -2790,7 +2886,7 @@ int vfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 		error = may_delete(new_dir, new_dentry, is_dir);
 	if (error)
 		return error;
-
+    //ext2_rename
 	if (!old_dir->i_op || !old_dir->i_op->rename)
 		return -EPERM;
 
@@ -2813,6 +2909,10 @@ int vfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	return error;
 }
 
+/*
+ * sys_renameat()
+ *  do_rename()
+ */
 static int do_rename(int olddfd, const char *oldname,
 			int newdfd, const char *newname)
 {
@@ -2915,6 +3015,11 @@ asmlinkage long sys_rename(const char __user *oldname, const char __user *newnam
 	return sys_renameat(AT_FDCWD, oldname, AT_FDCWD, newname);
 }
 
+/*
+ * sys_readlinkat()
+ *  proc_self_readlink()
+ *   vfs_readlink()
+ */
 int vfs_readlink(struct dentry *dentry, char __user *buffer, int buflen, const char *link)
 {
 	int len;

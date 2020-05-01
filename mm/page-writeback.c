@@ -1002,6 +1002,26 @@ int do_writepages(struct address_space *mapping, struct writeback_control *wbc)
  * The page must be locked by the caller and will be unlocked upon return.
  *
  * write_one_page() returns a negative error code if I/O failed.
+ *
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ *    ext2_mkdir()
+ *     ext2_add_link()
+ *      ext2_commit_chunk()
+ *       write_one_page()
+ *
+ * sys_renameat()
+ *  do_rename()
+ *   vfs_rename()
+ *    vfs_rename_dir()
+ *     ext2_rename()
+ *      ext2_set_link()
+ *       ext2_commit_chunk()
+ *        write_one_page()
+ *
+ * dir_commit_chunk()
+ *  write_one_page()
  */
 int write_one_page(struct page *page, int wait)
 {
@@ -1019,6 +1039,7 @@ int write_one_page(struct page *page, int wait)
 
 	if (clear_page_dirty_for_io(page)) {
 		page_cache_get(page);
+		//ext2_writepage
 		ret = mapping->a_ops->writepage(page, &wbc);
 		if (ret == 0 && wait) {
 			wait_on_page_writeback(page);

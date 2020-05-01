@@ -372,6 +372,12 @@ subsys_initcall(genhd_device_init);
 
 /*
  * kobject & sysfs bindings for block devices
+ *
+ * sys_read()
+ *  vfs_read() 
+ *   sysfs_read_file()
+ *    fill_read_buffer()
+ *     disk_attr_show()
  */
 static ssize_t disk_attr_show(struct kobject *kobj, struct attribute *attr,
 			      char *page)
@@ -382,6 +388,11 @@ static ssize_t disk_attr_show(struct kobject *kobj, struct attribute *attr,
 	ssize_t ret = -EIO;
 
 	if (disk_attr->show)
+		/*
+		 * disk_attr_dev->show ==disk_dev_read
+		 * disk_attr_range->show == disk_range_read
+		 * disk_attr_removable->show == disk_removable_read
+		 */
 		ret = disk_attr->show(disk,page);
 	return ret;
 }
@@ -410,6 +421,14 @@ static ssize_t disk_uevent_store(struct gendisk * disk,
 	kobject_uevent(&disk->kobj, KOBJ_ADD);
 	return count;
 }
+/*
+ * sys_read()
+ *  vfs_read() 
+ *   sysfs_read_file()
+ *    fill_read_buffer()
+ *     disk_attr_show()
+ *      disk_dev_read()
+ */
 static ssize_t disk_dev_read(struct gendisk * disk, char *page)
 {
 	dev_t base = MKDEV(disk->major, disk->first_minor); 

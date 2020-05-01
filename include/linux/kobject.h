@@ -69,6 +69,7 @@ enum kobject_action {
  * 构建内核对象的层次结构体系
  *
  * 每个Kobject都会在"/sys/“文件系统中以目录的形式出现
+ * 每个attribute都在/sys/中以文件的形式出现
  *
  * kobject可以有parent对象，也可以被包含到kset中
  *

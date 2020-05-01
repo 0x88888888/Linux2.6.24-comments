@@ -41,7 +41,14 @@ struct sysfs_dirent sysfs_root = {
 
 /* 填写sysfs文件系统的super_block 
  *
- * 
+ * sys_mount()
+ *  do_mount()
+ *	 do_new_mount()
+ *    do_kern_mount() 
+ *     vfs_kern_mount() 
+ *      sysfs_get_sb()
+ *       get_sb_single() 
+ *        sysfs_fill_super()
  */
 static int sysfs_fill_super(struct super_block *sb, void *data, int silent)
 {
@@ -76,6 +83,14 @@ static int sysfs_fill_super(struct super_block *sb, void *data, int silent)
 	return 0;
 }
 
+/*
+ * sys_mount()
+ *  do_mount()
+ *	 do_new_mount()
+ *    do_kern_mount() 
+ *     vfs_kern_mount() 
+ *      sysfs_get_sb()
+ */
 static int sysfs_get_sb(struct file_system_type *fs_type,
 	int flags, const char *dev_name, void *data, struct vfsmount *mnt)
 {

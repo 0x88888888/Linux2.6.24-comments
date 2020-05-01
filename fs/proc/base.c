@@ -1178,7 +1178,24 @@ static int task_dumpable(struct task_struct *task)
 	return 0;
 }
 
-
+/*
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk()  这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             do_lookup()
+ *              real_lookup()
+ *               proc_root_lookup() 
+ *                proc_pid_lookup()
+ *                 proc_pid_instantiate()
+ *                  proc_pid_make_inode()
+ */
 static struct inode *proc_pid_make_inode(struct super_block * sb, struct task_struct *task)
 {
 	struct inode * inode;
@@ -1737,6 +1754,10 @@ out:
 	return error;
 }
 
+/*
+ * proc_attr_dir_lookup()
+ *  proc_pident_lookup()
+ */
 static struct dentry *proc_pident_lookup(struct inode *dir, 
 					 struct dentry *dentry,
 					 const struct pid_entry *ents,
@@ -2026,6 +2047,9 @@ static const struct file_operations proc_coredump_filter_operations = {
 
 /*
  * /proc/self:
+ *
+ * sys_readlinkat()
+ *  proc_self_readlink()
  */
 static int proc_self_readlink(struct dentry *dentry, char __user *buffer,
 			      int buflen)
@@ -2407,6 +2431,23 @@ void proc_flush_task(struct task_struct *task)
 		pid_ns_release_proc(upid->ns);
 }
 
+/*
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk()  这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             do_lookup()
+ *              real_lookup()
+ *               proc_root_lookup() 
+ *                proc_pid_lookup()
+ *                 proc_pid_instantiate()
+ */
 static struct dentry *proc_pid_instantiate(struct inode *dir,
 					   struct dentry * dentry,
 					   struct task_struct *task, const void *ptr)
@@ -2414,6 +2455,7 @@ static struct dentry *proc_pid_instantiate(struct inode *dir,
 	struct dentry *error = ERR_PTR(-ENOENT);
 	struct inode *inode;
 
+    //分配inode对象，设置成员
 	inode = proc_pid_make_inode(dir->i_sb, task);
 	if (!inode)
 		goto out;
@@ -2437,7 +2479,23 @@ out:
 	return error;
 }
 
-/* 查找/proc/<pid>/这种目录项 */
+/* 查找/proc/<pid>/这种目录项
+ *
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk()  这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             do_lookup()
+ *              real_lookup()
+ *               proc_root_lookup() 
+ *                proc_pid_lookup()
+ */
 struct dentry *proc_pid_lookup(struct inode *dir, struct dentry * dentry, struct nameidata *nd)
 {
 	struct dentry *result = ERR_PTR(-ENOENT);
@@ -2448,7 +2506,8 @@ struct dentry *proc_pid_lookup(struct inode *dir, struct dentry * dentry, struct
 	result = proc_base_lookup(dir, dentry);
 	if (!IS_ERR(result) || PTR_ERR(result) != -ENOENT)
 		goto out;
-    
+	
+    //讲进程号码转成字符串
 	tgid = name_to_int(dentry);
 	if (tgid == ~0U)
 		goto out;
@@ -2525,7 +2584,11 @@ static int proc_pid_fill_cache(struct file *filp, void *dirent, filldir_t filldi
 				proc_pid_instantiate, iter.task, NULL);
 }
 
-/* for the /proc/ directory itself, after non-process stuff has been done */
+/* for the /proc/ directory itself, after non-process stuff has been done  
+ *
+ * proc_root_readdir()
+ *  proc_pid_readdir()
+ */
 int proc_pid_readdir(struct file * filp, void * dirent, filldir_t filldir)
 {
 	unsigned int nr = filp->f_pos - FIRST_PROCESS_ENTRY;

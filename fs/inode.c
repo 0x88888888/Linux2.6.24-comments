@@ -629,12 +629,20 @@ EXPORT_SYMBOL(unlock_new_inode);
  *
  * We no longer cache the sb_flags in i_flags - see fs.h
  *	-- rmk@arm.uk.linux.org
+ *
+ * get_sb_bdev()
+ *  open_bdev_excl()
+ *   lookup_bdev()
+ *    bd_acquire()
+ *     bdget()
+ *      iget5_locked()
+ *       get_new_inode()
  */
 static struct inode * get_new_inode(struct super_block *sb, struct hlist_head *head, int (*test)(struct inode *, void *), int (*set)(struct inode *, void *), void *data)
 {
 	struct inode * inode;
 
-	inode = alloc_inode(sb);
+	inode = alloc_inode(sb);//分配一个新的inode对象
 	if (inode) {
 		struct inode * old;
 
@@ -646,6 +654,7 @@ static struct inode * get_new_inode(struct super_block *sb, struct hlist_head *h
 				goto set_failed;
 
 			inodes_stat.nr_inodes++;
+			//链接到全局inode_in_use缓存中
 			list_add(&inode->i_list, &inode_in_use);
 			list_add(&inode->i_sb_list, &sb->s_inodes);
 			hlist_add_head(&inode->i_hash, head);
@@ -662,6 +671,7 @@ static struct inode * get_new_inode(struct super_block *sb, struct hlist_head *h
 		 * Uhhuh, somebody else created the same inode under
 		 * us. Use the old inode instead of the one we just
 		 * allocated.
+		 *
 		 */
 		__iget(old);
 		spin_unlock(&inode_lock);
@@ -963,11 +973,19 @@ EXPORT_SYMBOL(ilookup);
  * file system gets to fill it in before unlocking it via unlock_new_inode().
  *
  * Note both @test and @set are called with the inode_lock held, so can't sleep.
+ *
+ * get_sb_bdev()
+ *  open_bdev_excl()
+ *   lookup_bdev()
+ *    bd_acquire()
+ *     bdget()
+ *      iget5_locked()
  */
 struct inode *iget5_locked(struct super_block *sb, unsigned long hashval,
 		int (*test)(struct inode *, void *),
 		int (*set)(struct inode *, void *), void *data)
 {
+    //现在缓存中查找对应的indoe
 	struct hlist_head *head = inode_hashtable + hash(sb, hashval);
 	struct inode *inode;
 
@@ -1062,6 +1080,9 @@ EXPORT_SYMBOL(remove_inode_hash);
  *
  * I_FREEING is set so that no-one will take a new reference to the inode while
  * it is being deleted.
+ * 
+ * generic_drop_inode()
+ *  generic_delete_inode()
  */
 void generic_delete_inode(struct inode *inode)
 {
@@ -1075,6 +1096,9 @@ void generic_delete_inode(struct inode *inode)
 
 	security_inode_delete(inode);
 
+    /*
+     * ext2_delete_inode()
+     */
 	if (op->delete_inode) {
 		void (*delete)(struct inode *) = op->delete_inode;
 		if (!is_bad_inode(inode))

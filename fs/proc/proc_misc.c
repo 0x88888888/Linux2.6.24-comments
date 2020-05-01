@@ -677,6 +677,11 @@ static const struct file_operations proc_sysrq_trigger_operations = {
 
 struct proc_dir_entry *proc_root_kcore;
 
+/*
+ * proc_root_init()
+ *  proc_misc_init()
+ *   create_seq_entry()
+ */
 void create_seq_entry(char *name, mode_t mode, const struct file_operations *f)
 {
 	struct proc_dir_entry *entry;
@@ -685,6 +690,10 @@ void create_seq_entry(char *name, mode_t mode, const struct file_operations *f)
 		entry->proc_fops = f;
 }
 
+/*
+ * proc_root_init()
+ *  proc_misc_init()
+ */
 void __init proc_misc_init(void)
 {
 	static struct {
@@ -706,6 +715,7 @@ void __init proc_misc_init(void)
 		{"execdomains",	execdomains_read_proc},
 		{NULL,}
 	};
+	//根据simple_ones数组，创建/proc文件系统根目录下的一些文件项	
 	for (p = simple_ones; p->name; p++)
 		create_proc_read_entry(p->name, 0, NULL, p->read_proc, NULL);
 

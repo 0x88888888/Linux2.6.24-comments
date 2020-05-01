@@ -55,6 +55,10 @@ static inline int ext2_inode_is_fast_symlink(struct inode *inode)
 
 /*
  * Called at the last iput() if i_nlink is zero.
+ *
+ * generic_drop_inode()
+ *  generic_delete_inode()
+ *   ext2_delete_inode()
  */
 void ext2_delete_inode (struct inode * inode)
 {
@@ -123,23 +127,36 @@ static inline int verify_chain(Indirect *from, Indirect *to)
  * kill us on x86. Oh, well, at least the sign propagation does not matter -
  * i_block would have to be negative in the very beginning, so we would not
  * get there at all.
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_block_to_path()
+ *
+ * 根据数据块在文件中的位置，来找到通向改块的路径(路径是指块描述符表中的...)
  */
 
 static int ext2_block_to_path(struct inode *inode,
 			long i_block, int offsets[4], int *boundary)
 {
-	int ptrs = EXT2_ADDR_PER_BLOCK(inode->i_sb);
-	int ptrs_bits = EXT2_ADDR_PER_BLOCK_BITS(inode->i_sb);
+	int ptrs = EXT2_ADDR_PER_BLOCK(inode->i_sb); //字节为单位
+	int ptrs_bits = EXT2_ADDR_PER_BLOCK_BITS(inode->i_sb); // bit为单位
+
+    //直接block 编号的数量
 	const long direct_blocks = EXT2_NDIR_BLOCKS,
-		indirect_blocks = ptrs,
-		double_blocks = (1 << (ptrs_bits * 2));
+		
+	indirect_blocks = ptrs,
+	double_blocks = (1 << (ptrs_bits * 2));
 	int n = 0;
 	int final = 0;
 
 	if (i_block < 0) {
 		ext2_warning (inode->i_sb, "ext2_block_to_path", "block < 0");
 	} else if (i_block < direct_blocks) {
-	    /* 直接 */
+	    /* 可以直接通过inode中的保存的块好信息查找到 */
 		offsets[n++] = i_block;
 		final = direct_blocks;
 	} else if ( (i_block -= direct_blocks) < indirect_blocks) {
@@ -163,6 +180,7 @@ static int ext2_block_to_path(struct inode *inode,
 	} else {
 		ext2_warning (inode->i_sb, "ext2_block_to_path", "block > big");
 	}
+	
 	if (boundary)
 		*boundary = final - 1 - (i_block & (ptrs - 1));
 
@@ -197,9 +215,20 @@ static int ext2_block_to_path(struct inode *inode,
  *		(ditto, *@err == -EAGAIN)
  *	or when it reads all @depth-1 indirect blocks successfully and finds
  *	the whole chain, all way to the data (returns %NULL, *err == 0).
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *
+ * 根据offset[]提供的路径信息，分配新的block
+ *
  */
 static Indirect *ext2_get_branch(struct inode *inode,
-				 int depth,
+				 int depth, // depth为offset[]有效数据的长度
 				 int *offsets,
 				 Indirect chain[4],
 				 int *err)
@@ -213,7 +242,8 @@ static Indirect *ext2_get_branch(struct inode *inode,
 	add_chain (chain, NULL, EXT2_I(inode)->i_data + *offsets);
 	if (!p->key)
 		goto no_block;
-	while (--depth) {
+	
+	while (--depth) { //根据offset[]中的数据一次次的读取
 		bh = sb_bread(sb, le32_to_cpu(p->key));
 		if (!bh)
 			goto failure;
@@ -257,6 +287,15 @@ no_block:
  *
  *	Caller must make sure that @ind is valid and will stay that way.
  *  尝试查找尽可能接近间接块的块，或者至少在同一个柱面组中的
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_find_goal()
+ *        ext2_find_near()
  */
 
 static unsigned long ext2_find_near(struct inode *inode, Indirect *ind)
@@ -295,6 +334,14 @@ static unsigned long ext2_find_near(struct inode *inode, Indirect *ind)
  *	@partial: pointer to the last triple within a chain
  *
  *	Returns preferred place for a block (the goal).
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_find_goal()
  *   搜索新块
  */
 
@@ -332,6 +379,13 @@ static inline int ext2_find_goal(struct inode *inode,
  *
  *	return the total number of blocks to be allocate, including the
  *	direct and indirect blocks.
+ *
+ * ext2_writepage()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *   __block_write_full_page(, get_block == ext2_get_block)
+ *    ext2_get_block()
+ *     ext2_get_blocks()
+ *      ext2_blks_to_allocate()
  */
 static int
 ext2_blks_to_allocate(Indirect * branch, int k, unsigned long blks,
@@ -369,6 +423,14 @@ ext2_blks_to_allocate(Indirect * branch, int k, unsigned long blks,
  *	the indirect blocks(if needed) and the first direct block,
  *	@blks:	on return it will store the total number of allocated
  *		direct blocks
+ *
+ * ext2_writepage()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *   __block_write_full_page(, get_block == ext2_get_block)
+ *    ext2_get_block()
+ *     ext2_get_blocks()
+ *      ext2_alloc_branch()
+ *       ext2_alloc_blocks()
  */
 static int ext2_alloc_blocks(struct inode *inode,
 			ext2_fsblk_t goal, int indirect_blks, int blks,
@@ -393,8 +455,9 @@ static int ext2_alloc_blocks(struct inode *inode,
 	while (1) {
 		count = target;
 		/* allocating blocks for indirect blocks and direct blocks
-           如果文件系统变的碎片化，会多次迭代调用ext2_new_blocks
-		*/
+		 * 每次调用的都是分配连续的block
+         * 如果文件系统变的碎片化，会多次迭代调用ext2_new_blocks  
+		 */
 		current_block = ext2_new_blocks(inode,goal,&count,err);
 		if (*err)
 			goto failed_out;
@@ -446,6 +509,14 @@ failed_out:
  *	their buffer_heads) and return the error value the from failed
  *	ext2_alloc_block() (normally -ENOSPC). Otherwise we set the chain
  *	as described above and return 0.
+ *
+ * ext2_writepage()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *   __block_write_full_page(, get_block == ext2_get_block)
+ *    ext2_get_block()
+ *     ext2_get_blocks()
+ *      ext2_alloc_branch()
+ *
  *  负责对给定新路径分配所需的块，并建立连接块的间接链
  */
 
@@ -470,6 +541,7 @@ static int ext2_alloc_branch(struct inode *inode,
 	branch[0].key = cpu_to_le32(new_blocks[0]);
 	/*
 	 * metadata blocks and data blocks are allocated.
+	 * 间接块之间的关系
 	 */
 	for (n = 1; n <= indirect_blks;  n++) {
 		/*
@@ -490,6 +562,7 @@ static int ext2_alloc_branch(struct inode *inode,
 			 * End of chain, update the last new metablock of
 			 * the chain to point to the new allocated
 			 * data blocks numbers
+			 * 链接好
 			 */
 			for (i=1; i < num; i++)
 				*(branch[n].p + i) = cpu_to_le32(++current_block);
@@ -521,6 +594,13 @@ static int ext2_alloc_branch(struct inode *inode,
  * This function fills the missing link and does all housekeeping needed in
  * inode (->i_blocks, etc.). In case of success we end up with the full
  * chain to new block and return 0.
+ *
+ * ext2_writepage()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *   __block_write_full_page(, get_block == ext2_get_block)
+ *    ext2_get_block()
+ *     ext2_get_blocks()
+ *      ext2_splice_branch()
  */
 static void ext2_splice_branch(struct inode *inode,
 			long block, Indirect *where, int num, int blks)
@@ -585,6 +665,19 @@ static void ext2_splice_branch(struct inode *inode,
  * return > 0, # of blocks mapped or allocated.
  * return = 0, if plain lookup failed.
  * return < 0, error case.
+ *
+ * ext2_writepage()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *   __block_write_full_page(, get_block == ext2_get_block)
+ *    ext2_get_block()
+ *     ext2_get_blocks()
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
  */
 static int ext2_get_blocks(struct inode *inode,
 			   sector_t iblock, unsigned long maxblocks,
@@ -598,12 +691,15 @@ static int ext2_get_blocks(struct inode *inode,
 	ext2_fsblk_t goal;
 	int indirect_blks;
 	int blocks_to_boundary = 0;
-	int depth;
+	int depth; //depth为offset[]有效数据的长度
 	struct ext2_inode_info *ei = EXT2_I(inode);
 	int count = 0;
 	ext2_fsblk_t first_block = 0;
 
-	/* 通过描述符表到达目标数据块的路径 */
+	/*
+	 * 通过描述符表到达目标数据块的路径
+	 * offsets[]中保存的是到目的块的路径
+	 */
 	depth = ext2_block_to_path(inode,iblock,offsets,&blocks_to_boundary);
 
 	if (depth == 0)
@@ -649,6 +745,7 @@ reread:
 	/*
 	 * Okay, we need to do block allocation.  Lazily initialize the block
 	 * allocation info here if necessary
+	 * 是普通文件并且没有预分配信息
 	 * 请求新块的情况
 	*/
 	if (S_ISREG(inode->i_mode) && (!ei->i_block_alloc_info))
@@ -714,11 +811,32 @@ changed:
 	goto reread;
 }
 
+/*
+ * ext2_writepage()
+ *  block_write_full_page(, get_block == ext2_get_block)
+ *   __block_write_full_page(, get_block == ext2_get_block)
+ *    ext2_get_block()
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       ext2_readpage()
+ *        mpage_readpage(get_block == ext2_get_block)
+ *         do_mpage_readpage(get_block == ext2_get_block)
+ *          block_read_full_page(get_block== ext2_get_block)
+ *           ext2_get_block()
+ */
 int ext2_get_block(struct inode *inode, sector_t iblock, struct buffer_head *bh_result, int create)
 {
+   
 	unsigned max_blocks = bh_result->b_size >> inode->i_blkbits;
+	
 	int ret = ext2_get_blocks(inode, iblock, max_blocks,
 			      bh_result, create);
+	
 	if (ret > 0) {
 		bh_result->b_size = (ret << inode->i_blkbits);
 		ret = 0;
@@ -727,11 +845,30 @@ int ext2_get_block(struct inode *inode, sector_t iblock, struct buffer_head *bh_
 
 }
 
+/*
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ *    ext2_mkdir()
+ *     ext2_add_link()
+ *      ext2_commit_chunk()
+ *       write_one_page()
+ *        ext2_writepage()
+ */
 static int ext2_writepage(struct page *page, struct writeback_control *wbc)
 {
 	return block_write_full_page(page, ext2_get_block, wbc);
 }
 
+/*
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       ext2_readpage()
+ */
 static int ext2_readpage(struct file *file, struct page *page)
 {
 	return mpage_readpage(page, ext2_get_block);

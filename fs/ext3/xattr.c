@@ -148,6 +148,16 @@ ext3_listxattr(struct dentry *dentry, char *buffer, size_t size)
 	return ext3_xattr_list(dentry->d_inode, buffer, size);
 }
 
+/*
+ * sys_getxattr()
+ *  getxattr()
+ *   vfs_getxattr()
+ *    generic_getxattr()
+ *     ext3_xattr_user_get()
+ *      ext3_xattr_get()
+ *       ext3_xattr_ibody_get()
+ *        ext3_xattr_check_names()
+ */
 static int
 ext3_xattr_check_names(struct ext3_xattr_entry *entry, void *end)
 {
@@ -185,9 +195,19 @@ ext3_xattr_check_entry(struct ext3_xattr_entry *entry, size_t size)
 
 /*
  * 遍历属性列表，查找
+ *
+ * sys_getxattr()
+ *  getxattr()
+ *   vfs_getxattr()
+ *    generic_getxattr()
+ *     ext3_xattr_user_get()
+ *      ext3_xattr_get()
+ *       ext3_xattr_ibody_get()
+ *        ext3_xattr_find_entry()
  */
 static int
-ext3_xattr_find_entry(struct ext3_xattr_entry **pentry, int name_index,
+ext3_xattr_find_entry(struct ext3_xattr_entry **pentry , //pentry指向扩展属性表的个表项的起始处
+                                int name_index,
 		      const char *name, size_t size, int sorted)
 {
 	struct ext3_xattr_entry *entry;
@@ -213,6 +233,15 @@ ext3_xattr_find_entry(struct ext3_xattr_entry **pentry, int name_index,
 	return cmp ? -ENODATA : 0;
 }
 
+/*
+ * sys_getxattr()
+ *  getxattr()
+ *   vfs_getxattr()
+ *    generic_getxattr()
+ *     ext3_xattr_user_get()
+ *      ext3_xattr_get()
+ *       ext3_xattr_block_get()
+ */
 static int
 ext3_xattr_block_get(struct inode *inode, int name_index, const char *name,
 		     void *buffer, size_t buffer_size)
@@ -229,6 +258,7 @@ ext3_xattr_block_get(struct inode *inode, int name_index, const char *name,
 	if (!EXT3_I(inode)->i_file_acl)
 		goto cleanup;
 	ea_idebug(inode, "reading block %u", EXT3_I(inode)->i_file_acl);
+	//读取acl
 	bh = sb_bread(inode->i_sb, EXT3_I(inode)->i_file_acl);
 	if (!bh)
 		goto cleanup;
@@ -241,6 +271,7 @@ bad_block:	ext3_error(inode->i_sb, __FUNCTION__,
 		error = -EIO;
 		goto cleanup;
 	}
+	//保存到ext3_xattr_cache中
 	ext3_xattr_cache_insert(bh);
 	entry = BFIRST(bh);
 	error = ext3_xattr_find_entry(&entry, name_index, name, bh->b_size, 1);
@@ -263,6 +294,15 @@ cleanup:
 	return error;
 }
 
+/*
+ * sys_getxattr()
+ *  getxattr()
+ *   vfs_getxattr()
+ *    generic_getxattr()
+ *     ext3_xattr_user_get()
+ *      ext3_xattr_get()
+ *       ext3_xattr_ibody_get()
+ */
 static int
 ext3_xattr_ibody_get(struct inode *inode, int name_index, const char *name,
 		     void *buffer, size_t buffer_size)
@@ -315,6 +355,13 @@ cleanup:
  *
  * Returns a negative error number on failure, or the number of bytes
  * used / required on success.
+ *
+ * sys_getxattr()
+ *  getxattr()
+ *   vfs_getxattr()
+ *    generic_getxattr()
+ *     ext3_xattr_user_get()
+ *      ext3_xattr_get()
  */
 int
 ext3_xattr_get(struct inode *inode, int name_index, const char *name,
@@ -325,7 +372,7 @@ ext3_xattr_get(struct inode *inode, int name_index, const char *name,
 	down_read(&EXT3_I(inode)->xattr_sem);
 	error = ext3_xattr_ibody_get(inode, name_index, name, buffer,
 				     buffer_size);
-	if (error == -ENODATA)
+	if (error == -ENODATA) //ext3_xattr_ibody_get没有得到属性,需要从磁盘上去重新获取
 		error = ext3_xattr_block_get(inode, name_index, name, buffer,
 					     buffer_size);
 	up_read(&EXT3_I(inode)->xattr_sem);
@@ -936,6 +983,14 @@ ext3_xattr_ibody_set(handle_t *handle, struct inode *inode,
  * previous to the call, respectively.
  *
  * Returns 0, or a negative error number on failure.
+ *
+ * sys_setxattr()
+ *  setxattr()
+ *   vfs_setxattr() 
+ *    generic_setxattr()
+ *     ext3_xattr_user_set()
+ *      ext3_xattr_set()
+ *       ext3_xattr_set_handle()
  */
 int
 ext3_xattr_set_handle(handle_t *handle, struct inode *inode, int name_index,
@@ -976,7 +1031,7 @@ ext3_xattr_set_handle(handle_t *handle, struct inode *inode, int name_index,
 	error = ext3_xattr_ibody_find(inode, &i, &is);
 	if (error)
 		goto cleanup;
-	if (is.s.not_found)
+	if (is.s.not_found) //属性没有直接存储在inode内
 		error = ext3_xattr_block_find(inode, &i, &bs);
 	if (error)
 		goto cleanup;
@@ -1043,6 +1098,13 @@ cleanup:
  * attribute modification is a filesystem transaction by itself.
  *
  * Returns 0, or a negative error number on failure.
+ *
+ * sys_setxattr()
+ *  setxattr()
+ *   vfs_setxattr() 
+ *    generic_setxattr()
+ *     ext3_xattr_user_set()
+ *      ext3_xattr_set()
  */
 int
 ext3_xattr_set(struct inode *inode, int name_index, const char *name,
@@ -1052,6 +1114,7 @@ ext3_xattr_set(struct inode *inode, int name_index, const char *name,
 	int error, retries = 0;
 
 retry:
+	//日志开始
 	handle = ext3_journal_start(inode, EXT3_DATA_TRANS_BLOCKS(inode->i_sb));
 	if (IS_ERR(handle)) {
 		error = PTR_ERR(handle);
@@ -1060,6 +1123,7 @@ retry:
 
 		error = ext3_xattr_set_handle(handle, inode, name_index, name,
 					      value, value_len, flags);
+		//日志结束
 		error2 = ext3_journal_stop(handle);
 		if (error == -ENOSPC &&
 		    ext3_should_retry_alloc(inode->i_sb, &retries))

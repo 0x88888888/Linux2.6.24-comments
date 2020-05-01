@@ -716,9 +716,15 @@ static unsigned long descriptor_loc(struct super_block *sb,
 }
 
 /*
- * ext2_get_sb()
- *  get_sb_bdev()
- *   ext2_fill_super()
+ *
+ * sys_mount()
+ *  do_mount()
+ *   do_new_mount()
+ *    do_kern_mount() 
+ *     vfs_kern_mount() 
+ * 	    ext2_get_sb()
+ * 	     get_sb_bdev(,fill_super==ext2_fill_super)
+ *        ext2_fill_super()
  */
 static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 {
@@ -730,6 +736,7 @@ static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 	struct ext2_super_block * es;
 	struct inode *root;
 	unsigned long block;
+	
 	unsigned long sb_block = get_sb_block(&data);
 	unsigned long logic_sb_block;
 	unsigned long offset = 0;
@@ -797,7 +804,9 @@ static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 	if (sb->s_magic != EXT2_SUPER_MAGIC) /* 检查是否是ext2文件系统 */
 		goto cantfind_ext2;
 
-	/* Set defaults before we parse the mount options */
+	/* Set defaults before we parse the mount options 
+	 * 设置选项到sbi->s_mount_opt上去
+	 */
 	def_mount_opts = le32_to_cpu(es->s_default_mount_opts);
 	if (def_mount_opts & EXT2_DEFM_DEBUG)
 		set_opt(sbi->s_mount_opt, DEBUG);

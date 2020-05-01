@@ -210,6 +210,13 @@ static void ext2_preread_inode(struct inode *inode)
  *
  * For other inodes, search forward from the parent directory\'s block
  * group to find a free inode.
+ *
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ *    ext2_mkdir()
+ *     ext2_new_inode()
+ *      find_group_dir()
  */
 static int find_group_dir(struct super_block *sb, struct inode *parent)
 {
@@ -220,10 +227,13 @@ static int find_group_dir(struct super_block *sb, struct inode *parent)
 
 	for (group = 0; group < ngroups; group++) {
 		desc = ext2_get_group_desc (sb, group, NULL);
+		
 		if (!desc || !desc->bg_free_inodes_count)
 			continue;
+		
 		if (le16_to_cpu(desc->bg_free_inodes_count) < avefreei)
 			continue;
+		
 		if (!best_desc || 
 		    (le16_to_cpu(desc->bg_free_blocks_count) >
 		     le16_to_cpu(best_desc->bg_free_blocks_count))) {
@@ -266,8 +276,15 @@ static int find_group_dir(struct super_block *sb, struct inode *parent)
 #define BLOCK_COST 256
 
 /*
-  子目录inode应该与父目录inode尽可能靠近，但文件系统的根目录的子目录，其inode应该尽可能分散开来
-*/
+ * 子目录inode应该与父目录inode尽可能靠近，但文件系统的根目录的子目录，其inode应该尽可能分散开来
+ *
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ *    ext2_mkdir()
+ *     ext2_new_inode()
+ *      find_group_orlov()
+ */
 static int find_group_orlov(struct super_block *sb, struct inode *parent)
 {
 	int parent_group = EXT2_I(parent)->i_block_group;
@@ -292,12 +309,13 @@ static int find_group_orlov(struct super_block *sb, struct inode *parent)
 	int group = -1, i;
 	struct ext2_group_desc *desc;
 
-	
-	freei = percpu_counter_read_positive(&sbi->s_freeinodes_counter);
 	/*空闲inode的数量*/
+	freei = percpu_counter_read_positive(&sbi->s_freeinodes_counter);
+	//平均到每个desc中的空闲inode数量
 	avefreei = freei / ngroups;
-	free_blocks = percpu_counter_read_positive(&sbi->s_freeblocks_counter);
 	/* 空闲block的数量 */
+	free_blocks = percpu_counter_read_positive(&sbi->s_freeblocks_counter);
+	//平均到每个desc中的空闲block数量
 	avefreeb = free_blocks / ngroups;
 	ndirs = percpu_counter_read_positive(&sbi->s_dirs_counter);
 
@@ -309,24 +327,31 @@ static int find_group_orlov(struct super_block *sb, struct inode *parent)
 		int best_ndir = inodes_per_group;
 		int best_group = -1;
 
+        //随机的一个block group号
 		get_random_bytes(&group, sizeof(group));
+		
 		parent_group = (unsigned)group % ngroups;
 		for (i = 0; i < ngroups; i++) {
 			group = (parent_group + i) % ngroups;
 			desc = ext2_get_group_desc (sb, group, NULL);
-			if (!desc || !desc->bg_free_inodes_count)
+			if (!desc || !desc->bg_free_inodes_count) //这个group没有空闲的inode了
+				continue; 
+			
+			if (le16_to_cpu(desc->bg_used_dirs_count) >= best_ndir) //非最优的dir数量
 				continue;
-			if (le16_to_cpu(desc->bg_used_dirs_count) >= best_ndir)
-				continue;
+			
 			if (le16_to_cpu(desc->bg_free_inodes_count) < avefreei)
 				continue;
+			
 			if (le16_to_cpu(desc->bg_free_blocks_count) < avefreeb)
 				continue;
+
+			//记录下最符合的group desc
 			best_group = group;
 			best_ndir = le16_to_cpu(desc->bg_used_dirs_count);
 			best_desc = desc;
 		}
-		if (best_group >= 0) {
+		if (best_group >= 0) { //确定了
 			desc = best_desc;
 			group = best_group;
 			goto found;
@@ -343,35 +368,39 @@ static int find_group_orlov(struct super_block *sb, struct inode *parent)
 	min_inodes = avefreei - inodes_per_group / 4;
 	min_blocks = avefreeb - EXT2_BLOCKS_PER_GROUP(sb) / 4;
 
+	
 	max_debt = EXT2_BLOCKS_PER_GROUP(sb) / max(blocks_per_dir, BLOCK_COST);
 	if (max_debt * INODE_COST > inodes_per_group)
 		max_debt = inodes_per_group / INODE_COST;
+	
 	if (max_debt > 255)
 		max_debt = 255;
+	
 	if (max_debt == 0)
 		max_debt = 1;
 
+	
 	for (i = 0; i < ngroups; i++) {
-		group = (parent_group + i) % ngroups;
+		group = (parent_group + i) % ngroups; //从父目录所在的block group开始遍历
 		desc = ext2_get_group_desc (sb, group, NULL);
 		if (!desc || !desc->bg_free_inodes_count)
 			continue;
-		if (sbi->s_debts[group] >= max_debt)
+		if (sbi->s_debts[group] >= max_debt) 
 			continue;
-		if (le16_to_cpu(desc->bg_used_dirs_count) >= max_dirs)
+		if (le16_to_cpu(desc->bg_used_dirs_count) >= max_dirs) //目录数不能超过max_dirs
 			continue;
-		if (le16_to_cpu(desc->bg_free_inodes_count) < min_inodes)
+		if (le16_to_cpu(desc->bg_free_inodes_count) < min_inodes) //空闲inode数不能小于min_inodes
 			continue;
-		if (le16_to_cpu(desc->bg_free_blocks_count) < min_blocks)
+		if (le16_to_cpu(desc->bg_free_blocks_count) < min_blocks) //空闲block数不能小于min_blocks
 			continue;
 
 		/* 找到块组 */
 		goto found;
 	}
 
-fallback:
+fallback: //借助要求较低的备用算法
 	for (i = 0; i < ngroups; i++) {
-		group = (parent_group + i) % ngroups;
+		group = (parent_group + i) % ngroups;  //依旧从父目录所在的block group开始遍历
 		desc = ext2_get_group_desc (sb, group, NULL);
 		if (!desc || !desc->bg_free_inodes_count)
 			continue;
@@ -454,6 +483,14 @@ found:
 	return group;
 }
 
+/*
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ *    ext2_mkdir()
+ *     ext2_new_inode()
+ * 在dir inode下分配一个inode
+ */
 struct inode *ext2_new_inode(struct inode *dir, int mode)
 {
 	struct super_block *sb;
@@ -468,8 +505,8 @@ struct inode *ext2_new_inode(struct inode *dir, int mode)
 	struct ext2_sb_info *sbi;
 	int err;
 
-	sb = dir->i_sb;
-	inode = new_inode(sb);
+	sb = dir->i_sb; /* 所在的文件分区super_block对象 */
+	inode = new_inode(sb); //分配内存中的inode对象
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
 
@@ -477,9 +514,9 @@ struct inode *ext2_new_inode(struct inode *dir, int mode)
 	sbi = EXT2_SB(sb);
 	es = sbi->s_es;
 	if (S_ISDIR(mode)) {
-		if (test_opt(sb, OLDALLOC))
+		if (test_opt(sb, OLDALLOC)) //不使用orlov inode分配机制
 			group = find_group_dir(sb, dir);
-		else
+		else //使用orlov inode分配
 			group = find_group_orlov(sb, dir);
 	} else 
 		group = find_group_other(sb, dir);

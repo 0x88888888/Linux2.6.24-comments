@@ -1470,6 +1470,14 @@ asmlinkage ssize_t sys_readahead(int fd, loff_t offset, size_t count)
  *
  * This adds the requested page to the page cache if it isn't already there,
  * and schedules an I/O to read in its contents from disk.
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       page_cache_read()
  */
 static int fastcall page_cache_read(struct file * file, pgoff_t offset)
 {
@@ -1512,6 +1520,13 @@ static int fastcall page_cache_read(struct file * file, pgoff_t offset)
  *
  * 从磁盘中换回page的内容到内存
  *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *
  */
 int filemap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
@@ -1537,7 +1552,7 @@ int filemap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	 * Do we have something in the page cache already?
 	 */
 retry_find:
-	page = find_lock_page(mapping, vmf->pgoff); /* 从page_tree缓存中读取 */
+	page = find_lock_page(mapping, vmf->pgoff); /* 从address_space->page_tree缓存中读取 */
 	/*
 	 * For sequential accesses, we use the generic readahead logic.
 	 */
@@ -1552,7 +1567,7 @@ retry_find:
 				goto no_cached_page;
 		}
 		
-		if (PageReadahead(page)) {
+		if (PageReadahead(page)) { //预读逻辑
 			page_cache_async_readahead(mapping, ra, file, page,
 							   vmf->pgoff, 1);
 		}
@@ -1625,6 +1640,7 @@ no_cached_page:
 	/*
 	 * We're only likely to ever get here if MADV_RANDOM is in
 	 * effect.
+	 *
 	 */
 	error = page_cache_read(file, vmf->pgoff);
 
@@ -1659,6 +1675,21 @@ page_not_uptodate:
 	 * and we need to check for errors.
 	 */
 	ClearPageError(page);
+
+	/*
+     * def_blk_aops
+     * ext2_aops
+     * ext3_ordered_aops
+     * ext3_writeback_aops
+     * ext3_journalled_aops
+     * ext4_ordered_aops
+     * ext4_writeback_aops
+     * ext4_journalled_aops
+     * shmem_aops
+     * swap_aops
+     *
+     * ext2_aops.readpage == ext2_readpage
+     */
 	error = mapping->a_ops->readpage(file, page);
 	page_cache_release(page);
 

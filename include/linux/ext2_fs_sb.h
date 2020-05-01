@@ -91,7 +91,7 @@ struct ext2_sb_info {
 	struct buffer_head * s_sbh;	/*  exr2_super_block信息所在的缓冲区的buffer_head. Buffer containing the super block */
 	struct ext2_super_block * s_es;	/* 指向包含磁盘超级块结构的内存首地址，Pointer to the super block in the buffer */
 	struct buffer_head ** s_group_desc; /* ext2_group_desc信息所在的缓冲区的buffer head */
-	unsigned long  s_mount_opt;  /* 装载选项 */
+	unsigned long  s_mount_opt;  /* 装载选项,EXT2_MOUNT_CHECK, EXT2_MOUNT_XXX这类宏 */
 	unsigned long s_sb_block; /* 如果不是从默认的块1读取，而是从其他的块读取，对应的块(相对值)保存在s_sb_block中 */
 	uid_t s_resuid;  /*  */
 	gid_t s_resgid;

@@ -2453,7 +2453,10 @@ static int __do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 	BUG_ON(vma->vm_flags & VM_PFNMAP);
 
 	if (likely(vma->vm_ops->fault)) {
-		/* 去读入对应的数据,fault通常是filemap_fault方法 */
+		/* 去读入对应的数据,fault通常是filemap_fault方法 
+		 *
+		 * generic_file_vm_ops.fault = filemap_fault
+	     */
 		ret = vma->vm_ops->fault(vma, &vmf);
 		if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE)))
 			return ret;

@@ -1562,7 +1562,7 @@ long do_mount(char *dev_name, char *dir_name, char *type_page,
     /* 上面处理好flags了 */
     
 	/* ... and get the mountpoint */
-	/* 检查安装点路径 */
+	/* 查找安装点路径 */
 	retval = path_lookup(dir_name, LOOKUP_FOLLOW, &nd);
 	if (retval)
 		return retval;
@@ -1676,9 +1676,9 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
 	return new_ns;
 }
 
-asmlinkage long sys_mount(char __user * dev_name, char __user * dir_name,
-			  char __user * type, unsigned long flags,
-			  void __user * data)
+asmlinkage long sys_mount(char __user * dev_name /* 设备名称 */, char __user * dir_name /* 挂载点路径 */,
+			  char __user * type /* 挂载文件系统类型 */, unsigned long flags,
+			  void __user * data /* 选项信息 */)
 {
 	int retval;
 	unsigned long data_page;

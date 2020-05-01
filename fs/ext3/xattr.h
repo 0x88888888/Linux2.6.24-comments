@@ -25,7 +25,7 @@
 struct ext3_xattr_header {
 	__le32	h_magic;	/* magic number for identification */
 	__le32	h_refcount;	/* reference count */
-	__le32	h_blocks;	/* number of disk blocks used */
+	__le32	h_blocks;	/* 使用了磁盘块的数量，目前只能为1 number of disk blocks used */
 	__le32	h_hash;		/* hash value of all attributes */
 	__u32	h_reserved[4];	/* zero right now */
 };
@@ -35,13 +35,13 @@ struct ext3_xattr_ibody_header {
 };
 
 struct ext3_xattr_entry {
-	__u8	e_name_len;	/* length of name */
-	__u8	e_name_index;	/* attribute name index */
-	__le16	e_value_offs;	/* offset in disk block of value */
-	__le32	e_value_block;	/* disk block attribute is stored on (n/i) */
-	__le32	e_value_size;	/* size of attribute value */
-	__le32	e_hash;		/* hash value of name and value */
-	char	e_name[0];	/* attribute name */
+	__u8	e_name_len;	/* 属性名称 length of name */
+	__u8	e_name_index;	/* 属性名索引,用于索引ext3_xattr_handler_map表. attribute name index */
+	__le16	e_value_offs;	/* 属性值在所处的磁盘块中的偏移量 offset in disk block of value */
+	__le32	e_value_block;	/* 存储属性的磁盘块 disk block attribute is stored on (n/i) */
+	__le32	e_value_size;	/* 属性值的长度 size of attribute value */
+	__le32	e_hash;		/* 属性名和值的散列值 hash value of name and value */
+	char	e_name[0];	/* 属性名 attribute name */
 };
 
 #define EXT3_XATTR_PAD_BITS		2

@@ -24,7 +24,10 @@ struct module;
  * The *owner field is no longer used, but leave around
  * until the tree gets cleaned up fully.
  *
- * kobject的属性，就是这些变量的属性。
+ *
+ * 每个Kobject都会在"/sys/“文件系统中以目录的形式出现
+ * 每个attribute都在/sys/中以文件的形式出现 
+ *
  * 它可以是任何东西，名称、一个内部变量、一个字符串等等。
  * 而attribute，在sysfs文件系统中是以文件的形式提供的，即：kobject的所有属性，都在它对应的sysfs目录下以文件的形式呈现。
  * 这些文件一般是可读、写的，而kernel中定义了这些属性的模块，会根据用户空间的读写操作，记录和返回这些attribute的值

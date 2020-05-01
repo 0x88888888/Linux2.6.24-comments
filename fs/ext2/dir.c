@@ -81,6 +81,22 @@ ext2_last_byte(struct inode *inode, unsigned long page_nr)
 	return last_byte;
 }
 
+/*
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ *    ext2_mkdir()
+ *     ext2_add_link()
+ *      ext2_commit_chunk()
+ *
+ * sys_renameat()
+ *  do_rename()
+ *   vfs_rename()
+ *    vfs_rename_dir()
+ *     ext2_rename()
+ *      ext2_set_link()
+ *       ext2_commit_chunk()
+ */
 static int ext2_commit_chunk(struct page *page, loff_t pos, unsigned len)
 {
 	struct address_space *mapping = page->mapping;
@@ -476,7 +492,15 @@ ino_t ext2_inode_by_name(struct inode * dir, struct dentry *dentry)
 	return res;
 }
 
-/* Releases the page */
+/* Releases the page
+ *
+ * sys_renameat()
+ *  do_rename()
+ *   vfs_rename()
+ *    vfs_rename_dir()
+ *     ext2_rename()
+ *      ext2_set_link()
+ */
 void ext2_set_link(struct inode *dir, struct ext2_dir_entry_2 *de,
 			struct page *page, struct inode *inode)
 {
@@ -500,10 +524,18 @@ void ext2_set_link(struct inode *dir, struct ext2_dir_entry_2 *de,
 
 /*
  *	Parent is locked.
+ *
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ *    ext2_mkdir()
+ *     ext2_add_link()
  */
-int ext2_add_link (struct dentry *dentry, struct inode *inode)
+int ext2_add_link(struct dentry *dentry, struct inode *inode)
 {
+    //父目录
 	struct inode *dir = dentry->d_parent->d_inode;
+	//本dentry名称
 	const char *name = dentry->d_name.name;
 	int namelen = dentry->d_name.len;
 	unsigned chunk_size = ext2_chunk_size(dir);
@@ -543,12 +575,14 @@ int ext2_add_link (struct dentry *dentry, struct inode *inode)
 				de->inode = 0;
 				goto got_it;
 			}
+			
 			if (de->rec_len == 0) {
 				ext2_error(dir->i_sb, __FUNCTION__,
 					"zero-length directory entry");
 				err = -EIO;
 				goto out_unlock;
 			}
+			
 			err = -EEXIST;
 			if (ext2_match (namelen, name, de))
 				goto out_unlock;
@@ -573,6 +607,7 @@ got_it:
 							&page, NULL);
 	if (err)
 		goto out_unlock;
+	
 	if (de->inode) {
 		ext2_dirent *de1 = (ext2_dirent *) ((char *) de + name_len);
 		de1->rec_len = ext2_rec_len_to_disk(rec_len - name_len);
@@ -600,6 +635,13 @@ out_unlock:
 /*
  * ext2_delete_entry deletes a directory entry by merging it with the
  * previous entry. Page is up-to-date. Releases the page.
+ *
+ * sys_rmdir()
+ *  do_rmdir()
+ *   vfs_rmdir()
+ *    ext2_rmdir()
+ *     ext2_unlink()
+ *      ext2_delete_entry()
  */
 int ext2_delete_entry (struct ext2_dir_entry_2 * dir, struct page * page )
 {
@@ -622,18 +664,20 @@ int ext2_delete_entry (struct ext2_dir_entry_2 * dir, struct page * page )
 			goto out;
 		}
 		pde = de;
-		de = ext2_next_entry(de);
+		de = ext2_next_entry(de);//下一个entry
 	}
 	if (pde)
 		from = (char*)pde - (char*)page_address(page);
+	
 	pos = page_offset(page) + from;
 	lock_page(page);
 	err = __ext2_write_begin(NULL, page->mapping, pos, to - from, 0,
 							&page, NULL);
 	BUG_ON(err);
-	if (pde)
+	if (pde) //通过对rec_len的设置，跳过被删除的项
 		pde->rec_len = ext2_rec_len_to_disk(to - from);
-	dir->inode = 0;
+	dir->inode = 0;//清空掉
+	
 	err = ext2_commit_chunk(page, pos, to - from);
 	inode->i_ctime = inode->i_mtime = CURRENT_TIME_SEC;
 	EXT2_I(inode)->i_flags &= ~EXT2_BTREE_FL;
@@ -645,7 +689,11 @@ out:
 
 /*
  * Set the first fragment of directory.
- 向目录中添加.和..目录项 
+ * 向目录中添加.和..目录项 
+ *
+ * ext2_mkdir()
+ *  ext2_make_empty()
+ *
  */
 int ext2_make_empty(struct inode *inode, struct inode *parent)
 {
