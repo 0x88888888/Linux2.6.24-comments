@@ -4114,6 +4114,16 @@ err_uninit:
  *
  *  cs89x0_probe1()
  *   register_netdev()
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls() 
+ *     net_dev_init()
+ *      register_pernet_subsys()
+ *       register_pernet_operations()
+ *        loopback_net_init()
+ *         register_netdev()
  */
 int register_netdev(struct net_device *dev)
 {
@@ -4294,7 +4304,7 @@ static struct net_device_stats *internal_stats(struct net_device *dev)
  *   alloc_netdev_mq()
  */
 struct net_device *alloc_netdev_mq(int sizeof_priv, const char *name,
-		void (*setup)(struct net_device *) /* 一般是eth_setup */, unsigned int queue_count)
+		void (*setup)(struct net_device *) /* 一般是eth_setup, loopback_setup */, unsigned int queue_count)
 {
 	void *p;
 	struct net_device *dev;
@@ -4739,7 +4749,17 @@ static struct hlist_head *netdev_create_hash(void)
 	return hash;
 }
 
-/* Initialize per network namespace state */
+/* Initialize per network namespace state 
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls() 
+ *     net_dev_init()
+ *      register_pernet_subsys()
+ *       register_pernet_operations()
+ *        netdev_init()
+ */
 static int __net_init netdev_init(struct net *net)
 {
 	INIT_LIST_HEAD(&net->dev_base_head);

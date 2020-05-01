@@ -130,7 +130,11 @@ static inline struct net *maybe_get_net(struct net *net)
 #define __net_initdata	__initdata
 #endif
 
-/* 每当创建和删除一个网络命名空间时，需要初始化或者清理一些信息 */
+/* 每当创建和删除一个网络命名空间(net)时，需要初始化或者清理一些信息 
+ *
+ * netlink_net_ops, dev_proc_ops, netdev_net_ops, default_device_ops
+ * dev_mc_net_ops, loopback_net_ops, proc_net_ns_ops
+ */
 struct pernet_operations {
 	struct list_head list;
 	int (*init)(struct net *net);

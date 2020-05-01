@@ -166,6 +166,11 @@ vfs_getxattr(struct dentry *dentry, char *name, void *value, size_t size)
 }
 EXPORT_SYMBOL_GPL(vfs_getxattr);
 
+/*
+ * sys_listxattr()
+ *  listxattr()
+ *   vfs_listxattr()
+ */
 ssize_t
 vfs_listxattr(struct dentry *d, char *list, size_t size)
 {
@@ -176,6 +181,7 @@ vfs_listxattr(struct dentry *d, char *list, size_t size)
 		return error;
 	error = -EOPNOTSUPP;
 	if (d->d_inode->i_op && d->d_inode->i_op->listxattr) {
+		//ext3_listxattr
 		error = d->d_inode->i_op->listxattr(d, list, size);
 	} else {
 		error = security_inode_listsecurity(d->d_inode, list, size);
@@ -389,6 +395,9 @@ sys_fgetxattr(int fd, char __user *name, void __user *value, size_t size)
 
 /*
  * Extended attribute LIST operations
+ *
+ * sys_listxattr()
+ *  listxattr()
  */
 static ssize_t
 listxattr(struct dentry *d, char __user *list, size_t size)

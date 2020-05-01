@@ -300,7 +300,10 @@ typedef unsigned char *sk_buff_data_t;
  */
 
 struct sk_buff {
-	/* These two members must be first. */
+	/* These two members must be first. 
+	 * sk_buff_head是链表的头，一个数据包可能会分成多个sk_buff,
+	 * 比如数据包在路由中间分片了，就会出现这种情况
+     */
 	struct sk_buff		*next;
 	struct sk_buff		*prev;
 
@@ -445,9 +448,9 @@ struct sk_buff {
 	__u32           mark;
 
     /* 各个层次之间，数据的有效部分是在data和tail之间 */
-	sk_buff_data_t  transport_header; /* tcp/udp头部开始位置 */
-	sk_buff_data_t  network_header;   /* ip头部开始位置 */
-	sk_buff_data_t  mac_header;       /* mac头部开始位置 */
+	sk_buff_data_t  transport_header; /* tcp/udp头部开始偏移位置 */
+	sk_buff_data_t  network_header;   /* ip头部开始偏移位置 */
+	sk_buff_data_t  mac_header;       /* mac头部开始偏移位置 */
 	
 	/* These elements must be at the end, see alloc_skb() for details.  */
 	/*

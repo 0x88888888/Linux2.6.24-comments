@@ -524,6 +524,7 @@ got:
 	}
 
 	BUFFER_TRACE(bh2, "get_write_access");
+	
 	err = ext3_journal_get_write_access(handle, bh2);
 	if (err) goto fail;
 	spin_lock(sb_bgl_lock(sbi, group));

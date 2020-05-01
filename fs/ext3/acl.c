@@ -309,6 +309,9 @@ ext3_permission(struct inode *inode, int mask, struct nameidata *nd)
  *
  * dir->i_mutex: down
  * inode->i_mutex: up (access to inode is still exclusive)
+ *
+ * ext3_new_inode()
+ *  ext3_init_acl()
  */
 int
 ext3_init_acl(handle_t *handle, struct inode *inode, struct inode *dir)

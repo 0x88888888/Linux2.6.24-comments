@@ -249,7 +249,17 @@ static void loopback_setup(struct net_device *dev)
 	dev->destructor = loopback_dev_free;
 }
 
-/* Setup and register the loopback device. */
+/* Setup and register the loopback device. 
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls() 
+ *     net_dev_init()
+ *      register_pernet_subsys()
+ *       register_pernet_operations()
+ *        loopback_net_init()
+ */
 static __net_init int loopback_net_init(struct net *net)
 {
 	struct net_device *dev;

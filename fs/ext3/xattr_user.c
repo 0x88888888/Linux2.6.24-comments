@@ -14,6 +14,16 @@
 
 #define XATTR_USER_PREFIX "user."
 
+/*
+ * sys_listxattr()
+ *  listxattr()
+ *   vfs_listxattr()
+ *    ext3_listxattr()
+ *     ext3_xattr_list()
+ *      ext3_xattr_ibody_list()
+ *       ext3_xattr_list_entries()
+ *        ext3_xattr_user_list()
+ */
 static size_t
 ext3_xattr_user_list(struct inode *inode, char *list, size_t list_size,
 		     const char *name, size_t name_len)
@@ -24,6 +34,7 @@ ext3_xattr_user_list(struct inode *inode, char *list, size_t list_size,
 	if (!test_opt(inode->i_sb, XATTR_USER))
 		return 0;
 
+    //复制过去
 	if (list && total_len <= list_size) {
 		memcpy(list, XATTR_USER_PREFIX, prefix_len);
 		memcpy(list+prefix_len, name, name_len);

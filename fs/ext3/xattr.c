@@ -141,6 +141,11 @@ ext3_xattr_handler(int name_index)
  * Inode operation listxattr()
  *
  * dentry->d_inode->i_mutex: don't care
+ *
+ * sys_listxattr()
+ *  listxattr()
+ *   vfs_listxattr()
+ *    ext3_listxattr()
  */
 ssize_t
 ext3_listxattr(struct dentry *dentry, char *buffer, size_t size)
@@ -379,6 +384,15 @@ ext3_xattr_get(struct inode *inode, int name_index, const char *name,
 	return error;
 }
 
+/*
+ * sys_listxattr()
+ *  listxattr()
+ *   vfs_listxattr()
+ *    ext3_listxattr()
+ *     ext3_xattr_list()
+ *      ext3_xattr_ibody_list()
+ *       ext3_xattr_list_entries()
+ */
 static int
 ext3_xattr_list_entries(struct inode *inode, struct ext3_xattr_entry *entry,
 			char *buffer, size_t buffer_size)
@@ -386,10 +400,13 @@ ext3_xattr_list_entries(struct inode *inode, struct ext3_xattr_entry *entry,
 	size_t rest = buffer_size;
 
 	for (; !IS_LAST_ENTRY(entry); entry = EXT3_XATTR_NEXT(entry)) {
+
+	    // ext3_xattr_user_handler
 		struct xattr_handler *handler =
 			ext3_xattr_handler(entry->e_name_index);
 
 		if (handler) {
+			//ext3_xattr_user_list
 			size_t size = handler->list(inode, buffer, rest,
 						    entry->e_name,
 						    entry->e_name_len);
@@ -404,6 +421,14 @@ ext3_xattr_list_entries(struct inode *inode, struct ext3_xattr_entry *entry,
 	return buffer_size - rest;
 }
 
+/*
+ * sys_listxattr()
+ *  listxattr()
+ *   vfs_listxattr()
+ *    ext3_listxattr()
+ *     ext3_xattr_list()
+ *      ext3_xattr_block_list()
+ */
 static int
 ext3_xattr_block_list(struct inode *inode, char *buffer, size_t buffer_size)
 {
@@ -417,6 +442,7 @@ ext3_xattr_block_list(struct inode *inode, char *buffer, size_t buffer_size)
 	if (!EXT3_I(inode)->i_file_acl)
 		goto cleanup;
 	ea_idebug(inode, "reading block %u", EXT3_I(inode)->i_file_acl);
+	//从磁盘上读取出来
 	bh = sb_bread(inode->i_sb, EXT3_I(inode)->i_file_acl);
 	error = -EIO;
 	if (!bh)
@@ -430,6 +456,7 @@ ext3_xattr_block_list(struct inode *inode, char *buffer, size_t buffer_size)
 		error = -EIO;
 		goto cleanup;
 	}
+	//存到ext3_xattr_cache上去
 	ext3_xattr_cache_insert(bh);
 	error = ext3_xattr_list_entries(inode, BFIRST(bh), buffer, buffer_size);
 
@@ -439,6 +466,14 @@ cleanup:
 	return error;
 }
 
+/*
+ * sys_listxattr()
+ *  listxattr()
+ *   vfs_listxattr()
+ *    ext3_listxattr()
+ *     ext3_xattr_list()
+ *      ext3_xattr_ibody_list()
+ */
 static int
 ext3_xattr_ibody_list(struct inode *inode, char *buffer, size_t buffer_size)
 {
@@ -476,6 +511,12 @@ cleanup:
  *
  * Returns a negative error number on failure, or the number of bytes
  * used / required on success.
+ *
+ * sys_listxattr()
+ *  listxattr()
+ *   vfs_listxattr()
+ *    ext3_listxattr()
+ *     ext3_xattr_list()
  */
 int
 ext3_xattr_list(struct inode *inode, char *buffer, size_t buffer_size)

@@ -189,6 +189,15 @@ static int __init net_ns_init(void)
 pure_initcall(net_ns_init);
 
 #ifdef CONFIG_NET_NS
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls() 
+ *     net_dev_init()
+ *      register_pernet_subsys()
+ *       register_pernet_operations()
+ */
 static int register_pernet_operations(struct list_head *list,
 				      struct pernet_operations *ops)
 {
@@ -198,6 +207,9 @@ static int register_pernet_operations(struct list_head *list,
 	list_add_tail(&ops->list, list);
 	if (ops->init) {
 		for_each_net(net) {
+			/*
+			 * netdev_init, loopback_net_init
+			 */
 			error = ops->init(net);
 			if (error)
 				goto out_undo;
@@ -264,11 +276,19 @@ static void unregister_pernet_operations(struct pernet_operations *ops)
  *	When a network namespace is destroyed all of the exit methods
  *	are called in the reverse of the order with which they were
  *	registered.
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls() 
+ *     net_dev_init()
+ *      register_pernet_subsys()
  */
 int register_pernet_subsys(struct pernet_operations *ops)
 {
 	int error;
 	mutex_lock(&net_mutex);
+	//将ops挂载到first_device上去
 	error =  register_pernet_operations(first_device, ops);
 	mutex_unlock(&net_mutex);
 	return error;
