@@ -151,7 +151,9 @@
  */
 
 static DEFINE_SPINLOCK(ptype_lock);
+//在dev_add_pack()中设置
 static struct list_head ptype_base[16] __read_mostly;	/* 16 way hashed list */
+//在dev_add_pack()中设置
 static struct list_head ptype_all __read_mostly;	/* Taps */
 
 #ifdef CONFIG_NET_DMA
@@ -354,10 +356,10 @@ static inline void netdev_set_lockdep_class(spinlock_t *lock,
  *	will see the new packet type (until the next received packet).
  *
  * 添加pt到ptype_all或者ptype_base中去
- * ax25_init()
- * decnet_init()
- * econet_hw_initialise()
- * inet_init()
+ * ax25_init(pt == ax25_packet_type)
+ * decnet_init(pt == dn_dix_packet_type)
+ * econet_hw_initialise(pt == econet_packet_type)
+ * inet_init(pt == ip_packet_type)
  * ipx_init()
  * packet_do_bind()
  * packet_create()
@@ -365,7 +367,7 @@ static inline void netdev_set_lockdep_class(spinlock_t *lock,
  * packet_set_ring()
  * x25_init()
  * aoenet_init()
- * arp_init()
+ * arp_init(pt == arp_packet_type)
  * rlb_initialize()
  * bond_register_lacpdu()
  * bond_register_arp()
@@ -383,6 +385,17 @@ static inline void netdev_set_lockdep_class(spinlock_t *lock,
  * sync_ppp_init()
  * vlan_proto_init()
  *
+ *
+ * packet_bind()
+ *  packet_do_bind()
+ *   dev_add_pack()
+ *
+ * packet_bind_spkt()
+ *  packet_do_bind()
+ *   dev_add_pack()
+ *
+ * packet_create()
+ *  dev_add_pack()
  */
 
 void dev_add_pack(struct packet_type *pt)
@@ -1979,7 +1992,7 @@ int netif_rx(struct sk_buff *skb)
 	/* 队列中有足够的空闲空间，把skb链接到softnet_data->input_pkt_queue上 */
 	if (queue->input_pkt_queue.qlen <= netdev_max_backlog) {
 		
-		if (queue->input_pkt_queue.qlen) { /* qlen>0，说明队列中已经存在sk_buff对象了 */
+		if (queue->input_pkt_queue.qlen) { /* qlen>0，说明队列中已经存在sk_buff对象了,就不启用软中断和NAPI了 */
 enqueue:
 			dev_hold(skb->dev);
 		    /* 放到softnet_data->input_pkt_queue队列尾部 */
@@ -1988,7 +2001,8 @@ enqueue:
 			return NET_RX_SUCCESS;
 		}
 
-		/* 设置NET_RX_SOFTIRQ中断即将执行,net_rx_action为该软中断处理程序 */
+		/* 使用NAPI,设置NET_RX_SOFTIRQ中断即将执行,net_rx_action为该软中断处理程序 
+		 */
 		napi_schedule(&queue->backlog);
 		goto enqueue;
 	}
@@ -2317,6 +2331,7 @@ int netif_receive_skb(struct sk_buff *skb)
 
     /* 先搞ptype_all中的，抓包程序、raw socket等
      * ptype_all一般似乎是空的
+     * 在 dev_add_pack() 中设置
      */
 	list_for_each_entry_rcu(ptype, &ptype_all, list) {
 	
@@ -2398,7 +2413,7 @@ static int process_backlog(struct napi_struct *napi, int quota)
 		/* 从softnet_data->input_pkt_queue 取出数据包 */
 		skb = __skb_dequeue(&queue->input_pkt_queue);
 		if (!skb) { /* 输入队列中的数据都已经被处理了 */
-			__napi_complete(napi);
+ 			__napi_complete(napi);//napi对象从softnet_data->pull_list上删除
 			local_irq_enable();
 			break;
 		}
@@ -2461,7 +2476,7 @@ static void net_rx_action(struct softirq_action *h)
 
 	local_irq_disable();
 
-    /* 遍历napi_struct对象 */
+    /* 遍历napi_struct 网络设备对象 */
 	while (!list_empty(list)) {
 		struct napi_struct *n;
 		int work, weight;
@@ -2506,8 +2521,10 @@ static void net_rx_action(struct softirq_action *h)
 		work = 0;
 		if (test_bit(NAPI_STATE_SCHED, &n->state))
 			/*
-			 * n->poll指向process_backlog(非napi方式) ,
-			 * e100_poll(napi方式),该函数把数据包递交到上层协议模块 
+			 * 1.n->poll指向process_backlog(非napi方式) ,
+			 *
+			 * 2.e100_poll(napi方式),该函数把数据包递交到上层协议模块 
+			 * 
 			 */
 			work = n->poll(n, weight);
 

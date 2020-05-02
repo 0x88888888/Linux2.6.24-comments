@@ -3925,6 +3925,7 @@ e1000_intr(int irq, void *data)
 	adapter->total_rx_packets = 0;
 
 	for (i = 0; i < E1000_MAX_INTR; i++)
+		
 		if (unlikely(!adapter->clean_rx(adapter, adapter->rx_ring) &
 		   !e1000_clean_tx_irq(adapter, adapter->tx_ring)))
 			break;

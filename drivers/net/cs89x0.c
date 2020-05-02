@@ -1315,6 +1315,7 @@ write_irq(struct net_device *dev, int chip_type, int irq)
  *  dev_change_flags()
  *   dev_open()
  *    net_open()
+ * 打开网卡，注册中断处理程序net_interrupt到irq_desc[dev->irq]上去
  */
 static int
 net_open(struct net_device *dev)
@@ -1334,7 +1335,7 @@ net_open(struct net_device *dev)
 /* And 2.3.47 had this: */
 		writereg(dev, PP_BusCTL, ENABLE_IRQ | MEMORY_ON);
 
-		for (i = 2; i < CS8920_NO_INTS; i++) {
+		for (i = 2; i < CS8920_NO_INTS /*0x0F*/; i++) {
 			if ((1 << i) & lp->irq_map) {
 				/* 设置中断号，中断处理函数 */
 				if (request_irq(i, net_interrupt, 0, dev->name, dev) == 0) {
@@ -1758,7 +1759,9 @@ net_rx(struct net_device *dev)
 		return;
 	}
 
-	/* Malloc up new buffer. */
+	/* Malloc up new buffer.
+	 * 每次中断收到一个数据包，都需要分配一个sk_buff对象
+	 */
 	skb = dev_alloc_skb(length + 2);
 	if (skb == NULL) {
 #if 0		/* Again, this seems a cruel thing to do */

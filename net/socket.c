@@ -1162,9 +1162,10 @@ call_kill:
 }
 
 /*
- * sys_socket()
- *  sock_create()
- *   __sock_create()
+ * sys_socketcall()
+ *  sys_socket()
+ *   sock_create()
+ *    __sock_create()
  */
 static int __sock_create(struct net *net, int family, int type, int protocol,
 			 struct socket **res, int kern)
@@ -1242,6 +1243,10 @@ static int __sock_create(struct net *net, int family, int type, int protocol,
 	/* Now protected by module ref count */
 	rcu_read_unlock();
 
+    /*
+     * inet_family_ops, inet6_family_ops, 
+     * packet_family_ops, 
+     */
 	err = pf->create(net, sock, protocol);
 	if (err < 0)
 		goto out_module_put;
@@ -1280,8 +1285,9 @@ out_release:
 }
 
 /*
- * sys_socket()
- *  sock_create()
+ * sys_socketcall()
+ *  sys_socket()
+ *   sock_create()
  */
 int sock_create(int family, int type, int protocol, struct socket **res)
 {
@@ -1293,6 +1299,10 @@ int sock_create_kern(int family, int type, int protocol, struct socket **res)
 	return __sock_create(&init_net, family, type, protocol, res, 1);
 }
 
+/*
+ * sys_socketcall()
+ *  sys_socket()
+ */
 asmlinkage long sys_socket(int family, int type, int protocol)
 {
 	int retval;

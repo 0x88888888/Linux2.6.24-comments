@@ -919,8 +919,16 @@ static void parp_redo(struct sk_buff *skb)
 
 /*
  *	Receive an arp request from the device layer.
+ *
+ * irq_exit()
+ *  do_softirq()
+ *   __do_softirq()
+ *    net_rx_action()
+ *     process_backlog()
+ *      netif_receive_skb()
+ *       deliver_skb()
+ *        arp_rcv()
  */
-
 static int arp_rcv(struct sk_buff *skb, struct net_device *dev,
 		   struct packet_type *pt, struct net_device *orig_dev)
 {

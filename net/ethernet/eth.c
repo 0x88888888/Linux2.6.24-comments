@@ -335,6 +335,11 @@ const struct header_ops eth_header_ops ____cacheline_aligned = {
  * ether_setup - setup Ethernet network device
  * @dev: network device
  * Fill in the fields of the device structure with Ethernet-generic values.
+ *
+ * alloc_etherdev()
+ *  alloc_etherdev_mq()
+ *   alloc_netdev_mq()
+ *    ether_setup()
  */
 void ether_setup(struct net_device *dev)
 {

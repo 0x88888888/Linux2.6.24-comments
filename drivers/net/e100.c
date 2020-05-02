@@ -1891,6 +1891,7 @@ static void e100_rx_clean(struct nic *nic, unsigned int *work_done,
 
 	/* Indicate newly arrived packets */
 	for(rx = nic->rx_to_clean; rx->skb; rx = nic->rx_to_clean = rx->next) {
+		//处理，开始往ip层传送
 		int err = e100_rx_indicate(nic, rx, work_done, work_to_do);
 		if(-EAGAIN == err) {
 			/* hit quota so have more work to do, restart once

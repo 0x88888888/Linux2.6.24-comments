@@ -38,6 +38,8 @@
  *
  * 定义支持的传输层协议以及传输层报文接受函数
  * 这个结构是网络层与传输层的桥梁
+ * 
+ * 在ip_local_deliver_finish 用 net_protocol->handler 分派
  *
  * icmp_protocol,udp_protocol,tcp_protocol,igmp_protocol 分别注册到inet_protos
  */

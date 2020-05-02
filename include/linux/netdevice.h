@@ -264,7 +264,7 @@ struct header_ops {
 			   unsigned short type, const void *daddr,
 			   const void *saddr, unsigned len);
 	/*
-	 * 从skb包含的数据中获取MAC地址，并将其复制到haddr的缓冲区
+	 * 从sk_buff包含的数据中获取MAC地址，并将其复制到haddr的缓冲区
 	 * 以太网的函数指针为eth_header_parse
 	 */
 	int	(*parse)(const struct sk_buff *skb, unsigned char *haddr);
@@ -329,6 +329,7 @@ struct napi_struct {
 	struct list_head	poll_list;
 
 	unsigned long		state;
+	//这个weight在napi轮询中觉得处理本设备多少分组
 	int			weight;
 	/* 这个函数在net_dev_init中设置为process_backlog
 	 * 通过这个函数把缓冲区从设备的输入队列中退出
@@ -503,8 +504,8 @@ struct net_device
 	 */
 	unsigned long		mem_end;	/* shared mem end	*/
 	unsigned long		mem_start;	/* shared mem start	*/
-	unsigned long		base_addr;	/* device I/O address 网络设备自有内存映射到I/O内存的起始地址	*/
-	unsigned int		irq;		/* device IRQ number	*/
+	unsigned long		base_addr;	/* 网络设备自有内存映射到I/O内存的起始地址,device I/O address 	*/
+	unsigned int		irq;		/* 网络设备 irq编号,device IRQ number	*/
 
 	/*
 	 *	Some hardware also needs these fields, but they are not
@@ -599,11 +600,12 @@ struct net_device
 	struct iw_public_data *	wireless_data;
 #endif
 
-   //ethtool操作接口
+   //ethtool操作接口,loopback_ethtool_ops
 	const struct ethtool_ops *ethtool_ops;
 
 	/* Hardware header description 
      * 创建和解析硬件首部
+     * 通常是 eth_header_ops,loopback设备也是这个对象
 	 */
 	const struct header_ops *header_ops;
 
@@ -678,10 +680,13 @@ struct net_device
  * Cache line mostly used on receive path (including eth_type_trans())
  */
 	unsigned long		last_rx;	/* 上一次接受包的时间，  Time of last Rx	*/
-	/* Interface address info used in eth_type_trans() */
+	/* Interface address info used in eth_type_trans() 
+	 * eth_type_trans()中使用的地址
+	 */
 	unsigned char		dev_addr[MAX_ADDR_LEN];	/* hw address, (before bcast 
 							because most packets are unicast) 网卡设备的物理地址 */
 
+	// 硬件多播地址
 	unsigned char		broadcast[MAX_ADDR_LEN];	/* hw bcast add	*/
 
 /*
@@ -769,7 +774,9 @@ struct net_device
 	       NETREG_RELEASED,		/* called free_netdev */
 	} reg_state;
 
-	/* Called after device is detached from network. */
+	/* Called after device is detached from network.
+	 * 在设备与网络断开后调用
+	 */
 	void			(*uninit)(struct net_device *dev);
 	/* Called after last user reference disappears. */
 	void			(*destructor)(struct net_device *dev);

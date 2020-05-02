@@ -851,6 +851,12 @@ static int packet_release(struct socket *sock)
 
 /*
  *	Attach a packet hook.
+ *
+ * packet_bind()
+ *  packet_do_bind()
+ *
+ * packet_bind_spkt()
+ *  packet_do_bind()
  */
 
 static int packet_do_bind(struct sock *sk, struct net_device *dev, __be16 protocol)

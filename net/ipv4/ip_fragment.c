@@ -279,7 +279,12 @@ out_nomem:
 	return NULL;
 }
 
-/* Is the fragment too far ahead to be part of ipq? */
+/* Is the fragment too far ahead to be part of ipq? 
+ *
+ * ip_defrag()
+ *  ip_frag_queue()
+ *   ip_frag_too_far()
+ */
 static inline int ip_frag_too_far(struct ipq *qp)
 {
 	struct inet_peer *peer = qp->peer;
@@ -304,6 +309,11 @@ static inline int ip_frag_too_far(struct ipq *qp)
 	return rc;
 }
 
+/*
+ * ip_defrag()
+ *  ip_frag_queue()
+ *   ip_frag_reinit()
+ */
 static int ip_frag_reinit(struct ipq *qp)
 {
 	struct sk_buff *fp;
@@ -487,6 +497,7 @@ static int ip_frag_queue(struct ipq *qp, struct sk_buff *skb)
 	if (qp->q.last_in == (FIRST_IN | LAST_IN) && qp->q.meat == qp->q.len)
 		return ip_frag_reasm(qp, prev, dev); //重组
 
+    //否则插入到 ip4_frags.lru_list
 	write_lock(&ip4_frags.lock);
 	list_move_tail(&qp->q.lru_list, &ip4_frags.lru_list);
 	write_unlock(&ip4_frags.lock);
@@ -615,11 +626,17 @@ out_fail:
 
 /* Process an incoming IP datagram fragment. 
  * 重组ip层数据
- *
+ * 如果分组未全部到达,就返回NULL
  *
  * ipv4_conntrack_defrag()
  *  nf_ct_ipv4_gather_frags()
  *   ip_defrag()
+ *
+ *  ip_rcv
+ *   ip_rcv_finish
+ *    dst_input
+ *     ip_local_deliver
+ *      ip_defrag()
  */
 int ip_defrag(struct sk_buff *skb, u32 user)
 {
@@ -632,7 +649,7 @@ int ip_defrag(struct sk_buff *skb, u32 user)
 		ip_evictor();
 
 	/* Lookup (or create) queue header
-     * 在ip4_frag中查找可以重组的分片
+     * 查找符合分片id, 源地址, 目标地址，分组协议标识的ipq
 	 */
 	if ((qp = ip_find(ip_hdr(skb), user)) != NULL) {
 		int ret;

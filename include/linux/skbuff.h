@@ -117,6 +117,7 @@ struct nf_bridge_info {
 
 /*
  * sk_buff链表的头部
+ * 在softnet_data对象中用这个去链接所有的sk_buff对象
  */
 struct sk_buff_head {
 	/* These two members must be first. */
