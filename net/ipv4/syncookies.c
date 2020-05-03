@@ -184,6 +184,21 @@ static inline struct sock *get_cookie_sock(struct sock *sk, struct sk_buff *skb,
 	return child;
 }
 
+/*
+* ip_rcv
+*  ip_rcv_finish
+*	dst_input
+*	 skb->dst->input(skb)=ip_local_deliver或ip_forward
+*	  ip_local_deliver
+*	   ip_local_deliver_finish
+*		ipprot->handler(skb)=tcp_v4_rcv
+*		 tcp_v4_rcv
+*		  tcp_v4_do_rcv
+*		   tcp_v4_hnd_req()
+*           cookie_v4_check()
+*
+* 看 SYN Cookie的原理和实现 https://www.cnblogs.com/zlhff/p/5481266.html
+*/
 struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb,
 			     struct ip_options *opt)
 {

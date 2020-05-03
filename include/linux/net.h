@@ -111,6 +111,8 @@ enum sock_shutdown_cmd {
  *  @sk: internal networking protocol agnostic socket representation
  *  @wait: wait queue for several uses
  *  @type: socket type (%SOCK_STREAM, etc)
+ *
+ * sock是网络访问层的接口，socket是到用户层的接口 
  */
 struct socket {
 	socket_state		state;
@@ -143,6 +145,8 @@ struct module;
  * proto包含协议的独特操作
  * 数组inet_protosw inetsw_array[]成员
  * 在__sock_sendmsg中通过sock->ops->sendmsg调用
+ *
+ * inet_stream_ops, inet_dgram_ops, inet_sockraw_ops
  */
 struct proto_ops {
 	int		family;

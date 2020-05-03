@@ -193,6 +193,19 @@ static inline __be32 inet_rcv_saddr(const struct sock *sk)
 		inet_sk(sk)->rcv_saddr : inet_twsk(sk)->tw_rcv_saddr;
 }
 
+/*
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         tcp_v4_do_rcv
+ *          tcp_v4_hnd_req()
+ *           inet_twsk_put()
+ */
 static inline void inet_twsk_put(struct inet_timewait_sock *tw)
 {
 	if (atomic_dec_and_test(&tw->tw_refcnt)) {

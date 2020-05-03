@@ -180,6 +180,7 @@ unsigned int nf_iterate(struct list_head *head,
 	 * 逐个调用hook函数
 	 */
 	list_for_each_continue_rcu(*i, head) {
+	
 		struct nf_hook_ops *elem = (struct nf_hook_ops *)*i;
 
 		/* 优先级不到，所以跳过 */
@@ -206,6 +207,8 @@ unsigned int nf_iterate(struct list_head *head,
 			*i = (*i)->prev;
 		}
 	}
+
+	//表示接受分组，hook函数没有修改分组，协议链上其余的函数可以继续使用
 	return NF_ACCEPT;
 }
 
@@ -213,8 +216,15 @@ unsigned int nf_iterate(struct list_head *head,
 /* Returns 1 if okfn() needs to be executed by the caller,
  * -EPERM for NF_DROP, 0 otherwise. 
  *
- * nf_hook_thresh()
- *  nf_hook_slow()
+ * ip_local_deliver()  NF_IP_LOCAL_IN
+ * ip_rcv()  NF_IP_PRE_ROUTING
+ * ip_forward()  NF_IP_FORWARD
+ * 
+ * ip_queue_xmit()  NF_IP_LOCAL_OUT
+ * ip_output() NF_IP_POST_ROUTING
+ *
+ *  nf_hook_thresh()
+ *   nf_hook_slow()
  */
 int nf_hook_slow(int pf, unsigned int hook, struct sk_buff *skb,
 		 struct net_device *indev,
@@ -229,6 +239,7 @@ int nf_hook_slow(int pf, unsigned int hook, struct sk_buff *skb,
 	/* We may already have this, but read-locks nest anyway */
 	rcu_read_lock();
 
+    //元素类型为nf_hook_ops
 	elem = &nf_hooks[pf][hook];
 next_hook:
 	/* 

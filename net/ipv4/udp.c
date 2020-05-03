@@ -265,6 +265,7 @@ static struct sock *__udp4_lib_lookup(__be32 saddr, __be16 sport,
 
 	read_lock(&udp_hash_lock);
 	sk_for_each(sk, node, &udptable[hnum & (UDP_HTABLE_SIZE - 1)]) {
+		
 		struct inet_sock *inet = inet_sk(sk);
 
 		if (sk->sk_hash == hnum && !ipv6_only_sock(sk)) {
@@ -289,7 +290,8 @@ static struct sock *__udp4_lib_lookup(__be32 saddr, __be16 sport,
 					continue;
 				score+=2;
 			}
-			if (score == 9) {
+			
+			if (score == 9) { //找到
 				result = sk;
 				break;
 			} else if (score > badness) {
@@ -1313,7 +1315,7 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct hlist_head udptable[],
 			       inet_iif(skb), udptable);
 
 	if (sk != NULL) {
-		/* 找到套接字,将skb插入到sk_receive_queue上,唤醒等待sk_sleep上的进程 */
+		/* 找到sock对象,将skb插入到sk_receive_queue上,唤醒等待sk_sleep上的进程 */
 		int ret = udp_queue_rcv_skb(sk, skb);
 		sock_put(sk);
 
@@ -1334,6 +1336,10 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct hlist_head udptable[],
 		goto csum_error;
 
 	UDP_INC_STATS_BH(UDP_MIB_NOPORTS, proto == IPPROTO_UDPLITE);
+
+	/*
+	 * 没有找到sock对象，就向反方向发送ICMP_DEST_UNREACH,ICMP_PORT_UNREACH的 icmp信息
+	 */
 	icmp_send(skb, ICMP_DEST_UNREACH, ICMP_PORT_UNREACH, 0);
 
 	/*

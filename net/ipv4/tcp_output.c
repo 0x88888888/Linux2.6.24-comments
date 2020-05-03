@@ -652,6 +652,12 @@ static int tcp_transmit_skb(struct sock *sk, struct sk_buff *skb, int clone_it, 
 	if (after(tcb->end_seq, tp->snd_nxt) || tcb->seq == tcb->end_seq)
 		TCP_INC_STATS(TCP_MIB_OUTSEGS);
 
+    /*
+     * dccp_ipv4_af_ops->queue_xmit == ip_queue_xmit
+     * dccp_ipv6_mapped->queue_xmit == ip_queue_xmit
+     * ipv4_specific->queue_xmit == ip_queue_xmit
+     * ipv6_mapped->queue_xmit == ip_queue_xmit
+     */
 	err = icsk->icsk_af_ops->queue_xmit(skb, 0);
 	if (likely(err <= 0))
 		return err;

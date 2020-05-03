@@ -102,6 +102,15 @@ static void raw_v4_unhash(struct sock *sk)
 	write_unlock_bh(&raw_v4_lock);
 }
 
+/*
+ * ip_rcv
+ *	ip_rcv_finish
+ *	 dst_input
+ *	  ip_local_deliver
+ *     ip_local_deliver_finish
+ *      raw_v4_input()
+ *       __raw_v4_lookup()
+ */
 struct sock *__raw_v4_lookup(struct sock *sk, unsigned short num,
 			     __be32 raddr, __be32 laddr,
 			     int dif)
@@ -156,6 +165,8 @@ static __inline__ int icmp_filter(struct sock *sk, struct sk_buff *skb)
  *	   ip_local_deliver
  *      ip_local_deliver_finish
  *       raw_v4_input()
+ *
+ * 处理raw socket
  */
 int raw_v4_input(struct sk_buff *skb, struct iphdr *iph, int hash)
 {
@@ -257,6 +268,16 @@ void raw_err (struct sock *sk, struct sk_buff *skb, u32 info)
 	}
 }
 
+/*
+ *  ip_rcv
+ *	 ip_rcv_finish
+ *	  dst_input
+ *	   ip_local_deliver
+ *      ip_local_deliver_finish
+ *       raw_v4_input()
+ *        raw_rcv()
+ *         raw_rcv_skb()
+ */
 static int raw_rcv_skb(struct sock * sk, struct sk_buff * skb)
 {
 	/* Charge it to the socket. */
@@ -270,6 +291,15 @@ static int raw_rcv_skb(struct sock * sk, struct sk_buff * skb)
 	return NET_RX_SUCCESS;
 }
 
+/*
+ *  ip_rcv
+ *	 ip_rcv_finish
+ *	  dst_input
+ *	   ip_local_deliver
+ *      ip_local_deliver_finish
+ *       raw_v4_input()
+ *        raw_rcv()
+ */
 int raw_rcv(struct sock *sk, struct sk_buff *skb)
 {
 	if (!xfrm4_policy_check(sk, XFRM_POLICY_IN, skb)) {

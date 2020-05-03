@@ -275,6 +275,20 @@ static void sock_disable_timestamp(struct sock *sk)
  *        __udp4_lib_rcv   
  *         udp_queue_rcv_skb()
  *          sock_queue_rcv_skb()
+ *
+ *  ip_rcv
+ *	 ip_rcv_finish
+ *	  dst_input
+ *	   ip_local_deliver
+ *      ip_local_deliver_finish
+ *       raw_v4_input()
+ *        raw_rcv()
+ *         raw_rcv_skb()
+ *          sock_queue_rcv_skb()
+ *
+ * packet_rcv_spkt()
+ *  sock_queue_rcv_skb()
+ *
  */
 int sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 {
@@ -307,8 +321,8 @@ int sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 
 	skb_queue_tail(&sk->sk_receive_queue, skb);
 
-	if (!sock_flag(sk, SOCK_DEAD))
-		sk->sk_data_ready(sk, skb_len);
+	if (!sock_flag(sk, SOCK_DEAD)) //唤醒等待的进程
+		sk->sk_data_ready(sk, skb_len); //sock_def_readable
 out:
 	return err;
 }
@@ -1563,13 +1577,24 @@ static void sock_def_error_report(struct sock *sk)
  *  tcp_v4_do_rcv()
  *	 tcp_child_process()
  *    sock_def_readable()
+ *
+ *  ip_rcv
+ *   ip_rcv_finish
+ *	  dst_input
+ *	   ip_local_deliver
+ *		ip_local_deliver_finish
+ *       udp_rcv
+ *        __udp4_lib_rcv   
+ *         udp_queue_rcv_skb()
+ *          sock_queue_rcv_skb() 
+ *           sock_def_readable()
  */
 static void sock_def_readable(struct sock *sk, int len)
 {
 	read_lock(&sk->sk_callback_lock);
 	/* 有进程在此socket的等待队列 */
 	if (sk->sk_sleep && waitqueue_active(sk->sk_sleep))
-		wake_up_interruptible(sk->sk_sleep);
+		wake_up_interruptible(sk->sk_sleep); //只唤醒一个等待的进程
 
 	
     /* 异步通知队列的处理。 

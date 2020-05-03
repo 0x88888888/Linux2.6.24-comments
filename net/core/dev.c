@@ -1793,15 +1793,15 @@ int dev_queue_xmit(struct sk_buff *skb)
 	/* Fragmented skb is linearized if device does not support SG,
 	 * or if at least one of fragments is in highmem and device
 	 * does not support DMA from it.
-	 */
-	 /*
-      * 如果上面已经线性化了一次，这里的__skb_linearize就会直接返回     
-      * 注意区别frags和frag_list，     
-      * 前者是将多的数据放到单独分配的页面中，sk_buff只有一个。而后者则是连接多个sk_buff   
-      *
-      * 是SG类型的聚合分散I/O数据包，如果输出网络设备不支持SG类型的聚合分散I/O，则需要将其线性化
-      * 如果网络设备不支持在高端内存使用DMA但高端内存中有分片，也需要将数据包线性化。
-      */
+	 *
+	 *
+     * 如果上面已经线性化了一次，这里的__skb_linearize就会直接返回     
+     * 注意区别frags和frag_list，     
+     * 前者是将多的数据放到单独分配的页面中，sk_buff只有一个。而后者则是连接多个sk_buff   
+     *
+     * 是SG类型的聚合分散I/O数据包，如果输出网络设备不支持SG类型的聚合分散I/O，则需要将其线性化
+     * 如果网络设备不支持在高端内存使用DMA但高端内存中有分片，也需要将数据包线性化。
+     */
 	if (skb_shinfo(skb)->nr_frags &&
 	    (!(dev->features & NETIF_F_SG) || illegal_highdma(dev, skb)) &&
 	    __skb_linearize(skb))

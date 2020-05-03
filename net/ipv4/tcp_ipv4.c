@@ -1546,16 +1546,18 @@ static struct sock *tcp_v4_hnd_req(struct sock *sk, struct sk_buff *skb)
 						       iph->saddr, iph->daddr);
 	if (req)
 		return tcp_check_req(sk, skb, req, prev);
-    
+
+	//在tcp_hashinfo[]中查找 sock对象
 	nsk = inet_lookup_established(&tcp_hashinfo, iph->saddr, th->source,
 				      iph->daddr, th->dest, inet_iif(skb));
 
 	if (nsk) {
 		
 		if (nsk->sk_state != TCP_TIME_WAIT) {
-			bh_lock_sock(nsk);
+			bh_lock_sock(nsk);//没有进入TIME_WAIT状态
 			return nsk;
 		}
+		//已经进入TIME_WAIT状态了
 		inet_twsk_put(inet_twsk(nsk));
 		return NULL;
 	}

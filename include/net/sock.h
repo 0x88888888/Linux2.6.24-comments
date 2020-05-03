@@ -192,8 +192,17 @@ struct sock_common {
   *	@sk_destruct: called at sock freeing time, i.e. when all refcnt == 0
   *
   * 作为socket的成员存在
+  * 
+  * sock是网络访问层的接口，socket是到用户层的接口
   *
   * 在sock_init_data中初始化成员
+  *
+  * 几个存储sock结构的哈希表 
+  *
+  * tcp_hashinfo[]: __inet_lookup()中查找
+  * udp_hash[]:__udp4_lib_lookup()中查找
+  * raw_v4_htable[]: raw_v4_input() 中查找
+  *
  */
 struct sock {
 	/*

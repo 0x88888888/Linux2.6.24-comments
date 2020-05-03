@@ -178,10 +178,6 @@ EXPORT_SYMBOL_GPL(ip_build_and_send_pkt);
  *         ip_finish_output
  *          ip_finish_output2
  *
- *        ip_output  ip路由转发路径
- *         ip_finish_output
- *          ip_fragment
- *           ip_finish_output2s
  *
  * Ip_finish_output2()函数会将skb送到neighboring subsystem，
  * 这个子系统会经过ARP协议获得L3地址（IP地址）对应的L2的地址（MAC地址）。
@@ -364,6 +360,9 @@ int ip_output(struct sk_buff *skb)
  * 其中最常用的就是ip_queue_xmit,而ip_build_and_send_pkt和ip_send_reply只有在发送特定段时才会被调用.
  *
  * ip层发送数据
+ *
+ * tcp_transmit_skb()
+ *  ip_queue_xmit()
  */
 int ip_queue_xmit(struct sk_buff *skb /* TCP数据报 */, int ipfragok /*待输出的数据报是否已经完成分片*/ )
 {
@@ -448,7 +447,9 @@ packet_routed:
 	ip_select_ident_more(iph, &rt->u.dst, sk,
 			     (skb_shinfo(skb)->gso_segs ?: 1) - 1);
 
-	/* Add an IP checksum. */
+	/* Add an IP checksum. 
+	 * 计算ip头部的checksum
+	 */
 	ip_send_check(iph);
 
     //设置数据报的QoS类别

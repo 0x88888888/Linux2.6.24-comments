@@ -399,6 +399,30 @@ typedef __u64 __bitwise __addrpair;
  * not check it for lookups anymore, thanks Alexey. -DaveM
  *
  * Local BH must be disabled here.
+ *
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         __inet_lookup( hashinfo == tcp_hashinfo)
+ *          __inet_lookup_established( hashinfo == tcp_hashinfo)
+ *
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *	   ip_local_deliver
+ *	    ip_local_deliver_finish
+ *	     ipprot->handler(skb)=tcp_v4_rcv
+ *		  tcp_v4_rcv
+ *		   tcp_v4_do_rcv
+ *		    tcp_v4_hnd_req()
+ *           inet_lookup_established(hashinfo== tcp_hashinfo) 
+ *            __inet_lookup_established(hashinfo== tcp_hashinfo)
  */
 static inline struct sock *
 	__inet_lookup_established(struct inet_hashinfo *hashinfo,
@@ -438,6 +462,21 @@ hit:
 	goto out;
 }
 
+
+/*
+* ip_rcv
+*  ip_rcv_finish
+*   dst_input
+*	skb->dst->input(skb)=ip_local_deliver或ip_forward
+*	 ip_local_deliver
+*	  ip_local_deliver_finish
+*	   ipprot->handler(skb)=tcp_v4_rcv
+*		tcp_v4_rcv
+*		 tcp_v4_do_rcv
+*		  tcp_v4_hnd_req()
+*          inet_lookup_established(hashinfo== tcp_hashinfo)
+*
+*/
 static inline struct sock *
 	inet_lookup_established(struct inet_hashinfo *hashinfo,
 				const __be32 saddr, const __be16 sport,
@@ -448,6 +487,17 @@ static inline struct sock *
 					 ntohs(dport), dif);
 }
 
+/*
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         __inet_lookup( hashinfo == tcp_hashinfo)
+ */
 static inline struct sock *__inet_lookup(struct inet_hashinfo *hashinfo,
 					 const __be32 saddr, const __be16 sport,
 					 const __be32 daddr, const __be16 dport,

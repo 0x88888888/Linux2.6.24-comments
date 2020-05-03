@@ -747,6 +747,7 @@ void ip_forward_options(struct sk_buff *skb)
 			if (memcmp(&rt->rt_dst, &optptr[srrptr-1], 4) == 0)
 				break;
 		}
+			 
 		if (srrptr + 3 <= srrspace) {
 			opt->is_changed = 1;
 			ip_rt_get_source(&optptr[srrptr-1], rt);
@@ -754,6 +755,7 @@ void ip_forward_options(struct sk_buff *skb)
 			optptr[2] = srrptr+4;
 		} else if (net_ratelimit())
 			printk(KERN_CRIT "ip_forward(): Argh! Destination lost!\n");
+		
 		if (opt->ts_needaddr) {
 			optptr = raw + opt->ts;
 			ip_rt_get_source(&optptr[optptr[2]-9], rt);

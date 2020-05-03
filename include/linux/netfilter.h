@@ -12,14 +12,16 @@
 #endif
 #include <linux/compiler.h>
 
-/* Responses from hook functions. */
-// 丢弃该数据包
+/* Responses from hook functions.
+ * netfileter hook函数的返回值
+ */
+// 通知内核丢弃该分组
 #define NF_DROP 0
-// 保留该数据包
+// 表示接受分组，hook函数没有修改该分组，内核继续处理该分组
 #define NF_ACCEPT 1
-// 忘掉该数据包
+// 表示hook函数已经窃取了一个分组并且处理该分组，该分组已经与内核无关，不必再调用其他hook函数，还必须取消其他协议层的处理
 #define NF_STOLEN 2
-// 将该数据包插入到用户空间
+// 将分组置于一个等待队列上，以便其数据可以由用户空间代码处理。不会执行其他hook函数
 #define NF_QUEUE 3
 // 再次调用该hook函数
 #define NF_REPEAT 4
@@ -70,6 +72,7 @@ typedef unsigned int nf_hookfn(unsigned int hooknum,
  */
 struct nf_hook_ops
 {
+    //链表中的nf_hook_ops 是按照nf_ip_hook_priorities 的优先级排序的
 	struct list_head list;
 
 	/* User fills in from here down. */

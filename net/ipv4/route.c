@@ -1905,6 +1905,7 @@ static int ip_route_input_slow(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 
 	if (!IN_DEV_FORWARD(in_dev))
 		goto e_hostunreach;
+	
 	if (res.type != RTN_UNICAST)
 		goto martian_destination;
 

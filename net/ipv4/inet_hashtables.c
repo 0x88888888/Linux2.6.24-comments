@@ -164,7 +164,19 @@ static struct sock *inet_lookup_listener_slow(const struct hlist_head *head,
 	return result;
 }
 
-/* Optimize the common listener case. */
+/* Optimize the common listener case. 
+ *
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         __inet_lookup( hashinfo == tcp_hashinfo)
+ *          __inet_lookup_listener( hashinfo == tcp_hashinfo)
+ */
 struct sock *__inet_lookup_listener(struct inet_hashinfo *hashinfo,
 				    const __be32 daddr, const unsigned short hnum,
 				    const int dif)

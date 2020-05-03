@@ -35,8 +35,12 @@ struct tcp_congestion_ops;
 /*
  * Pointers to address related TCP functions
  * (i.e. things that depend on the address family)
+ *
+ * dccp_ipv4_af_ops, dccp_ipv6_mapped,
+ * ipv4_specific, ipv6_mapped
  */
 struct inet_connection_sock_af_ops {
+    //几个对象的queue_xmit都是 ip_queue_xmit
 	int	    (*queue_xmit)(struct sk_buff *skb, int ipfragok);
 	void	    (*send_check)(struct sock *sk, int len,
 				  struct sk_buff *skb);

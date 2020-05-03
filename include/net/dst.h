@@ -66,8 +66,8 @@ struct dst_entry
 	struct hh_cache		*hh;        // nieghbour子系统的指针
 	struct xfrm_state	*xfrm;      // XFRM规则状态
 
-	int			(*input)(struct sk_buff*); // ip_forward
-	int			(*output)(struct sk_buff*); // ip_output, ip_local_deliver
+	int			(*input)(struct sk_buff*); // ip_forward,ip_local_deliver
+	int			(*output)(struct sk_buff*); // ip_output, ip_rt_bug
 
 #ifdef CONFIG_NET_CLS_ROUTE
 	__u32			tclassid;       // 分类号

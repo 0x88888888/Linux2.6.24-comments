@@ -93,6 +93,7 @@ int ip_forward(struct sk_buff *skb)
 	if (skb->pkt_type != PACKET_HOST)
 		goto drop;
 
+    
 	skb_forward_csum(skb);
 
 	/*
