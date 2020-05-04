@@ -631,8 +631,16 @@ out:	return ret;
 /*
  *	This should be easy, if there is something there
  *	we return it, otherwise we block.
+ *
+ * sys_read()
+ *	vfs_read()
+ *	 do_sync_read()
+ *	  sock_aio_read()
+ *	   do_sock_read()
+ *      __sock_recvmsg()
+ *       sock_common_recvmsg()
+ *        raw_recvmsg()
  */
-
 static int raw_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		       size_t len, int noblock, int flags, int *addr_len)
 {

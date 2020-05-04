@@ -202,7 +202,7 @@ struct sock_common {
   * tcp_hashinfo[]: __inet_lookup()中查找
   * udp_hash[]:__udp4_lib_lookup()中查找
   * raw_v4_htable[]: raw_v4_input() 中查找
-  *
+  * nl_table[]: netlink_insert() 中插入
  */
 struct sock {
 	/*
@@ -579,6 +579,12 @@ struct timewait_sock_ops;
  * proto_ops包含通用的socket操作
  * proto包含协议的独特操作
  * 数组inet_protosw inetsw[]成员 
+ *
+ * tcp_prot
+ * tcpv6_prot
+ * udp_prot
+ * udpv6_prot
+ * raw_prot 
  */
 struct proto {
 	void			(*close)(struct sock *sk, 
@@ -1371,6 +1377,10 @@ static inline gfp_t gfp_any(void)
 	return in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
 }
 
+//获取延迟，假设用户设置为非堵塞，那么timeo ==0000 0000 0000 0000
+//假设用户使用默认recv系统调用
+//则为堵塞，此时timeo ==0111 1111 1111 1111
+//timeo 就2个值
 static inline long sock_rcvtimeo(const struct sock *sk, int noblock)
 {
 	return noblock ? 0 : sk->sk_rcvtimeo; /* accept()超时时间 */

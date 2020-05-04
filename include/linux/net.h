@@ -146,7 +146,8 @@ struct module;
  * 数组inet_protosw inetsw_array[]成员
  * 在__sock_sendmsg中通过sock->ops->sendmsg调用
  *
- * inet_stream_ops, inet_dgram_ops, inet_sockraw_ops
+ * inet_stream_ops, inet_dgram_ops
+ * netlink_ops, inet_sockraw_ops
  */
 struct proto_ops {
 	int		family;
@@ -199,9 +200,10 @@ struct proto_ops {
  * 对于不同的协议族，传输层的结构和实现有巨大的差异，因此其各自的套接口创建函数也有很大的差别。
  * net_proto_family->create函数指针成员是用来屏蔽这些差别的。 
  *
- * PF_INET协议族对应的对象为inet_family_ops
- * PF_PACKET协议族对应的对象为packet_family_ops
- *
+ * PF_INET协议族对应的对象为 inet_family_ops
+ * PF_PACKET协议族对应的对象为 packet_family_ops
+ * PF_NETLINK协议族对应的对象为 netlink_family_ops
+ * 
  */
 struct net_proto_family {
 	int		family;

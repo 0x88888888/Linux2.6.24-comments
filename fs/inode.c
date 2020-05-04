@@ -125,6 +125,7 @@ static struct inode *alloc_inode(struct super_block *sb)
 	static const struct file_operations empty_fops;
 	struct inode *inode;
 
+    // sockfs_ops->alloc_inode == sock_alloc_inode
 	if (sb->s_op->alloc_inode)
 		inode = sb->s_op->alloc_inode(sb);
 	else
@@ -580,7 +581,8 @@ struct inode *new_inode(struct super_block *sb)
 	struct inode * inode;
 
 	spin_lock_prefetch(&inode_lock);
-	
+
+	//sock_fs_type->get_sb == sockfs_get_sb
 	inode = alloc_inode(sb);
 	if (inode) {
 		spin_lock(&inode_lock);

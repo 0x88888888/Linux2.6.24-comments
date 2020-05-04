@@ -1113,6 +1113,15 @@ int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
  *	Technical note: in 2.3 we work on _locked_ socket, so that
  *	tricks with *seq access order and skb->users are not required.
  *	Probably, code can be easily improved even more.
+ *
+ * sys_read()
+ *	vfs_read()
+ *	 do_sync_read()
+ *	  sock_aio_read()
+ *	   do_sock_read()
+ *      __sock_recvmsg()
+ *       sock_common_recvmsg()
+ *        tcp_recvmsg()
  */
 
 int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
@@ -1130,6 +1139,10 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	int copied_early = 0;
 	struct sk_buff *skb;
 
+   /* 功能：“锁住sk”，并不是真正的加锁，而是运行sk->sk_lock.owned = 1 
+    * 目的：这样软中断上下文可以通过owned 。推断该sk是否处于进程上下文。
+    * 提供一种同步机制。
+    */
 	lock_sock(sk);
 
 	TCP_CHECK_TIMER(sk);
@@ -1137,19 +1150,28 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	err = -ENOTCONN;
 	if (sk->sk_state == TCP_LISTEN)
 		goto out;
-
+	//获取延迟，假设用户设置为非堵塞，那么timeo ==0000 0000 0000 0000
+	//假设用户使用默认recv系统调用
+	//则为堵塞，此时timeo ==0111 1111 1111 1111
+	//timeo 就2个值
 	timeo = sock_rcvtimeo(sk, nonblock);
 
 	/* Urgent data needs to be handled specially. */
 	if (flags & MSG_OOB)
 		goto recv_urg;
 
+    
+    //待拷贝的下一个序列号
 	seq = &tp->copied_seq;
+    //设置了MSG_PEEK，表示不让数据从缓冲区移除。目的是下一次调用recv函数
+    //仍然可以读到同样数据	
 	if (flags & MSG_PEEK) {
 		peek_seq = tp->copied_seq;
 		seq = &peek_seq;
 	}
-
+	
+	//假设设置了MSG_WAITALL。则target  ==len，即recv函数中的參数len
+	//假设没设置MSG_WAITALL。则target  == 1
 	target = sock_rcvlowat(sk, flags & MSG_WAITALL, len);
 
 #ifdef CONFIG_NET_DMA
@@ -1174,6 +1196,8 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	}
 #endif
 
+  
+    //大循环
 	do {
 		u32 offset;
 
@@ -1187,9 +1211,11 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 			}
 		}
 
-		/* Next get a buffer. */
-
+		/* Next get a buffer. 
+		 * 获得下一个未处理的sk_buff对象
+		*/ 
 		skb = skb_peek(&sk->sk_receive_queue);
+		//小循环
 		do {
 			if (!skb)
 				break;
@@ -1202,6 +1228,13 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 				       "seq %X\n", *seq, TCP_SKB_CB(skb)->seq);
 				break;
 			}
+            //如果用户的缓冲区(即用户malloc的buf)长度够大，offset一般是0。
+            //即 “下次准备拷贝数据的序列号”==此时获取报文的起始序列号
+            //什么情况下offset >0呢？很简答，如果用户缓冲区12字节，而这个skb有120字节
+            //那么一次recv系统调用，只能获取skb中的前12个字节，下一次执行recv系统调用
+            //offset就是12了，表示从第12个字节开始读取数据，前12个字节已经读取了。
+            //那这个"已经读取12字节"这个消息，存在哪呢？
+            //在*seq = &tp->copied_seq;中
 			offset = *seq - TCP_SKB_CB(skb)->seq;
 			if (tcp_hdr(skb)->syn)
 				offset--;
@@ -1213,12 +1246,41 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 			skb = skb->next;
 		} while (skb != (struct sk_buff *)&sk->sk_receive_queue);
 
+		//执行到了这里，表明小循环中break了，既然break了，说明sk_receive_queue中
+		//已经没有skb可以读取了
+		//如果没有执行到这里说明前面的小循环中执行了goto，读到有用的skb，或者读到fin都会goto。
+		//没有skb可以读取，说明什么？
+		//可能性1：当用户第一次调用recv时，压根没有数据到来
+		//可能性2：skb->len一共20字节，假设用户调用一次 recv，读取12字节，再调用recv，
+		//读取12字节，此时skb由于上次已经被读取了12字节，只剩下8字节。
+		//于是代码的逻辑上，再会要求获取skb，来读取剩下的8字节。
+		
+		//可能性1的情况下，copied == 0，肯定不会进这个if。后续将执行休眠
+		//可能性2的情况下，情况比较复杂。可能性2表明数据没有读够用户想要的len长度
+		//虽然进程上下文中，没有读够数据，但是可能我们在读数据的时候
+		//软中断把数据放到backlog队列中了，而backlog对队列中的数据或许恰好让我们读够数
+		//据。
+		
+		//copied了数据的，copied肯定>=1，而target 是1或者len
+		//copied只能取0(可能性1)，或者0~len(可能性2)
+		//copied >= target 表示我们取得我们想要的数据了，何必进行休眠，直接return
+		//如果copied 没有达到我们想要的数据，则看看sk_backlog是否为空
+		//空的话，尽力了，只能尝试休眠
+		//非空的话，还有一线希望，我们去sk_backlog找找数据，看看是否能够达到我们想要的
+		//数据大小
+		
+		//我觉得copied == target是会出现的，但是出现的话，也不会进现在这个流程
+		//，如有不对，请各位大神指正，告诉我
+		//说明情况下copied == target
+
+
 		/* Well, if we have backlog, try to process it now yet. */
 
 		if (copied >= target && !sk->sk_backlog.tail)
 			break;
 
 		if (copied) {
+			//可能性2，拷贝了数据，但是没有拷贝到指定大小
 			if (sk->sk_err ||
 			    sk->sk_state == TCP_CLOSE ||
 			    (sk->sk_shutdown & RCV_SHUTDOWN) ||
@@ -1227,6 +1289,7 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 			    (flags & MSG_PEEK))
 				break;
 		} else {
+			//可能性1
 			if (sock_flag(sk, SOCK_DONE))
 				break;
 
@@ -1248,7 +1311,7 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 				}
 				break;
 			}
-
+            //是否是阻塞的，不是，就return了。
 			if (!timeo) {
 				copied = -EAGAIN;
 				break;
@@ -1262,6 +1325,7 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 
 		tcp_cleanup_rbuf(sk, copied);
 
+        //sysctl_tcp_low_latency 默认0tp->ucopy.task == user_recv肯定也成立
 		if (!sysctl_tcp_low_latency && tp->ucopy.task == user_recv) {
 			/* Install new reader */
 			if (!user_recv && !(flags & (MSG_TRUNC | MSG_PEEK))) {
@@ -1318,6 +1382,11 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		tp->ucopy.wakeup = 0;
 #endif
 
+		//在此处睡眠了，将在tcp_prequeue函数中调用wake_up_interruptible_poll唤醒
+		   
+		//软中断会判断用户是正在读取检查并且睡眠了，如果是的话，就直接把数据拷贝
+		//到prequeue队列，然后唤醒睡眠的进程。因为进程睡眠，表示没有读到想要的字节数
+		//此时，软中断有数据到来，直接给进程，这样进程就能以最快的速度被唤醒。
 		if (user_recv) {
 			int chunk;
 
@@ -1351,7 +1420,11 @@ do_prequeue:
 
 	found_ok_skb:
 		/* Ok so how much can we use? */
+	//skb中还有多少聚聚没有拷贝。
+    //正如前面所说的，offset是上次已经拷贝了的，这次从offset开始接下去拷贝
 		used = skb->len - offset;
+    //很有可能used的大小，即skb剩余长度，依然大于用户的缓冲区大小(len)。所以依然
+    //只能拷贝len长度。一般来说，用户还得执行一次recv系统调用。直到skb中的数据读完		
 		if (len < used)
 			used = len;
 
@@ -1373,6 +1446,7 @@ do_prequeue:
 		}
 
 		if (!(flags & MSG_TRUNC)) {
+		//一般都会进这个if，进行数据的拷贝，把能够读到的数据，放到用户的缓冲区	
 #ifdef CONFIG_NET_DMA
 			if (!tp->ucopy.dma_chan && tp->ucopy.pinned_list)
 				tp->ucopy.dma_chan = get_softnet_dma();
@@ -1408,7 +1482,12 @@ do_prequeue:
 				}
 			}
 		}
-
+		
+		//更新标志位，seq 是指针，指向了tp->copied_seq
+		//used是我们有能力拷贝的数据大小，即已经拷贝到用户缓冲区的大小
+		//正如前面所说，如果用户的缓冲区很小，一次recv拷贝不玩skb中的数据，
+		//我们需要保存已经拷贝了的大小，下次recv时，从这个大小处继续拷贝。
+		//所以需要更新copied_seq。
 		*seq += used;
 		copied += used;
 		len -= used;
@@ -1420,27 +1499,47 @@ skip_copy:
 			tp->urg_data = 0;
 			tcp_fast_path_check(sk);
 		}
+	    //这个就是判断我们是否拷贝完了skb中的数据，如果没有continue
+        //这种情况下，len经过 len -= used; ，已经变成0，所以continue的效果相当于
+        //退出了这个大循环。可以理解，你只能拷贝len长度，拷贝完之后，那就return了。
+
+        //还有一种情况used + offset == skb->len，表示skb拷贝完了。这时我们只需要释放skb
+        //下面会讲到	
 		if (used + offset < skb->len)
 			continue;
 
+        //看看这个数据报文是否含有fin，含有fin，则goto到found_fin_ok
 		if (tcp_hdr(skb)->fin)
 			goto found_fin_ok;
+		//执行到这里，标明used + offset == skb->len，报文也拷贝完了，那就把skb摘链释放
 		if (!(flags & MSG_PEEK)) {
 			sk_eat_skb(sk, skb, copied_early);
 			copied_early = 0;
 		}
+		//这个cintinue不一定是退出大循环，可能还会执行循环。
+//假设用户设置缓冲区12字节，你skb->len长度20字节。
+//第一次recv读取了12字节，skb剩下8，下一次调用recv再想读取12，
+//但是只能读取到这8字节了。
+//此时len 变量长度为4，那么这个continue依旧在这个循环中，
+//函数还是再次从do开始，使用skb_queue_walk，找skb
+//如果sk_receive_queue中skb仍旧有，那么继续读，直到len == 0
+//如果没有skb了，我们怎么办？我们的len还有4字节怎么办？
+//这得看用户设置的recv函数阻塞与否，即和timeo变量相关了。
 		continue;
 
 	found_fin_ok:
 		/* Process the FIN. */
 		++*seq;
 		if (!(flags & MSG_PEEK)) {
+			//把skb从sk_receive_queue中摘链
 			sk_eat_skb(sk, skb, copied_early);
 			copied_early = 0;
 		}
 		break;
 	} while (len > 0);
-
+	
+	//到这里是大循环退出
+	//休眠过的进程，然后退出大循环 ，才满足 if (user_recv) 条件
 	if (user_recv) {
 		if (!skb_queue_empty(&tp->ucopy.prequeue)) {
 			int chunk;
@@ -1455,7 +1554,8 @@ skip_copy:
 				copied += chunk;
 			}
 		}
-
+		
+		//数据读取完毕，清零
 		tp->ucopy.task = NULL;
 		tp->ucopy.len = 0;
 	}
@@ -1494,6 +1594,7 @@ skip_copy:
 	 */
 
 	/* Clean up data we have read: This will do ACK frames. */
+	//很重要，将更新缓存，并且适当的时候发送ack
 	tcp_cleanup_rbuf(sk, copied);
 
 	TCP_CHECK_TIMER(sk);

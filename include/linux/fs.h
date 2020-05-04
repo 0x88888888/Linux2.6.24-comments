@@ -889,7 +889,7 @@ struct file {
 	void			*f_security;
 #endif
 	/* needed for tty driver, and maybe others 
-	 * 存放struct socket对象
+	 * 存放struct socket对象, 在do_sock_read中取出
      */
 	void			*private_data;
 
@@ -1282,6 +1282,8 @@ typedef int (*read_actor_t)(read_descriptor_t *, struct page *, unsigned long, u
  *
  * ext2_file_operations,
  * ext2_dir_operations,
+ *
+ * socket_file_ops
  *
  */
 struct file_operations {

@@ -257,8 +257,13 @@ EXPORT_SYMBOL(build_ehash_secret);
 
 /*
  *	Create an inet socket.
+ *
+ * sys_socketcall()
+ *  sys_socket()
+ *   sock_create()
+ *    __sock_create() 
+ *     inet_create()
  */
-
 static int inet_create(struct net *net, struct socket *sock, int protocol)
 {
 	struct sock *sk;
@@ -286,6 +291,7 @@ static int inet_create(struct net *net, struct socket *sock, int protocol)
 lookup_protocol:
 	err = -ESOCKTNOSUPPORT;
 	rcu_read_lock();
+	//查找inet_protosw对象,sock->type为 SOCK_RAW, SOCK_DGRAM, SOCK_STREAM
 	list_for_each_rcu(p, &inetsw[sock->type]) {
 		answer = list_entry(p, struct inet_protosw, list);
 

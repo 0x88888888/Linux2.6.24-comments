@@ -1820,6 +1820,16 @@ int compat_sock_common_getsockopt(struct socket *sock, int level, int optname,
 EXPORT_SYMBOL(compat_sock_common_getsockopt);
 #endif
 
+/*
+ * sys_read()
+ *	vfs_read()
+ *	 do_sync_read()
+ *	  sock_aio_read()
+ *	   do_sock_read()
+ *      __sock_recvmsg()
+ *       sock_common_recvmsg()
+ * tcp,udp,raw 几种socket都从__sock_recvmsg 转到这个函数里了
+ */
 int sock_common_recvmsg(struct kiocb *iocb, struct socket *sock,
 			struct msghdr *msg, size_t size, int flags)
 {
@@ -1827,6 +1837,13 @@ int sock_common_recvmsg(struct kiocb *iocb, struct socket *sock,
 	int addr_len = 0;
 	int err;
 
+   /*
+   	* tcp_prot->recvmsg == tcp_recvmsg
+    * tcpv6_prot
+    * udp_prot->recvmsg == udp_recvmsg
+    * udpv6_prot
+    * raw_prot->recvmsg == raw_recvmsg
+    */
 	err = sk->sk_prot->recvmsg(iocb, sk, msg, size, flags & MSG_DONTWAIT,
 				   flags & ~MSG_DONTWAIT, &addr_len);
 	if (err >= 0)

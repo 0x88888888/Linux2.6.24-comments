@@ -195,13 +195,14 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	if (usin->sin_family != AF_INET)
 		return -EAFNOSUPPORT;
 
-	nexthop = daddr = usin->sin_addr.s_addr;
+ 	nexthop = daddr = usin->sin_addr.s_addr;
 	if (inet->opt && inet->opt->srr) {
 		if (!daddr)
 			return -EINVAL;
 		nexthop = inet->opt->faddr;
 	}
 
+    //路由查找了？
 	tmp = ip_route_connect(&rt, nexthop, inet->saddr,
 			       RT_CONN_FLAGS(sk), sk->sk_bound_dev_if,
 			       IPPROTO_TCP,

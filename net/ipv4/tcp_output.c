@@ -489,6 +489,9 @@ static void tcp_syn_build_options(__be32 *ptr, int mss, int ts, int sack,
  * tcp_mtu_probe()
  *  tcp_transmit_skb()
  *
+ * tcp_v4_connect()
+ *  tcp_connect()
+ *   tcp_transmit_skb()
  */
 static int tcp_transmit_skb(struct sock *sk, struct sk_buff *skb, int clone_it, gfp_t gfp_mask)
 {
@@ -2472,6 +2475,8 @@ int tcp_connect(struct sock *sk)
 	__tcp_add_write_queue_tail(sk, buff);
 	sk_charge_skb(sk, buff);
 	tp->packets_out += tcp_skb_pcount(buff);
+
+	//发送syn包
 	tcp_transmit_skb(sk, buff, 1, GFP_KERNEL);
 
 	/* We change tp->snd_nxt after the tcp_transmit_skb() call
@@ -2545,7 +2550,14 @@ void tcp_send_delayed_ack(struct sock *sk)
 	sk_reset_timer(sk, &icsk->icsk_delack_timer, timeout);
 }
 
-/* This routine sends an ack and also updates the window. */
+/* This routine sends an ack and also updates the window. 
+ *
+ * tcp_rcv_state_process()
+ *  tcp_send_ack()
+ *
+ * tcp_rcv_synsent_state_process()
+ *  tcp_send_ack()
+ */
 void tcp_send_ack(struct sock *sk)
 {
 	/* If we have been reset, we may not send again. */

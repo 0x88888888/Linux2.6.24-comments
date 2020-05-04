@@ -951,6 +951,15 @@ int udp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 /*
  * 	This should be easy, if there is something there we
  * 	return it, otherwise we block.
+ *
+ * sys_read()
+ *	vfs_read()
+ *	 do_sync_read()
+ *	  sock_aio_read()
+ *	   do_sock_read()
+ *      __sock_recvmsg()
+ *       sock_common_recvmsg()
+ *        udp_recvmsg()
  */
 
 int udp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,

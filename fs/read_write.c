@@ -252,6 +252,8 @@ ssize_t do_sync_read(struct file *filp, char __user *buf, size_t len, loff_t *pp
 	for (;;) {
 		                /* 通常是generic_file_aio_read
 		                 * ext2_file_operations.aio_read == generic_file_aio_read
+		                 * 
+		                 * socket_file_ops->sock_aio_read == sock_aio_read
 		                 */
 		ret = filp->f_op->aio_read(&kiocb, &iov, 1, kiocb.ki_pos);
 						
@@ -300,9 +302,9 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 			 * proc_file_read
 			 * sysfs_read_file
 			 */
-			if (file->f_op->read) 
+			if (file->f_op->read) //socket没有设置read函数
 				ret = file->f_op->read(file, buf, count, pos);
-			else
+			else //socket就走下面的了
 				ret = do_sync_read(file, buf, count, pos);
 			
 			if (ret > 0) { /* 通知，监控功能文件夹的功能 */

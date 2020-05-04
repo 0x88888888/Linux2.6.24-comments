@@ -509,6 +509,7 @@ static struct socket *sock_alloc(void)
 	struct inode *inode;
 	struct socket *sock;
 
+    //sock_fs_type->get_sb == sockfs_get_sb
 	inode = new_inode(sock_mnt->mnt_sb);
 	if (!inode)
 		return NULL;
@@ -685,6 +686,14 @@ void __sock_recv_timestamp(struct msghdr *msg, struct sock *sk,
 
 EXPORT_SYMBOL_GPL(__sock_recv_timestamp);
 
+/*
+ * sys_read()
+ *	vfs_read()
+ *	 do_sync_read()
+ *	  sock_aio_read()
+ *	   do_sock_read()
+ *      __sock_recvmsg()
+ */
 static inline int __sock_recvmsg(struct kiocb *iocb, struct socket *sock,
 				 struct msghdr *msg, size_t size, int flags)
 {
@@ -701,6 +710,12 @@ static inline int __sock_recvmsg(struct kiocb *iocb, struct socket *sock,
 	if (err)
 		return err;
 
+	/*
+	 *
+	 * inet_stream_ops  (TCP) sock_common_recvmsg
+	 * inet_dgram_ops   (UDP) sock_common_recvmsg
+	 * inet_sockraw_ops (RAW) sock_common_recvmsg
+	 */
 	return sock->ops->recvmsg(iocb, sock, msg, size, flags);
 }
 
@@ -771,10 +786,18 @@ static struct sock_iocb *alloc_sock_iocb(struct kiocb *iocb,
 	return siocb;
 }
 
+ /*
+  * sys_read()
+  *  vfs_read()
+  *   do_sync_read()
+  *    sock_aio_read()
+  *     do_sock_read()
+  */
 static ssize_t do_sock_read(struct msghdr *msg, struct kiocb *iocb,
 		struct file *file, const struct iovec *iov,
 		unsigned long nr_segs)
 {
+    //得到socket对象
 	struct socket *sock = file->private_data;
 	size_t size = 0;
 	int i;
@@ -793,6 +816,12 @@ static ssize_t do_sock_read(struct msghdr *msg, struct kiocb *iocb,
 	return __sock_recvmsg(iocb, sock, msg, size, msg->msg_flags);
 }
 
+/*
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    sock_aio_read()
+ */
 static ssize_t sock_aio_read(struct kiocb *iocb, const struct iovec *iov,
 				unsigned long nr_segs, loff_t pos)
 {
@@ -1665,6 +1694,7 @@ asmlinkage long sys_connect(int fd, struct sockaddr __user *uservaddr,
 
 	/* 调用Socket层的操作函数，如果是SOCK_STREAM，则proto_ops为inet_stream_ops，
      * 函数指针指向inet_stream_connect()。
+     * 如果是SOCK_DGRAM,则proto_ops为inet_dgram_ops, 函数指针指向inet_dgram_connect
 	 */
 	err = sock->ops->connect(sock, (struct sockaddr *)address, addrlen,
 				 sock->file->f_flags);
