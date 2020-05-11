@@ -161,7 +161,7 @@ enum {
  * 系统中swap_info_struct对象都在swap_info[MAX_SWAPFILES]数组中
  */
 struct swap_info_struct {
-	unsigned int flags;  /* SWP_USED和SWP_WRITEOK标志表示交换区是否是活动的(可用的)和可写入的；在交换去插入到内核中后，这两个标志都会设置,二者合并后的缩写是SWP_ACTIVE */
+	unsigned int flags;  /* SWP_USED和SWP_WRITEOK标志表示交换区是否是活动(SWP_ACTIVE)的(可用的)和可写入的；在交换去插入到内核中后，这两个标志都会设置,二者合并后的缩写是SWP_ACTIVE */
 	int prio;			/* swap priority, Prio是交换分区的优先级，系统中可以设置多个交换分区，
 	                       不同磁盘的速度不同，如果不同磁盘上设置了交换分区，可以为这些分区设置不同的优先级, 
 	                       系统优先将换出的页面保存到优先级高的交换分区中。 */
@@ -177,7 +177,10 @@ struct swap_info_struct {
 	unsigned old_block_size;
 	/* 指向一个计数器数组，交换区的每一个页槽对应一个元素。
 	   如果计数器值等于0，那么这个页槽就是空闲的；如果计数器为正数，
-	   则页槽计数器的值就表示共享换出页的进程数； */
+	   则页槽计数器的值就表示共享换出页的进程数； 
+	 *
+	 * 这个引用技术很关键，看swap_entry_free()和add_to_swap_cache()中调用swap_duplicate(),在swap_duplicate()中对swap_map的使用
+	 */
 	unsigned short * swap_map;
 	/*
 	 * lowest_bit和highest_bit分别表示有空闲page槽位的最小索引值和最大索引值。cluster_next表示分配下一个page槽位的索引值。 

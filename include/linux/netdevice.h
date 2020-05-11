@@ -694,7 +694,10 @@ struct net_device
  */
 	/* device queue lock */
 	spinlock_t		queue_lock ____cacheline_aligned_in_smp;
-    //当前使用的根排队规则，配置的排队规则生效时由qdisc_sleeping设置
+    /*
+     * 当前使用的根排队规则，配置的排队规则生效时由qdisc_sleeping设置
+     * 在dev_activate()中设置
+    */
 	struct Qdisc		*qdisc;
 	struct Qdisc		*qdisc_sleeping;
 	/* 通过链表方式配置所在网络的所有排队规则，例如，使用分类规则时，网络设备就会配置多个排队规则 */

@@ -76,11 +76,21 @@ static unsigned int ipt_snat_target(struct sk_buff *skb,
 	enum ip_conntrack_info ctinfo;
 	const struct nf_nat_multi_range_compat *mr = targinfo;
 
+	/* SNAT只能应用于POST_ROUTING, 后面的版本也可以用于LOCAL IN */
 	NF_CT_ASSERT(hooknum == NF_IP_POST_ROUTING);
 
+	/* 
+	得到conn track的信息，conn track为netfilter的一个基础。留在以后学习。
+	目前我们只需要知道netfilter保存了数据包的连接信息。
+	*/
 	ct = nf_ct_get(skb, &ctinfo);
 
 	/* Connection must be valid and new. */
+    /* 
+    这里对conn进行了验证。
+    要做SNAT，必须是新建的连接——很明显的道理。
+    但是有的7层应用，可能需要多条相关的conn，这时就需要IP_CT_RELATED。
+    */	
 	NF_CT_ASSERT(ct && (ctinfo == IP_CT_NEW || ctinfo == IP_CT_RELATED ||
 			    ctinfo == IP_CT_RELATED + IP_CT_IS_REPLY));
 	NF_CT_ASSERT(out);
@@ -140,9 +150,15 @@ static bool ipt_snat_checkentry(const char *tablename,
 				void *targinfo,
 				unsigned int hook_mask)
 {
+
+    /* 
+    这个为NAT的范围，即IP，port等。虽然该结构体的名字为multi，但是目前只支持一个range
+    该结构体的含义看其定义很明显，这里就说明了
+    */
 	struct nf_nat_multi_range_compat *mr = targinfo;
 
 	/* Must be a valid range */
+	//只支持一个范围。	
 	if (mr->rangesize != 1) {
 		printk("SNAT: multiple ranges no longer supported\n");
 		return false;
@@ -224,11 +240,11 @@ int nf_nat_rule_find(struct sk_buff *skb,
 
 static struct xt_target ipt_snat_reg __read_mostly = {
 	.name		= "SNAT",
-	.target		= ipt_snat_target,
+	.target		= ipt_snat_target, //SNAT target的执行函数
 	.targetsize	= sizeof(struct nf_nat_multi_range_compat),
 	.table		= "nat",
 	.hooks		= 1 << NF_IP_POST_ROUTING,
-	.checkentry	= ipt_snat_checkentry,
+	.checkentry	= ipt_snat_checkentry,  //添加SNAT规则的检查函数
 	.family		= AF_INET,
 };
 
@@ -249,6 +265,8 @@ int __init nf_nat_rule_init(void)
 	ret = ipt_register_table(&nat_table, &nat_initial_table.repl);
 	if (ret != 0)
 		return ret;
+	
+    //注册了两个NAT的target
 	ret = xt_register_target(&ipt_snat_reg);
 	if (ret != 0)
 		goto unregister_table;

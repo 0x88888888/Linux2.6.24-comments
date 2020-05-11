@@ -132,6 +132,10 @@ struct rtable;
  * @mc_index - Multicast device index
  * @mc_list - Group array
  * @cork - info to build ip hdr on each ip frag while socket is corked
+ *
+ * struct inet_sock为TCP/IP协议栈极为重要的结构，
+ * 它要位于所有的不同sock类型的顶部。
+ * 主要用于保存不同socket类型公有的特性和信息
  */
 struct inet_sock {
 	/* sk and pinet6 has to be the first two members of inet_sock */
@@ -140,27 +144,38 @@ struct inet_sock {
 	struct ipv6_pinfo	*pinet6;
 #endif
 	/* Socket demultiplex comparisons on incoming packets. */
+    /* 
+     * 通过与下列的值比较，可以demultiplex收到的包。
+     * 通过系统调用connect，bind或setsocktopt可以设置下面的部分值。
+     */
 	__be32			daddr;
 	__be32			rcv_saddr;
 	__be16			dport;
-	__u16			num;
+	/* inet_num 为主机序的port,即inet_sport为其网络序格式 */
+	__u16			num; //对应的sock->type ==SOCK_RAW时，num==protocol
 	__be32			saddr;
+	/* 用户指定的ttl值，如为-1，则使用系统默认值 */
 	__s16			uc_ttl;
 	__u16			cmsg_flags;
 	struct ip_options	*opt;
 	__be16			sport;
 	__u16			id;
 	__u8			tos;
+	//多播ttl
 	__u8			mc_ttl;
 	__u8			pmtudisc;
+	/* 下面这些基本上都是socket的option */
 	__u8			recverr:1,
-				is_icsk:1,
-				freebind:1,
-				hdrincl:1,
+				is_icsk:1, /* 是否是connection socket*/
+				freebind:1, /* 是否enable IP_FREEBIND option*/
+				hdrincl:1,  /* 是否enable IP_HDRINCL option*/ 
 				mc_loop:1;
-	int			mc_index;
-	__be32			mc_addr;
+	int			mc_index;    /* 多播网卡的索引 */
+	__be32			mc_addr; /* 用于发送的多播地址 */
+	/* 所有加入的多播组 */
 	struct ip_mc_socklist	*mc_list;
+	
+
 	struct {
 		unsigned int		flags;
 		unsigned int		fragsize;
@@ -170,6 +185,12 @@ struct inet_sock {
 		__be32			addr;
 		struct flowi		fl;
 	} cork;
+	/*
+	 * 看 http://blog.chinaunix.net/uid-23629988-id-186822.html
+	 * cork在四个文件中被使用，分别是ip6_output.c，ip_output.c，raw.c，和udp.c
+	 * 在ip_append_data()设置cork成员的值
+	 * 在udp_sendmsg() 中设置cork->fl中成员的值
+	 */	
 };
 
 #define IPCORK_OPT	1	/* ip-options has been held in ipcork.opt */

@@ -116,9 +116,9 @@ int tick_device_uses_broadcast(struct clock_event_device *dev, int cpu)
 	 * operated from the broadcast device and is a placeholder for
 	 * the cpu local device.
 	 */
-	if (!tick_device_is_functional(dev)) {
+	if (!tick_device_is_functional(dev)) { //广播功能
 		dev->event_handler = tick_handle_periodic;
-		cpu_set(cpu, tick_broadcast_mask);
+		cpu_set(cpu, tick_broadcast_mask);//
 		tick_broadcast_start_periodic(tick_broadcast_device.evtdev);
 		ret = 1;
 	} else {
@@ -157,6 +157,8 @@ int tick_do_broadcast(cpumask_t mask)
 
 	/*
 	 * Check, if the current cpu is in the mask
+	 *
+	 * 本cpu也要处理
 	 */
 	if (cpu_isset(cpu, mask)) {
 		cpu_clear(cpu, mask);
@@ -172,6 +174,8 @@ int tick_do_broadcast(cpumask_t mask)
 		 * have different broadcast functions. For now, just use the
 		 * one of the first device. This works as long as we have this
 		 * misfeature only on x86 (lapic)
+		 *
+		 * 只广播到第一个cpu?
 		 */
 		cpu = first_cpu(mask);
 		td = &per_cpu(tick_cpu_device, cpu);

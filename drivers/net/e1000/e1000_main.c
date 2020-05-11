@@ -3893,11 +3893,14 @@ e1000_intr(int irq, void *data)
 		E1000_WRITE_REG(hw, IMC, ~0);
 		E1000_WRITE_FLUSH(hw);
 	}
+
+	// 检测是否可以调度NAPI：
 	if (likely(netif_rx_schedule_prep(netdev, &adapter->napi))) {
 		adapter->total_tx_bytes = 0;
 		adapter->total_tx_packets = 0;
 		adapter->total_rx_bytes = 0;
 		adapter->total_rx_packets = 0;
+		/* 要求调度对应的NAPI实例 */
 		__netif_rx_schedule(netdev, &adapter->napi);
 	} else
 		/* this really should not happen! if it does it is basically a

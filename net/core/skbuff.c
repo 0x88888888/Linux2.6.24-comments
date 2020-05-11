@@ -618,12 +618,11 @@ static void copy_skb_header(struct sk_buff *new, const struct sk_buff *old)
  *	function is not recommended for use in circumstances when only
  *	header is going to be modified. Use pskb_copy() instead.
  *
- * 创建sk_buff和相关数据的一个副本
+ * 创建sk_buff和相关数据的一个副本，算是深拷贝
  *
  * 比pskb_copy更进一步，
  * 复制skb描述符，同时也复制skb的数据缓存区(skb_shared_info)，也复制skb_shared_info中的frag_list
  */
-
 struct sk_buff *skb_copy(const struct sk_buff *skb, gfp_t gfp_mask)
 {
 	int headerlen = skb->data - skb->head;

@@ -55,6 +55,12 @@ static struct bio *get_swap_bio(gfp_t gfp_flags, pgoff_t index,
 	return bio;
 }
 
+/*
+ * swap_writepage()
+ *  submit_bio()
+ *   ....
+ *    end_swap_bio_write()
+ */
 static void end_swap_bio_write(struct bio *bio, int err)
 {
 	const int uptodate = test_bit(BIO_UPTODATE, &bio->bi_flags);
@@ -104,6 +110,12 @@ void end_swap_bio_read(struct bio *bio, int err)
  * We may have stale swap cache pages in memory: notice
  * them here and get rid of the unnecessary final write.
  *
+ * swap_aops.writepage = swap_writepage
+ *
+ * sys_swapoff()
+ *  try_to_unuse()
+ *   swap_writepage()
+ *
  * 写入swap area
  */
 int swap_writepage(struct page *page, struct writeback_control *wbc)
@@ -116,6 +128,7 @@ int swap_writepage(struct page *page, struct writeback_control *wbc)
 		unlock_page(page);
 		goto out;
 	}
+	//获取一个bio，
 	bio = get_swap_bio(GFP_NOIO, page_private(page), page,
 				end_swap_bio_write);
 	
@@ -138,6 +151,13 @@ out:
 	return ret;
 }
 
+/*
+ * do_page_fault()
+ *  handle_pte_fault()
+ *   do_swap_page()
+ *    read_swap_cache_async()
+ *     swap_readpage()
+ */
 int swap_readpage(struct file *file, struct page *page)
 {
 	struct bio *bio;
@@ -145,6 +165,7 @@ int swap_readpage(struct file *file, struct page *page)
 
 	BUG_ON(!PageLocked(page));
 	ClearPageUptodate(page);
+	
 	bio = get_swap_bio(GFP_KERNEL, page_private(page), page,
 				end_swap_bio_read);
 	if (bio == NULL) {
@@ -153,6 +174,7 @@ int swap_readpage(struct file *file, struct page *page)
 		goto out;
 	}
 	count_vm_event(PSWPIN);
+	//提交
 	submit_bio(READ, bio);
 out:
 	return ret;

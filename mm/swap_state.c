@@ -121,7 +121,7 @@ static int add_to_swap_cache(struct page *page, swp_entry_t entry)
 
 	BUG_ON(PageLocked(page));
 	
-	if (!swap_duplicate(entry)) { /* entry对应的page已经在swapper_space */
+	if (!swap_duplicate(entry)) { /* 主要是swap_info_struct->swap_map[offset]++，表明page被换出去的次数*/
 		INC_CACHE_INFO(noent_race);
 		return -ENOENT;
 	}
@@ -267,6 +267,12 @@ int add_to_swap(struct page * page, gfp_t gfp_mask)
  * move_from_swap_cache()
  *  delete_from_swap_cache()
  *
+ * sys_remap_file_pages()
+ *  populate_range()
+ *   install_file_pte()
+ *    zap_pte() 
+ *     free_swap_and_cache()
+ *      delete_from_swap_cache()
  */
 void delete_from_swap_cache(struct page *page)
 {

@@ -32,8 +32,8 @@ static inline void do_timer_interrupt_hook(void)
     /*
      * 调用不同时钟模式下注册的事件处理函数:
      * 周期时钟的处理函数为:tick_handle_periodic()
-     * 高精度时钟的处理函数:hrtimer_interrupte()
-     * nohz模式下的处理函数为:tick_nohz_hander()
+     * 高精度时钟的处理函数:hrtimer_interrupt()
+     * nohz模式下的处理函数为:tick_nohz_handler()
      * 启动启动时默认采用周期时钟，在定时器软中断中检查是否满足模式切换条件，然后切换至相应的模式。
      * Fixme: 为何不在系统初始化时就将需要的时钟模式切换好?这样的话每次软中断定时器中都需要做这些冗余的检查，
      * 是否会影响效率?是否有改进的空间?

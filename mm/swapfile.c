@@ -364,7 +364,7 @@ out:
 /*
  * swap_free()
  *  swap_entry_free()
- *
+ * 根据swap_info_struct->swap_map[offset]的计数来确定是否要释放对应的slot
  */
 static int swap_entry_free(struct swap_info_struct *p, unsigned long offset)
 {
@@ -374,7 +374,7 @@ static int swap_entry_free(struct swap_info_struct *p, unsigned long offset)
 		count--; /* 被映射的数量减一 */
 		p->swap_map[offset] = count;
 	
-		if (!count) { /* 已经没有引用该entry对应的page了 */
+		if (!count) { /* 已经没有进程引用该entry对应的page了 */
 			if (offset < p->lowest_bit)
 				p->lowest_bit = offset;
 			
@@ -404,7 +404,7 @@ static int swap_entry_free(struct swap_info_struct *p, unsigned long offset)
  *  add_to_swap_cache()
  *   swap_free()
  *
- *
+ * 根据swap_info_struct->swap_map[offset]的计数来确定是否要释放对应的slot
  */
 void swap_free(swp_entry_t entry)
 {
@@ -412,7 +412,7 @@ void swap_free(swp_entry_t entry)
 
 	p = swap_info_get(entry); /*  */
 	if (p) {
-		swap_entry_free(p, swp_offset(entry));
+		swap_entry_free(p, swp_offset(entry)); 
 		spin_unlock(&swap_lock);
 	}
 }
@@ -503,7 +503,7 @@ int remove_exclusive_swap_page(struct page *page)
 		/* Recheck the page count with the swapcache lock held.. */
 		write_lock_irq(&swapper_space.tree_lock);
 		if ((page_count(page) == 2) && !PageWriteback(page)) {
-			__delete_from_swap_cache(page);
+			__delete_from_swap_cache(page); //移除page
 			SetPageDirty(page);
 			retval = 1;
 		}
@@ -526,12 +526,26 @@ int remove_exclusive_swap_page(struct page *page)
  * shmem_free_swp()
  *  free_swap_and_cache()
  *
- * zap_pte()
- *  free_swap_and_cache()
  *
  * zap_pte_range()
  *  free_swap_and_cache()
  *
+ *
+ * sys_remap_file_pages()
+ *  populate_range()
+ *   install_file_pte()
+ *    zap_pte() 
+ *     free_swap_and_cache()
+ * 
+ * sys_munmap() 
+ *	do_munmap()
+ *	 unmap_region()
+ *	  unmap_vmas()
+ *	   unmap_page_range()
+ *		zap_pud_range()
+ *		 zap_pmd_range()
+ *        zap_pte_range()
+ *         free_swap_and_cache()
  */
 void free_swap_and_cache(swp_entry_t entry)
 {
@@ -563,7 +577,7 @@ void free_swap_and_cache(swp_entry_t entry)
 		/* Also recheck PageSwapCache after page is locked (above) */
 		if (PageSwapCache(page) && !PageWriteback(page) &&
 					(one_user || vm_swap_full())) {
-					
+			//将page从swapper_space中删除		
 			delete_from_swap_cache(page);
 			SetPageDirty(page);
 		}
@@ -1047,8 +1061,10 @@ static int try_to_unuse(unsigned int type)
 				.sync_mode = WB_SYNC_NONE,
 			};
 
+            //写到磁盘swap上去
 			swap_writepage(page, &wbc);
 			lock_page(page);
+			//等待写入结束
 			wait_on_page_writeback(page);
 		}
 		if (PageSwapCache(page)) {
@@ -1200,6 +1216,7 @@ static void destroy_swap_extents(struct swap_info_struct *sis)
  *  setup_swap_extents()
  *   add_swap_extent()
  *
+ * 添加给swap_extent对象到sis->extent_list上去
  */
 static int
 add_swap_extent(struct swap_info_struct *sis, unsigned long start_page,
@@ -1361,7 +1378,7 @@ static int setup_swap_extents(struct swap_info_struct *sis, sector_t *span)
 
 		/*
 		 * We found a PAGE_SIZE-length, PAGE_SIZE-aligned run of blocks
-		 *
+		 * 给swap_info_struct添加extent
 		 */
 		ret = add_swap_extent(sis, page_no, 1, first_block);
 		if (ret < 0)
@@ -1974,6 +1991,8 @@ asmlinkage long sys_swapon(const char __user * specialfile, int swap_flags)
 		p->pages = nr_good_pages;
 		/* span中返回block的数量 
 		 * 初始化非连续的区间链表
+		 *
+		 * 设置swap_info_struct->extent_list
 		 */
 		nr_extents = setup_swap_extents(p, &span);
 		if (nr_extents < 0) {
@@ -2103,6 +2122,8 @@ void si_swapinfo(struct sysinfo *val)
  *     copy_pte_range()
  *      copy_one_pte() 
  *       swap_duplicate()
+ *
+ * 主要是swap_info_struct->swap_map[offset]++，表明entry对应的page被换出多次了
  */
 int swap_duplicate(swp_entry_t entry)
 {

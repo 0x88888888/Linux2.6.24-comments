@@ -20,19 +20,36 @@
 #include <linux/seq_file.h>
 #include <net/fib_rules.h>
 
+/*
+ * fib_config主要用于将外部的route的配置/参数形式转为FIB的内部配置形式。
+ * 如使用IP命令添加/删除route时，或者路由daemon向linux添加/删除时，
+ * 都需要将其传入系统API的参数转为FIB的内部配置结构
+ */
 struct fib_config {
+	//目的地址的掩码
 	u8			fc_dst_len;
 	u8			fc_tos;
+    //路由协议，其实更像是指该条路由是从何而来，参见RTPROT_STATIC等宏
+    //RTPROT_STATIC表示该route为管理员添加的静态路由，RTPROT_ZEBRA为由zebra添加的路由	
 	u8			fc_protocol;
+	//参见rt_scope_t的定义
 	u8			fc_scope;
+	//类型如RTN_UNICAST：直连路由，参见类似的定义
 	u8			fc_type;
 	/* 3 bytes unused */
+	//指示哪个路由表，如RT6_TABLE_MAIN
 	u32			fc_table;
+	//目的地址
 	__be32			fc_dst;
+	//网关
 	__be32			fc_gw;
+	//出口的网卡
 	int			fc_oif;
+	//路由标志
 	u32			fc_flags;
+	//优先级
 	u32			fc_priority;
+	//prefer 源地址，暂不知道用途
 	__be32			fc_prefsrc;
 	struct nlattr		*fc_mx;
 	struct rtnexthop	*fc_mp;
@@ -70,6 +87,8 @@ struct fib_nh {
  * This structure contains data shared by many of routes.
  *
  * 路由表项信息
+ *
+ * fib_info用于存储路由条目的一些共用的参数
  */
 struct fib_info {
 	struct hlist_node	fib_hash;
@@ -145,6 +164,7 @@ struct fib_result_nl {
 #define FIB_RES_OIF(res)		(FIB_RES_NH(res).nh_oif)
 
 struct fib_table {
+    /* 负载成员，用于将所有的fib_table链接起来 */
 	struct hlist_node tb_hlist;	
 	/*tb_id字段是表的id，如果配置了多个表，它的值在1到255之间。如果没有配置多个表，则只会RT_TABLE_MAIN或RT_TABLE_LOCAL，tb_stamp目前没有使用。*/ 
 	u32		tb_id;
@@ -183,6 +203,10 @@ struct fib_table {
 	 * 此表中的其他函数操作此字段，它不能被直接访问。
 	 *
 	 * 被初始化函数fib_hash_init设置为指向struct fn_hash结构的指针
+	 *
+	 * 路由表数据：因为有hash和trie两种方式，所以使用零长数组
+	 *
+	 * 如果是用hash方式实现，就存储fn_hash对象
 	 */
 	unsigned char	tb_data[0];
 };
@@ -206,6 +230,15 @@ static inline struct fib_table *fib_new_table(u32 id)
 
 static inline int fib_lookup(const struct flowi *flp, struct fib_result *res)
 {
+
+     /* 
+      * 先查询本地地址路由表, ip_fib_local_table->tb_lookup
+      * 本地路由表保存本地地址，多播等，属于需要发送到本机的地址信息。
+      *
+      * 再查询main路由表,ip_fib_main_table->tb_lookup ，这个是咱们设置路由或路由daemon设置的路由表 
+      *
+      * tb_lookup == fn_hash_lookup或者fn_trie_lookup
+      */
 	if (ip_fib_local_table->tb_lookup(ip_fib_local_table, flp, res) &&
 	    ip_fib_main_table->tb_lookup(ip_fib_main_table, flp, res))
 		return -ENETUNREACH;

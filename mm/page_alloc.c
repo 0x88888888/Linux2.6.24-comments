@@ -464,6 +464,7 @@ static inline int page_is_buddy(struct page *page, struct page *buddy,
  *        free_one_page()
  *         __free_one_page()
  *
+ *
  * free_hot_cold_page()
  *  free_pages_bulk()
  *   __free_one_page()
@@ -596,6 +597,15 @@ static void free_pages_bulk(struct zone *zone, int count,
  *      __free_pages()
  *       __free_pages_ok()
  *        free_one_page()
+ *
+ * start_kernel()
+ *  mem_init()
+ *	 free_all_bootmem()
+ *    free_all_bootmem_core()
+ *     __free_pages_bootmem()
+ *      __free_pages()
+ *       __free_pages_ok()
+ *        free_one_page()
  */
 static void free_one_page(struct zone *zone, struct page *page, int order)
 {
@@ -610,6 +620,14 @@ static void free_one_page(struct zone *zone, struct page *page, int order)
 /*
  * __free_pages()
  *  __free_pages_ok()
+ *
+ * start_kernel()
+ *  mem_init()
+ *	 free_all_bootmem()
+ *    free_all_bootmem_core()
+ *     __free_pages_bootmem()
+ *      __free_pages()
+ *       __free_pages_ok()
  */
 static void __free_pages_ok(struct page *page, unsigned int order)
 {
@@ -2142,7 +2160,15 @@ void __pagevec_free(struct pagevec *pvec)
 }
 
 
-/* 释放物理页 */
+/* 释放物理页 
+ *
+ * start_kernel()
+ *  mem_init()
+ *	 free_all_bootmem()
+ *    free_all_bootmem_core()
+ *     __free_pages_bootmem()
+ *      __free_pages()
+ */
 fastcall void __free_pages(struct page *page, unsigned int order)
 {
     //确定没有被引用了

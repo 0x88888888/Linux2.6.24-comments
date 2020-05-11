@@ -553,6 +553,13 @@ out:
  *    inet_sendmsg() 
  *     udp_sendmsg()
  *
+ * sys_socketcall()
+ *  sys_send()
+ *   sys_sendto()
+ *    sock_sendmsg()
+ *     __sock_sendmsg() ; socket->ops->sendmsg
+ *      inet_sendmsg()
+ *       udp_sendmsg()
  */
 int udp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		size_t len)
@@ -706,6 +713,7 @@ int udp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	if (MULTICAST(daddr)) {
 		if (!ipc.oif)
 			ipc.oif = inet->mc_index;
+		
 		if (!saddr)
 			saddr = inet->mc_addr;
 		connected = 0;

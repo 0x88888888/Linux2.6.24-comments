@@ -190,6 +190,8 @@ static void tick_setup_device(struct tick_device *td,
 	/*
 	 * First device setup ?
 	 *
+	 * 系统中的第一个时钟设备？
+	 *
 	 * 如果当前CPU还没有clock event device,就默认新设备为周期性的设备，
 	 * 并计算该设备的中断周期，其中NSEC_PER_SEC表示一秒中的纳秒数，HZ是
 	 * 编译时配置的每秒的中断次数，所以tick_period就是中断周期，单位为纳秒。
@@ -239,7 +241,9 @@ static void tick_setup_device(struct tick_device *td,
 	 */
 	if (tick_device_uses_broadcast(newdev, cpu))
 		return;
-
+	
+    //到这里说明newdev不支持broadcast模式了
+   
 	/*  根据tick_device的工作模式设置clock_event_device的工作模式 */
 	if (td->mode == TICKDEV_MODE_PERIODIC)
 		/* 也会设置newdev->event_handler == tick_handle_periodic */

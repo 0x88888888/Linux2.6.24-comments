@@ -713,6 +713,16 @@ int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	return 0;
 }
 
+/* 
+ * sys_munmap() 
+ *	do_munmap()
+ *	 unmap_region()
+ *	  unmap_vmas()
+ *	   unmap_page_range()
+ *		zap_pud_range()
+ *		 zap_pmd_range()
+ *        zap_pte_range()
+ */
 static unsigned long zap_pte_range(struct mmu_gather *tlb,
 				struct vm_area_struct *vma, pmd_t *pmd,
 				unsigned long addr, unsigned long end,
@@ -786,8 +796,10 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
 		 */
 		if (unlikely(details))
 			continue;
+		
 		if (!pte_file(ptent))
-			free_swap_and_cache(pte_to_swp_entry(ptent));
+			free_swap_and_cache(pte_to_swp_entry(ptent));//将page从swapper_space中删除
+		
 		pte_clear_not_present_full(mm, addr, pte, tlb->fullmm);
 	} while (pte++, addr += PAGE_SIZE, (addr != end && *zap_work > 0));
 
@@ -798,6 +810,15 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
 	return addr;
 }
 
+/* 
+ * sys_munmap() 
+ *	do_munmap()
+ *	 unmap_region()
+ *	  unmap_vmas()
+ *	   unmap_page_range()
+ *		zap_pud_range()
+ *       zap_pmd_range()
+ */
 static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 				struct vm_area_struct *vma, pud_t *pud,
 				unsigned long addr, unsigned long end,
@@ -820,6 +841,14 @@ static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 	return addr;
 }
 
+/* 
+ * sys_munmap() 
+ *  do_munmap()
+ *   unmap_region()
+ *    unmap_vmas()
+ *     unmap_page_range()
+ *      zap_pud_range()
+ */
 static inline unsigned long zap_pud_range(struct mmu_gather *tlb,
 				struct vm_area_struct *vma, pgd_t *pgd,
 				unsigned long addr, unsigned long end,
@@ -1353,6 +1382,12 @@ EXPORT_SYMBOL(vm_insert_pfn);
  * maps a range of physical memory into the requested pages. the old
  * mappings are removed. any references to nonexistent pages results
  * in null mappings (currently treated as "copy-on-access")
+ *
+ * mmap_mem()
+ *	remap_pfn_range()
+ *	 remap_pud_range()
+ *    remap_pmd_range()
+ *     remap_pte_range()
  */
 static int remap_pte_range(struct mm_struct *mm, pmd_t *pmd,
 			unsigned long addr, unsigned long end,
@@ -1375,6 +1410,13 @@ static int remap_pte_range(struct mm_struct *mm, pmd_t *pmd,
 	return 0;
 }
 
+
+/*
+ * mmap_mem()
+ *	remap_pfn_range()
+ *	 remap_pud_range()
+ *    remap_pmd_range()
+ */
 static inline int remap_pmd_range(struct mm_struct *mm, pud_t *pud,
 			unsigned long addr, unsigned long end,
 			unsigned long pfn, pgprot_t prot)
@@ -1395,6 +1437,11 @@ static inline int remap_pmd_range(struct mm_struct *mm, pud_t *pud,
 	return 0;
 }
 
+/*
+ * mmap_mem()
+ *  remap_pfn_range()
+ *   remap_pud_range()
+ */
 static inline int remap_pud_range(struct mm_struct *mm, pgd_t *pgd,
 			unsigned long addr, unsigned long end,
 			unsigned long pfn, pgprot_t prot)
@@ -1434,6 +1481,9 @@ static inline int remap_pud_range(struct mm_struct *mm, pgd_t *pgd,
  * @prot: page protection flags for this mapping
  *
  *  Note: this is only safe if the mm semaphore is held when called.
+ *
+ * mmap_mem()
+ *  remap_pfn_range()
  */
 int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
 		    unsigned long pfn, unsigned long size, pgprot_t prot)
@@ -1672,8 +1722,10 @@ static inline void cow_user_page(struct page *dst, struct page *src, unsigned lo
  *   handle_pte_fault()
  *    do_wp_page()
  *
- * do_swap_page()
- *  do_wp_page()
+ * do_page_fault()
+ *  handle_pte_fault()
+ *   do_swap_page() 
+ *    do_wp_page()
  */
 static int do_wp_page(struct mm_struct *mm, struct vm_area_struct *vma,
 		unsigned long address, pte_t *page_table, pmd_t *pmd,
@@ -2004,6 +2056,9 @@ restart:
  * end of the file.
  * @even_cows: 1 when truncating a file, unmap even private COWed pages;
  * but 0 when invalidating pagecache, don't throw away private data.
+ *
+ * generic_file_direct_IO()
+ *  unmap_mapping_range()
  */
 void unmap_mapping_range(struct address_space *mapping,
 		loff_t const holebegin, loff_t const holelen, int even_cows)
@@ -2210,9 +2265,6 @@ void swapin_readahead(swp_entry_t entry, unsigned long addr,struct vm_area_struc
  * but allow concurrent faults), and pte mapped but not yet locked.
  * We return with mmap_sem still held, but pte unmapped and unlocked.
  *
- * do_page_fault()
- *  handle_pte_fault()
- *   do_swap_page()
  * copy on write 机制，创建页面的副本
  *
  * 每次从磁盘上换入一个page时，就调用这个函数
@@ -2220,6 +2272,10 @@ void swapin_readahead(swp_entry_t entry, unsigned long addr,struct vm_area_struc
  * 当pte所对应的page不在内存中，且pte对应的内容不为0时，
  * 表示此时pte的内容所对应的页面在swap空间中，
  * 缺页异常时会通过do_swap_page()函数来分配页面 
+ *
+ * do_page_fault()
+ *  handle_pte_fault()
+ *   do_swap_page()
  */
 static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 		unsigned long address, pte_t *page_table, pmd_t *pmd,
@@ -2307,10 +2363,12 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	/* 添加到匿名映射机制中，即设置page->mapping=vma->anon_vma */
 	page_add_anon_rmap(page, vma, address);
 
-    /* 释放swap area中对应的slot */
+    /* 根据swap_info_struct->swap_map[offset]的计数来确定是否要释放对应的slot */
 	swap_free(entry);
+	
 	if (vm_swap_full())
 		remove_exclusive_swap_page(page);
+	
 	unlock_page(page);
 
 	if (write_access) {

@@ -177,10 +177,12 @@ __be16 eth_type_trans(struct sk_buff *skb, struct net_device *dev)
 
     /* 确定目的mac地址是单播，广播，还是多播 */
 	if (is_multicast_ether_addr(eth->h_dest)) {
+        /* 如果是多播地址，即bit0为1*/
+	
 		if (!compare_ether_addr(eth->h_dest, dev->broadcast))
-			skb->pkt_type = PACKET_BROADCAST; //该frame是传给链路层广播地址
+			skb->pkt_type = PACKET_BROADCAST; //与设备的广播地址相同，则帧为广播帧
 		else
-			skb->pkt_type = PACKET_MULTICAST; //该frame是传给链路层多播地址
+			skb->pkt_type = PACKET_MULTICAST; //与设备的广播地址不同，则帧为多播帧
 	}
 
 	/*
@@ -193,12 +195,18 @@ __be16 eth_type_trans(struct sk_buff *skb, struct net_device *dev)
 	 * 混杂模式下的处理
 	 */
 	else if (1 /*dev->flags&IFF_PROMISC */ ) {
+		/* 如果数据帧的目的地址不是网卡的地址，那么数据帧的类型为PACKET_OTHERHOST */
 		if (unlikely(compare_ether_addr(eth->h_dest, dev->dev_addr)))
-			skb->pkt_type = PACKET_OTHERHOST; //该frame并非是要创给接受接口.然而该帧没有立刻被丢弃，而是创给次高层。
+			skb->pkt_type = PACKET_OTHERHOST; 
+
+		/* 通常情况，skb->pkt_type为0，即PACKET_HOST，即数据帧是发给本主机的 */
 	}
 
 	
-
+    /*
+     当协议值大于1536时，那么这个数据帧一定为ethernet frame 
+     因为802.2和802.3的对应域为帧长，均要小于或等于1500，而ethernet frame的协议类型都大于等于1536.
+     */
 	if (ntohs(eth->h_proto) >= 1536) /* 普通的Ethernet协议 */
 		return eth->h_proto;
 
@@ -210,6 +218,8 @@ __be16 eth_type_trans(struct sk_buff *skb, struct net_device *dev)
 	 *      the protocol design and runs IPX over 802.3 without an 802.2 LLC
 	 *      layer. We look for FFFF which isn't a used 802.2 SSAP/DSAP. This
 	 *      won't work for fault tolerant netware but does for the rest.
+	 *
+	 * 当IPX使用原始的802.3作为载体时，其头两个字节作为checksum，但是一般都设为0xffff。 
 	 */
 	if (*(unsigned short *)rawp == 0xFFFF)
 		return htons(ETH_P_802_3); 

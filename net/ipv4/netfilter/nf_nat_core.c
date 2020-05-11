@@ -273,6 +273,11 @@ out:
 	rcu_read_unlock();
 }
 
+/*
+ * ipt_snat_target()
+ *  nf_nat_setup_info()
+ *
+ */
 unsigned int
 nf_nat_setup_info(struct nf_conn *ct,
 		  const struct nf_nat_range *range,
@@ -284,8 +289,16 @@ nf_nat_setup_info(struct nf_conn *ct,
 	enum nf_nat_manip_type maniptype = HOOK2MANIP(hooknum);
 
 	/* nat helper or nfctnetlink also setup binding */
+    /* 
+    对于netfilter的nf_conn，其使用一个struct nf_ct_ext的结构来保存各种extension信息，如NAT。
+    这里尝试从ct中获得nat。
+    注意ct中可以保存多个extension
+    */	
 	nat = nfct_nat(ct);
 	if (!nat) {
+        /* 
+        没有NAT的extension信息，那么就申请一个extension结构并保存在ct中
+        */		
 		nat = nf_ct_ext_add(ct, NF_CT_EXT_NAT, GFP_ATOMIC);
 		if (nat == NULL) {
 			pr_debug("failed to add NAT extension\n");
@@ -304,12 +317,22 @@ nf_nat_setup_info(struct nf_conn *ct,
 	   manipulations (future optimization: if num_manips == 0,
 	   orig_tp =
 	   conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple) */
+    /* 
+    这里要注意一点：通过reply方向的tuple信息，来得到当前的tuple信息，即发送方向的tuple。
+    那么为什么不直接使用ct的IP_CT_DIR_ORIGINAL的tuple信息呢。
+    根据上面的注释所说，一般情况下可以使用ORIGINAL方向的tuple信息。但是如果num_manips不为0，
+    那么original方向的tuple信息就不能使用。因为original的信息被修改了？？
+    */	   
 	nf_ct_invert_tuplepr(&curr_tuple,
 			     &ct->tuplehash[IP_CT_DIR_REPLY].tuple);
 
+	 /* 
+	 得到SNAT后的tuple。get_unique_tuple留在后面学习。
+	 */
 	get_unique_tuple(&new_tuple, &curr_tuple, range, ct, maniptype);
 
 	if (!nf_ct_tuple_equal(&new_tuple, &curr_tuple)) {
+		/* SNAT后的tuple与之前的tuple不等，即tuple发生了变化 */
 		struct nf_conntrack_tuple reply;
 
 		/* Alter conntrack table so will recognize replies. */
@@ -324,6 +347,11 @@ nf_nat_setup_info(struct nf_conn *ct,
 	}
 
 	/* Place in source hash if this is the first time. */
+    /* 
+    如注释所说，第一次做NAT时将，ORIGINAL方向的tuple加入到hash表中。
+    虽然这里只是将tuple加入到hash表中，但是实际上我们可以从tuple得到conntrack结构。
+    不知道以后会不会有这样的操作？
+    */	
 	if (have_to_hash) {
 		unsigned int srchash;
 

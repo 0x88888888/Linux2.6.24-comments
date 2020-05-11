@@ -272,7 +272,7 @@ static int inet_create(struct net *net, struct socket *sock, int protocol)
 	struct inet_sock *inet;
 	struct proto *answer_prot;
 	unsigned char answer_flags;
-	char answer_no_check;
+	char answer_no_check; //确定是否需要check sum
 	int try_loading_module = 0;
 	int err;
 
@@ -338,7 +338,9 @@ lookup_protocol:
 	if (answer->capability > 0 && !capable(answer->capability))
 		goto out_rcu_unlock;
 
+    //赋值proto_ops
 	sock->ops = answer->ops;
+	//确定proto
 	answer_prot = answer->prot;
 	answer_no_check = answer->no_check;
 	answer_flags = answer->flags;
@@ -347,6 +349,7 @@ lookup_protocol:
 	BUG_TRAP(answer_prot->slab != NULL);
 
 	err = -ENOBUFS;
+	//分配sock对象
 	sk = sk_alloc(net, PF_INET, GFP_KERNEL, answer_prot);
 	if (sk == NULL)
 		goto out;
@@ -356,6 +359,7 @@ lookup_protocol:
 	if (INET_PROTOSW_REUSE & answer_flags)
 		sk->sk_reuse = 1;
 
+    //强制转成inet_sock对象
 	inet = inet_sk(sk);
 	inet->is_icsk = (INET_PROTOSW_ICSK & answer_flags) != 0;
 
@@ -372,6 +376,7 @@ lookup_protocol:
 
 	inet->id = 0;
 
+    //设置sk->sk_data_ready等等
 	sock_init_data(sock, sk);
 
 	sk->sk_destruct	   = inet_sock_destruct;
@@ -392,13 +397,15 @@ lookup_protocol:
 		 * the user to assign a number at socket
 		 * creation time automatically
 		 * shares.
+		 * 当inet->inet_num不为0时，设置inet的source port，
+		 * 并把sk加到hash表中——对于UDP，不会执行这个
 		 */
 		inet->sport = htons(inet->num);
 		/* Add to protocol hash chains. */
 		sk->sk_prot->hash(sk);
 	}
 
-	if (sk->sk_prot->init) {
+	if (sk->sk_prot->init) { //tcp_v4_init_sock，raw_init,upd没有对应的函数
 		err = sk->sk_prot->init(sk);
 		if (err)
 			sk_common_release(sk);
@@ -816,9 +823,16 @@ int inet_getname(struct socket *sock, struct sockaddr *uaddr,
 
 /*
  *  sock_sendmsg()
- *   __sock_sendmsg()  ; socket->ops->sendmsg
+ *   __sock_sendmsg()  
  *    inet_sendmsg() 
  *
+ * sys_socketcall()
+ *  sys_send()
+ *   sys_sendto()
+ *    sock_sendmsg()
+ *     __sock_sendmsg() ; socket->ops->sendmsg
+ *      inet_sendmsg()
+ *     
  *  UDP socket时
  */
 int inet_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,

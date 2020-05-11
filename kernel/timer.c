@@ -254,25 +254,35 @@ static inline void set_running_timer(tvec_base_t *base,
 	base->running_timer = timer;
 #endif
 }
-/*添加到tvec_bases[cpuid]->tv1,tvec_bases[cpuid]->tv2之类的队列 */
+/*添加到tvec_bases[cpuid]->tv1,tvec_bases[cpuid]->tv2之类的队列 
+ *
+ * add_timer_on()
+ *  internal_add_timer()
+ */
 static void internal_add_timer(tvec_base_t *base, struct timer_list *timer)
 {
 	unsigned long expires = timer->expires;
+	
+	//还剩余的时间差
 	unsigned long idx = expires - base->timer_jiffies;
 	struct list_head *vec;
 
 	if (idx < TVR_SIZE) {
 		int i = expires & TVR_MASK;
 		vec = base->tv1.vec + i;
+	
 	} else if (idx < 1 << (TVR_BITS + TVN_BITS)) {
 		int i = (expires >> TVR_BITS) & TVN_MASK;
 		vec = base->tv2.vec + i;
+		
 	} else if (idx < 1 << (TVR_BITS + 2 * TVN_BITS)) {
 		int i = (expires >> (TVR_BITS + TVN_BITS)) & TVN_MASK;
 		vec = base->tv3.vec + i;
+		
 	} else if (idx < 1 << (TVR_BITS + 3 * TVN_BITS)) {
 		int i = (expires >> (TVR_BITS + 2 * TVN_BITS)) & TVN_MASK;
 		vec = base->tv4.vec + i;
+		
 	} else if ((signed long) idx < 0) {
 		/*
 		 * Can happen if you add a timer with expires == jiffies,
@@ -450,12 +460,14 @@ EXPORT_SYMBOL(__mod_timer);
  */
 void add_timer_on(struct timer_list *timer, int cpu)
 {
+    //所有没有运行的timer_list对象都在tvec_bases中
 	tvec_base_t *base = per_cpu(tvec_bases, cpu);
 	unsigned long flags;
 
 	timer_stats_timer_set_start_info(timer);
 	BUG_ON(timer_pending(timer) || !timer->function);
 	spin_lock_irqsave(&base->lock, flags);
+	
 	timer_set_base(timer, base);
 	internal_add_timer(base, timer);
 	spin_unlock_irqrestore(&base->lock, flags);
@@ -636,6 +648,8 @@ static inline void __run_timers(tvec_base_t *base)
 	struct timer_list *timer;
 
 	spin_lock_irq(&base->lock);
+
+	//jiffies比 base->timer_jiffies大
 	while (time_after_eq(jiffies, base->timer_jiffies)) {
 		struct list_head work_list;
 		struct list_head *head = &work_list;
@@ -685,6 +699,7 @@ static inline void __run_timers(tvec_base_t *base)
 			spin_lock_irq(&base->lock);
 		}
 	}
+	
 	set_running_timer(base, NULL);
 	spin_unlock_irq(&base->lock);
 }

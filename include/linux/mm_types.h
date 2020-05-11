@@ -32,6 +32,8 @@ typedef unsigned long mm_counter_t;
  * moment. Note that we have no way to track which tasks are using
  * a page, though if it is a pagecache page, rmap structures can tell us
  * who is mapping it.
+ *
+ * page在刚刚建立到buddy system中时，没有设置PG_active标记
  */
 struct page {
     /*
@@ -61,6 +63,8 @@ struct page {
 	union {
 		/*
 		 * 如果一个page用与slub分配期，因为只会被内核映射，内核则不需要使用_mapcount来记录多少个pte映射了该page,而用该字段来记录本page内被多少个对象使用(slub时已经指定对象大小了),就用union中的inuse了
+		 *
+		 * 内核用page_mapped() 来确定是否被map
 		 */
 		atomic_t _mapcount;	/*  内存管理子系统中映射的页表项计数，
 		                        用于表示页是否已经映射，还用于限制逆序映射搜索.
@@ -157,6 +161,9 @@ struct page {
 	                                              
 	                               4.compound page中page->lru->next= free_compound_page
 	                                                page->lru->prev= order
+	                             
+	                               5.释放出来到buddy system的空闲页, 放到zone->free_area[order].free_list[migratetype]
+	                                                
 	                               Pageout list, eg. active_list
 					             * protected by zone->lru_lock !
 					             */
@@ -302,7 +309,7 @@ struct mm_struct {
 	unsigned long task_size;		/* size of task vm space */
 	unsigned long cached_hole_size; 	/* if non-zero, the largest hole below free_area_cache */
 	unsigned long free_area_cache;		/* first hole of size cached_hole_size or larger */
-	/* 指向页全局目录 */
+	/* 指向页全局目录,这个值是物理地址 */
 	pgd_t * pgd;
 	/* 次使用计数器，存放了共享此mm_struct的轻量级进程的个数，但所有的mm_users在mm_count的计算中只算作1 */
 	atomic_t mm_users;			/* How many users with user space? */

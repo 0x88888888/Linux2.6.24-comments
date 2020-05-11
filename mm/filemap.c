@@ -635,7 +635,7 @@ void fastcall wait_on_page_bit(struct page *page, int bit_nr)
 	 */
 
 	if (test_bit(bit_nr, &page->flags))/* page必须是bit_nr类型(状态)的 */
-		__wait_on_bit(page_waitqueue(page), &wait, sync_page /* 在sync_page中调用io_schedule放弃cpu */ ,
+		__wait_on_bit(page_waitqueue(page) /* zone->wait_table */, &wait, sync_page /* 在sync_page中调用io_schedule放弃cpu */ ,
 							TASK_UNINTERRUPTIBLE);
 }
 EXPORT_SYMBOL(wait_on_page_bit);
@@ -670,6 +670,13 @@ EXPORT_SYMBOL(unlock_page);
  *
  * end_buffer_async_write()
  *  end_page_writeback()
+ *
+ * swap_writepage()
+ *  submit_bio()
+ *   ....
+ *    end_swap_bio_write()
+ *     end_page_writeback()
+ *
  * 在异步写入到磁盘上时，唤醒等待在该page上的进程
  */
 void end_page_writeback(struct page *page)

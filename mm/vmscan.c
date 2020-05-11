@@ -445,7 +445,10 @@ static pageout_t pageout(struct page *page, struct address_space *mapping,
 		/* 设置PG_reclaim状态 */
 		SetPageReclaim(page);
 
-		/* 写到磁盘上去 */
+		/* 写到磁盘上去
+		 *
+		 * swap_aops->writepage == swap_writepage
+		 */
 		res = mapping->a_ops->writepage(page, &wbc);
 		/* 写入出错了 */
 		if (res < 0)
@@ -830,6 +833,11 @@ static int __isolate_lru_page(struct page *page, int mode)
  *
  * shrink_active_list()
  *  isolate_lru_pages()
+ *
+ * shrink_inactive_list()
+ *  isolate_lru_pages()
+ *
+ * 在shrink_active_list和shrink_inactive_list会用到这个函数 
  */
 static unsigned long isolate_lru_pages(unsigned long nr_to_scan,
 		struct list_head *src, struct list_head *dst,
@@ -869,7 +877,7 @@ static unsigned long isolate_lru_pages(unsigned long nr_to_scan,
 		}
 
         /*
-         * 如果order没有给出想要分配的order(order==0)，
+         * 如果order没有给出想要分配的order(order==0)，提示释放2^order个连续物理内存
          * 那么每次循环都在lru链表中弄出一个page之后，然后就直接跳转到下一次循环。
 		 */
 		if (!order) 
@@ -1010,7 +1018,7 @@ static unsigned long shrink_inactive_list(unsigned long max_scan,
 		spin_unlock_irq(&zone->lru_lock);
 
 		nr_scanned += nr_scan;
-		/* 回收page_list上的page */
+		/* 回收page_list上的page,实际上就是zone->inactive_list上的page */
 		nr_freed = shrink_page_list(&page_list, sc, PAGEOUT_IO_ASYNC);
 
 		/*
@@ -1132,7 +1140,7 @@ static inline int zone_is_near_oom(struct zone *zone)
  *   shrink_zone  
  *    shrink_active_list()
  *
- * 从zone->active_list中移除
+ * 从zone->active_list中移除, 移动到zone->inactive_list中去
  */
 static void shrink_active_list(unsigned long nr_pages, struct zone *zone,
 				struct scan_control *sc, int priority)
@@ -1244,12 +1252,12 @@ force_reclaim_mapped:
 	}
 
     /*
-     * 将系统中的lru_add_pvecs, lru_add_active_pvecs, lru_rotate_pvecs中的page
+     * 将系统中全局的lru_add_pvecs, lru_add_active_pvecs, lru_rotate_pvecs中的page
      * 返回到各自zone->active_list或者zone->inactive_list中去.
      */
 	lru_add_drain();
 	spin_lock_irq(&zone->lru_lock);
-	/* 将zone->active_list上的page移动到l_hold上去 */
+	/* 将zone->active_list 末尾上的page移动到l_hold上去 */
 	pgmoved = isolate_lru_pages(nr_pages, &zone->active_list,
 			    &l_hold, &pgscanned, sc->order, ISOLATE_ACTIVE);
 	
@@ -1272,13 +1280,15 @@ force_reclaim_mapped:
 				continue;
 			}
 		}
+		//没有进程使用该page
 		list_add(&page->lru, &l_inactive);
 	}
 
 	pagevec_init(&pvec, 1);
 	pgmoved = 0;
 	spin_lock_irq(&zone->lru_lock);
-	
+
+	//将l_inactive 上的page链接到zone->inactive_list
 	while (!list_empty(&l_inactive)) {
 		page = lru_to_page(&l_inactive);
 		prefetchw_prev_lru_page(page, &l_inactive, flags);
@@ -1318,6 +1328,7 @@ force_reclaim_mapped:
 		VM_BUG_ON(PageLRU(page));
 		SetPageLRU(page);
 		VM_BUG_ON(!PageActive(page));
+		//添加到zone->active_list上去
 		list_move(&page->lru, &zone->active_list);
 		pgmoved++;
 		if (!pagevec_add(&pvec, page)) {
@@ -1365,6 +1376,8 @@ static unsigned long shrink_zone(int priority, struct zone *zone,
 	/*
 	 * Add one to `nr_to_scan' just to make sure that the kernel will
 	 * slowly sift through the active list.
+	 *
+	 * 确定需要扫描的active page的数量
 	 */
 	zone->nr_scan_active +=
 		(zone_page_state(zone, NR_ACTIVE) >> priority) + 1;
@@ -1657,7 +1670,7 @@ loop_again:
 		for (i = pgdat->nr_zones - 1; i >= 0; i--) {
 			struct zone *zone = pgdat->node_zones + i;
 
-			if (!populated_zone(zone))
+			if (!populated_zone(zone)) //zone中没有RAM
 				continue;
 
 			/* 不能被回收 */
@@ -1674,6 +1687,7 @@ loop_again:
 		if (i < 0)
 			goto out;
 
+        //zone中所有ACTIVE和IN_ACTIVE page数量
 		for (i = 0; i <= end_zone; i++) {
 			struct zone *zone = pgdat->node_zones + i;
 
@@ -1691,6 +1705,7 @@ loop_again:
 		 * cause too much scanning of the lower zones.
 		 */
 		for (i = 0; i <= end_zone; i++) {
+			
 			struct zone *zone = pgdat->node_zones + i;
 			int nr_slab;
 
@@ -1718,7 +1733,7 @@ loop_again:
 			 */
 			if (!zone_watermark_ok(zone, order, 8*zone->pages_high,
 						end_zone, 0))
-				nr_reclaimed += shrink_zone(priority, zone, &sc);
+				nr_reclaimed += shrink_zone(priority, zone, &sc);//从zone中回收
 
 				
 			reclaim_state->reclaimed_slab = 0;

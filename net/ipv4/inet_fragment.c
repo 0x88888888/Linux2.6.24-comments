@@ -183,7 +183,13 @@ int inet_frag_evictor(struct inet_frags *f)
 	return evicted;
 }
 EXPORT_SYMBOL(inet_frag_evictor);
-
+/*
+ * ip_defrag()
+ *  ip_find()
+ *   inet_frag_find()
+ *    inet_frag_create()
+ *     inet_frag_intern()
+ */
 static struct inet_frag_queue *inet_frag_intern(struct inet_frag_queue *qp_in,
 		struct inet_frags *f, unsigned int hash, void *arg)
 {
@@ -200,6 +206,10 @@ static struct inet_frag_queue *inet_frag_intern(struct inet_frag_queue *qp_in,
 	 */
 	hlist_for_each_entry(qp, n, &f->hash[hash], list) {
 		if (f->match(qp, arg)) {
+		/* 
+            其它CPU真的已经添加了该节点，那么我们只需要增加其计数器，并设置其标志位。
+            目前还没有细致看，大概看的结果是设置标志位INET_FRAG_COMPLETE是避免该队列被删除。
+            */
 			atomic_inc(&qp->refcnt);
 			write_unlock(&f->lock);
 			qp_in->last_in |= COMPLETE;
@@ -209,9 +219,11 @@ static struct inet_frag_queue *inet_frag_intern(struct inet_frag_queue *qp_in,
 	}
 #endif
 	qp = qp_in;
+    /* 修改定时器 */
 	if (!mod_timer(&qp->timer, jiffies + f->ctl->timeout))
 		atomic_inc(&qp->refcnt);
 
+    /* 加新的队列节点添加到hash表中 */
 	atomic_inc(&qp->refcnt);
 	hlist_add_head(&qp->list, &f->hash[hash]);
 	list_add_tail(&qp->lru_list, &f->lru_list);
@@ -220,6 +232,14 @@ static struct inet_frag_queue *inet_frag_intern(struct inet_frag_queue *qp_in,
 	return qp;
 }
 
+/*
+ * ip_defrag()
+ *	ip_find()
+ *	 inet_frag_find()
+ *	  inet_frag_create()
+ *     inet_frag_alloc()
+ *
+ */
 static struct inet_frag_queue *inet_frag_alloc(struct inet_frags *f, void *arg)
 {
 	struct inet_frag_queue *q;
@@ -227,9 +247,13 @@ static struct inet_frag_queue *inet_frag_alloc(struct inet_frags *f, void *arg)
 	q = kzalloc(f->qsize, GFP_ATOMIC);
 	if (q == NULL)
 		return NULL;
-
+	/* 
+	因为需要同时支持IPv4和IPv6分片，所以这里使用一个回调函数。并且这种方式分隔了一些细节问题。
+	对于IPv4来说，该回调为ip4_frag_init。
+	*/
 	f->constructor(q, arg);
-	atomic_add(f->qsize, &f->mem);
+	atomic_add(f->qsize, &f->mem);	
+    /* 设置定时器，因为分片需要使用定时器清理过期的分片信息 */
 	setup_timer(&q->timer, f->frag_expire, (unsigned long)q);
 	spin_lock_init(&q->lock);
 	atomic_set(&q->refcnt, 1);
@@ -237,6 +261,14 @@ static struct inet_frag_queue *inet_frag_alloc(struct inet_frags *f, void *arg)
 	return q;
 }
 
+/*
+ * ip_defrag()
+ *  ip_find()
+ *   inet_frag_find()
+ *    inet_frag_create()
+ *
+ * 创建inet_frag_queue
+ */
 static struct inet_frag_queue *inet_frag_create(struct inet_frags *f,
 		void *arg, unsigned int hash)
 {
@@ -249,6 +281,11 @@ static struct inet_frag_queue *inet_frag_create(struct inet_frags *f,
 	return inet_frag_intern(q, f, hash, arg);
 }
 
+/*
+ * ip_defrag()
+ *  ip_find()
+ *   inet_frag_find()
+ */
 struct inet_frag_queue *inet_frag_find(struct inet_frags *f, void *key,
 		unsigned int hash)
 {
@@ -257,14 +294,18 @@ struct inet_frag_queue *inet_frag_find(struct inet_frags *f, void *key,
 
 	read_lock(&f->lock);
 	hlist_for_each_entry(q, n, &f->hash[hash], list) {
-		if (f->match(q, key)) {
+		/* 匹配函数返回true，则表示为正确的分片队列  */
+		if (f->match(q, key)) { //函数ip4_frag_match
 			atomic_inc(&q->refcnt);
 			read_unlock(&f->lock);
 			return q;
 		}
 	}
 	read_unlock(&f->lock);
-
+	/* 
+	没有找到正确的IP分片队列，需要重新创建一个新的IP分片队列。
+	这个函数很简单，申请一个新的队列节点，计算其hash值，并将其添加到hash表中。
+	*/
 	return inet_frag_create(f, key, hash);
 }
 EXPORT_SYMBOL(inet_frag_find);

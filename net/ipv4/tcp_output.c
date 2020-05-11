@@ -1531,42 +1531,51 @@ static int tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle)
 
 	sent_pkts = 0;
 
-	/* Do MTU probing. */
+	/* Do MTU probing. 
+	 *
+	 * 计算出MTU
+	 */
 	if ((result = tcp_mtu_probe(sk)) == 0) {
 		return 0;
 	} else if (result > 0) {
 		sent_pkts = 1;
 	}
 
+    /* 检查是否还有skb要发送 */
 	while ((skb = tcp_send_head(sk))) {
 		unsigned int limit;
 
 		tso_segs = tcp_init_tso_segs(sk, skb, mss_now);
 		BUG_ON(!tso_segs);
 
+        /* 检查congestion windows， 可以发送几个segment */
 		cwnd_quota = tcp_cwnd_test(tp, skb);
 		if (!cwnd_quota)
 			break;
 
+        /* 检查发送窗口，是否可以容纳至少一个segment */
 		if (unlikely(!tcp_snd_wnd_test(tp, skb, mss_now)))
 			break;
 
 		if (tso_segs == 1) {
-			//是否穷nagle算法
+			//是否用nagle算法
 			if (unlikely(!tcp_nagle_test(tp, skb, mss_now,
 						     (tcp_skb_is_last(sk, skb) ?
 						      nonagle : TCP_NAGLE_PUSH))))
 				break;
 		} else {
+			/* 当不止一个skb时，通过TSO计算是否需要延时发送 */
 			if (tcp_tso_should_defer(sk, skb))
 				break;
 		}
 
 		limit = mss_now;
+		/* 在TSO分片大于1的情况下，且TCP不是URG模式。通过MSS计算发送数据的limit */
 		if (tso_segs > 1) {
 			limit = tcp_window_allows(tp, skb,
 						  mss_now, cwnd_quota);
 
+            /* 当skb的长度大于限制时，需要调用tso_fragment分片 */
 			if (skb->len < limit) {
 				unsigned int trim = skb->len % mss_now;
 
@@ -1579,8 +1588,10 @@ static int tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle)
 		    unlikely(tso_fragment(sk, skb, limit, mss_now)))
 			break;
 
+        /* 更新tcp的时间戳 */
 		TCP_SKB_CB(skb)->when = tcp_time_stamp;
 
+        /* 发送skb数据 */
 		if (unlikely(tcp_transmit_skb(sk, skb, 1, GFP_ATOMIC)))
 			break;
 
@@ -1610,8 +1621,9 @@ void __tcp_push_pending_frames(struct sock *sk, unsigned int cur_mss,
 	struct sk_buff *skb = tcp_send_head(sk);
 
 	if (skb) {
+		 /* 发送数据 */
 		if (tcp_write_xmit(sk, cur_mss, nonagle))
-			tcp_check_probe_timer(sk);
+			tcp_check_probe_timer(sk); //发送数据失败，使用probe timer进行检查。
 	}
 }
 

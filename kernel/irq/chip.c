@@ -453,8 +453,12 @@ out:
  *	the handler was running. If all pending interrupts are handled, the
  *	loop is left.
  *
- * do_IRQ
- *   generic_handle_irq
+ * do_IRQ()
+ *   generic_handle_irq()
+ *
+ * do_IRQ()
+ *  handle_edge_irq()
+ *
  */
 void fastcall
 handle_edge_irq(unsigned int irq, struct irq_desc *desc)

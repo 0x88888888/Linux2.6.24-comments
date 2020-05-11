@@ -671,6 +671,10 @@ int tcp_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 {
 	struct sock *sk = sock->sk;
 	struct iovec *iov;
+    /*
+    从通用的struct sock *sk得到struct tcp_sock *tp
+    其实只是一个强制类型转换，因为strcut sock为所有其它socket类型的第一个成员，所有可以直接对指针进行     强制类型转换
+    */	
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct sk_buff *skb;
 	int iovlen, flags;
@@ -682,10 +686,14 @@ int tcp_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 	TCP_CHECK_TIMER(sk);
 
 	flags = msg->msg_flags;
+    /* 
+       设置发送等待时间，如果设置了DONTWAIT，则timeo为0. 
+       如果没有该标志，则timeo就为sock->sk_sndtimeo
+     */	
 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 
 	/* Wait for a connection to finish. 
-	 * 连接还没有完整建立
+	 * 连接还没有完整建立，则等待，直到完成
 	*/
 	if ((1 << sk->sk_state) & ~(TCPF_ESTABLISHED | TCPF_CLOSE_WAIT))
 		if ((err = sk_stream_wait_connect(sk, &timeo)) != 0) //等待
@@ -694,6 +702,7 @@ int tcp_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 	/* This should be in poll */
 	clear_bit(SOCK_ASYNC_NOSPACE, &sk->sk_socket->flags);
 
+    /* 计算当前的MSS， size_goal为可发送数据的大小 */
 	mss_now = tcp_current_mss(sk, !(flags&MSG_OOB));
 	size_goal = tp->xmit_size_goal;
 
@@ -725,11 +734,14 @@ new_segment:
 				/* Allocate new segment. If the interface is SG,
 				 * allocate skb fitting to single page.
 				 */
+				 /* 检验是否还有空闲send buffer，若没有则跳到wait_for_sndbuf */
 				if (!sk_stream_memory_free(sk))
 					goto wait_for_sndbuf;
 
+                /* 申请新的sk_buff */
 				skb = sk_stream_alloc_pskb(sk, select_size(sk),
 							   0, sk->sk_allocation);
+				/* 若分配失败，则跳转到wait_for_memory */
 				if (!skb)
 					goto wait_for_memory;
 
@@ -739,22 +751,30 @@ new_segment:
 				if (sk->sk_route_caps & NETIF_F_ALL_CSUM)
 					skb->ip_summed = CHECKSUM_PARTIAL;
 
+                /* 将新分配的skb添加到sk上 */
 				skb_entail(sk, skb);
 				copy = size_goal;
 			}
 
 			/* Try to append data to the end of skb. */
+	        /*
+             调整要复制的字节数，使最多只能复制剩下的字节数seglen。
+             从后面可以看出，seglen逐渐减少
+            */			
 			if (copy > seglen)
 				copy = seglen;
 
 			/* Where to copy to? */
 			if (skb_tailroom(skb) > 0) {
 				/* We have some space in skb head. Superb! */
-				if (copy > skb_tailroom(skb))
-					copy = skb_tailroom(skb);
+				if (copy > skb_tailroom(skb)) /* 如果skb还有空间，则复制到skb中去*/
+					copy = skb_tailroom(skb); // 调整copy的大小，使其不得大于tailroom的空间
+				/* 将数据加到skb中去*/	
 				if ((err = skb_add_data(skb, from, copy)) != 0)
 					goto do_fault;
 			} else {
+			    /* skb中没有空闲空间了 */
+			
 				int merge = 0;
 				int i = skb_shinfo(skb)->nr_frags;
 				struct page *page = TCP_PAGE(sk);
@@ -764,6 +784,7 @@ new_segment:
 				    off != PAGE_SIZE) {
 					/* We can extend the last page
 					 * fragment. */
+					 /* 可以将数据加到最后一个page中 */
 					merge = 1;
 				} else if (i == MAX_SKB_FRAGS ||
 					   (!i &&
@@ -772,24 +793,36 @@ new_segment:
 					 * do this because interface is non-SG,
 					 * or because all the page slots are
 					 * busy. */
+		            /* 
+                    到达此处，表明当前的page无法填充数据。
+                    这时，数据分片达到最大的frag数量，或者不支持Scatter Gather功能。那么都无法继续                     填充。这时，将tcp置为push标志，尽快发送数据
+                    */			 
 					tcp_mark_push(tp, skb);
+					/* 需要申请一个新的skb */
 					goto new_segment;
 				} else if (page) {
 					if (off == PAGE_SIZE) {
+                        /* 
+                        之前的page已经写满.所以该page已经不能再继续填充了，
+                        因此将sk->sk_sndmsg_page和page置为null
+                        */		
 						put_page(page);
 						TCP_PAGE(sk) = page = NULL;
 						off = 0;
 					}
 				} else
-					off = 0;
+					off = 0; //没有可用page，所以offset为0
 
+                /* 调整copy的大小，使之不得大于page剩下的空间 */
 				if (copy > PAGE_SIZE - off)
 					copy = PAGE_SIZE - off;
 
+				/* 判断是否需要等待，直到有许可的内存使用 */
 				if (!sk_stream_wmem_schedule(sk, copy))
 					goto wait_for_memory;
 
 				if (!page) {
+					/* 如当前没有page，则申请一个新的page */
 					/* Allocate new cache page. */
 					if (!(page = sk_stream_alloc_page(sk)))
 						goto wait_for_memory;
@@ -797,12 +830,14 @@ new_segment:
 
 				/* Time to copy data. We are close to
 				 * the end! */
+				 /* 复制数据到当前page */
 				err = skb_copy_to_page(sk, from, skb, page,
 						       off, copy);
 				if (err) {
 					/* If this page was new, give it to the
 					 * socket so it does not get leaked.
 					 */
+					 /* 出错了。则把这个page交给该socket，所以没有内存泄露 */
 					if (!TCP_PAGE(sk)) {
 						TCP_PAGE(sk) = page;
 						TCP_OFF(sk) = 0;
@@ -812,24 +847,32 @@ new_segment:
 
 				/* Update the skb. */
 				if (merge) {
+					/* 如果是复制到已有的page上，那么就更新对应的frags的size */
 					skb_shinfo(skb)->frags[i - 1].size +=
 									copy;
 				} else {
+					/* 这是一个新的page，那么需要填充新的frags的值 */
 					skb_fill_page_desc(skb, i, page, off, copy);
+					/* 增加page的计数，如果该page没有填满，且sock的sk_sndmsg_page没有值，则把当前                      page赋给它 */
 					if (TCP_PAGE(sk)) {
 						get_page(page);
 					} else if (off + copy < PAGE_SIZE) {
 						get_page(page);
 						TCP_PAGE(sk) = page;
 					}
-				}
-
+				}                
+				/* 调整偏移 */
 				TCP_OFF(sk) = off + copy;
 			}
 
+            /* 若没有复制任何数据，则取消PUSH标志 */
 			if (!copied)
 				TCP_SKB_CB(skb)->flags &= ~TCPCB_FLAG_PSH;
 
+			/* 
+			调整sequence
+			注意这里的sequence number并不是tcp包中的sequence number。这里的sequence是tcp内部使用			  的
+			*/
 			tp->write_seq += copy;
 			TCP_SKB_CB(skb)->end_seq += copy;
 			skb_shinfo(skb)->gso_segs = 0;
@@ -843,9 +886,10 @@ new_segment:
 				continue;
 
 			if (forced_push(tp)) {
+				/* 强制push， 即强制发送数据*/
 				tcp_mark_push(tp, skb);
 				__tcp_push_pending_frames(sk, mss_now, TCP_NAGLE_PUSH);
-			} else if (skb == tcp_send_head(sk))
+			} else if (skb == tcp_send_head(sk)) //需要发送该skb
 				tcp_push_one(sk, mss_now);
 			continue;
 
@@ -857,7 +901,8 @@ wait_for_memory:
 
 			if ((err = sk_stream_wait_memory(sk, &timeo)) != 0)
 				goto do_error;
-
+			
+            /* 计算发送MSS */
 			mss_now = tcp_current_mss(sk, !(flags&MSG_OOB));
 			size_goal = tp->xmit_size_goal;
 		}
@@ -870,6 +915,7 @@ out:
 	release_sock(sk);
 	return copied;
 
+/* 下面的都是错误处理 */
 do_fault:
 	if (!skb->len) {
 		tcp_unlink_write_queue(skb, sk);

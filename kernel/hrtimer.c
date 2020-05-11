@@ -1275,7 +1275,7 @@ void hrtimer_interrupt(struct clock_event_device *dev)
 /*
  * HRTIMER_SOFTIRQ软中断处理函数
  * irq_exit()
- *   run_hrtimer_softirq()
+ *  run_hrtimer_softirq()
  */
 static void run_hrtimer_softirq(struct softirq_action *h)
 {

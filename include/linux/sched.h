@@ -945,6 +945,9 @@ struct sched_entity {
 #endif
 };
 
+/*
+ * 进程链表的表头是init_task
+ */
 struct task_struct {
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
 	/* 内核态堆栈 */
@@ -1056,6 +1059,8 @@ struct task_struct {
 	/* PID/PID hash table linkage. 
        链接到struct pid中的tasks数组相应的item上
        三种不同的pid链表 PID, PGID, SID,得到pid对象
+     *
+     * 每个pid_link->pid->tasks[PIDTYPE_MAX] 这么多中链接可以连
 	*/
 	struct pid_link pids[PIDTYPE_MAX];
 	/* 几个进程可以合并成一个进程组 */

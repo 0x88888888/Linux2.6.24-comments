@@ -92,7 +92,7 @@ struct clock_event_device {
 	void			(*set_mode)(enum clock_event_mode mode,
 					    struct clock_event_device *); /*  */
 	void			(*event_handler)(struct clock_event_device *); /*有硬件接口调用， 事件发生后，的回调函数 */
-	void			(*broadcast)(cpumask_t mask);
+	void			(*broadcast)(cpumask_t mask); //接受别的cpu的时钟广播
 	struct list_head	list; /* 链接到clockevent_devices上 */
 	enum clock_event_mode	mode;
 	ktime_t			next_event; /* 下一次事件的绝对时间 */

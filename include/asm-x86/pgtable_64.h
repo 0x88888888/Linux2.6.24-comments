@@ -315,9 +315,12 @@ static inline int pmd_large(pmd_t pte) {
 /*
  * Level 4 access.
  */
+ //pgd为物理地址，
 #define pgd_page_vaddr(pgd) ((unsigned long) __va((unsigned long)pgd_val(pgd) & PTE_MASK))
 #define pgd_page(pgd)		(pfn_to_page(pgd_val(pgd) >> PAGE_SHIFT))
-#define pgd_index(address) (((address) >> PGDIR_SHIFT) & (PTRS_PER_PGD-1))
+//虚拟地址address，在 level4中的索引
+#define pgd_index(address) (((address) >> PGDIR_SHIFT /* 39 */) & (PTRS_PER_PGD /* 512 */ -1))
+//虚拟地址addr在pgd中的物理偏移
 #define pgd_offset(mm, addr) ((mm)->pgd + pgd_index(addr))
 #define pgd_offset_k(address) (init_level4_pgt + pgd_index(address))
 #define pgd_present(pgd) (pgd_val(pgd) & _PAGE_PRESENT)
@@ -325,9 +328,13 @@ static inline int pmd_large(pmd_t pte) {
 
 /* PUD - Level3 access */
 /* to find an entry in a page-table-directory. */
+//pud.val所指向的page的虚拟地址
 #define pud_page_vaddr(pud) ((unsigned long) __va(pud_val(pud) & PHYSICAL_PAGE_MASK))
+//pud.val所指向的page
 #define pud_page(pud)		(pfn_to_page(pud_val(pud) >> PAGE_SHIFT))
-#define pud_index(address) (((address) >> PUD_SHIFT) & (PTRS_PER_PUD-1))
+//虚拟地址address 在pud中的索引
+#define pud_index(address) (((address) >> PUD_SHIFT /* 30 */) & (PTRS_PER_PUD /* 512*/-1))
+//虚拟地址address在pgd中表项中的值，即pud的物理地址
 #define pud_offset(pgd, address) ((pud_t *) pgd_page_vaddr(*(pgd)) + pud_index(address))
 #define pud_present(pud) (pud_val(pud) & _PAGE_PRESENT)
 
@@ -335,7 +342,7 @@ static inline int pmd_large(pmd_t pte) {
 #define pmd_page_vaddr(pmd) ((unsigned long) __va(pmd_val(pmd) & PTE_MASK))
 #define pmd_page(pmd)		(pfn_to_page(pmd_val(pmd) >> PAGE_SHIFT))
 
-#define pmd_index(address) (((address) >> PMD_SHIFT) & (PTRS_PER_PMD-1))
+#define pmd_index(address) (((address) >> PMD_SHIFT ) & (PTRS_PER_PMD-1))
 #define pmd_offset(dir, address) ((pmd_t *) pud_page_vaddr(*(dir)) + \
 			pmd_index(address))
 #define pmd_none(x)	(!pmd_val(x))

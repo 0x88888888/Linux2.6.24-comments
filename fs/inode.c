@@ -1230,6 +1230,10 @@ EXPORT_SYMBOL(iput);
  *	file.
  *
  *  返回inode中的block no在disk上的block no,即从文件block no转成磁盘block no.
+ *
+ * sys_swapon()
+ *  setup_swap_extents()
+ *   bmap()
  */
 sector_t bmap(struct inode * inode, sector_t block)
 {

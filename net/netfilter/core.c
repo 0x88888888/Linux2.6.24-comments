@@ -183,7 +183,11 @@ unsigned int nf_iterate(struct list_head *head,
 	
 		struct nf_hook_ops *elem = (struct nf_hook_ops *)*i;
 
-		/* 优先级不到，所以跳过 */
+		/*
+		规则的优先级判断，目前从NF_HOOK到这里的优先级为INT_MIN，即最小。这种情况下，所以的规则都会被检			查。
+		这个hook_thresh用于保证某些规则在某些挂载点不起作用。
+		搜索NF_HOOK_THRESH关键字，可以发现对于协议NFPROTO_BRIDGE的挂载点NF_BR_PRE_ROUTING，其thr		  eash被设为1，这样保证仅部分规则起作用。
+		*/
 		if (hook_thresh > elem->priority)
 			continue;
 
@@ -194,6 +198,7 @@ unsigned int nf_iterate(struct list_head *head,
 		 */
 		verdict = elem->hook(hook, skb, indev, outdev, okfn);
 		if (verdict != NF_ACCEPT) {
+			/* 不等于ACCEPT，就可能直接返回判定结果 */
 #ifdef CONFIG_NETFILTER_DEBUG
 			if (unlikely((verdict & NF_VERDICT_MASK)
 							> NF_MAX_VERDICT)) {
@@ -202,13 +207,16 @@ unsigned int nf_iterate(struct list_head *head,
 				continue;
 			}
 #endif
+			/* 还需要不能等于NF_REPEAT。也就是说既不能等于NF_ACCEPT和NF_REPEAT，即可直接返回判定结
+			   果，无需后面的判定 */
 			if (verdict != NF_REPEAT) /* 不能再调用其他netfilter函数了 */
 				return verdict;
+			/* 判定结果为NF_REPEAT，则重复这个规则的判定 */
 			*i = (*i)->prev;
 		}
 	}
 
-	//表示接受分组，hook函数没有修改分组，协议链上其余的函数可以继续使用
+	/* 所有判定结果都为NF_ACCEPT，才可返回NF_ACCEPT */
 	return NF_ACCEPT;
 }
 
@@ -239,7 +247,15 @@ int nf_hook_slow(int pf, unsigned int hook, struct sk_buff *skb,
 	/* We may already have this, but read-locks nest anyway */
 	rcu_read_lock();
 
-    //元素类型为nf_hook_ops
+	/*
+	根据协议pf和挂载点类型，取得第一个元素。
+	nf_hooks为一个二维数组，其类型为一个双链表list_head。它最大行数为NFPROTO_NUMPROTO，即支持的协议		最大个数，分别为NFPROTO_UNSPEC，NFPROTO_IPV4，NFPROTO_ARP，NFPROTO_BRIDGE，NFPROTO_IPV6，N
+	FPROTO_DECNET。而最大列数为NF_MAX_HOOKS，即为最大挂载点个数+1。
+	
+	看到这里，我来猜测一下为什么netfilter要区分协议：
+	1. 通过区分协议，简化了数据包的parse过程；
+	2. 指定协议，也方便用户配置。
+	*/
 	elem = &nf_hooks[pf][hook];
 next_hook:
 	/* 
@@ -249,16 +265,25 @@ next_hook:
 			     outdev, &elem, okfn, hook_thresh);
 	
 	if (verdict == NF_ACCEPT || verdict == NF_STOP) {
+	   /* 
+        * 判定是接受或者停止
+        * NF_STOP是2.6中新加入的行为，与NF_ACCEPT类似。区别就是一旦一个判定为NF_STOP,就立刻返回，不会         进行后面的判定。而NF_ACCEPT则还会继续后面的判定
+        */	
 		ret = 1;
 		goto unlock;
 	} else if (verdict == NF_DROP) {
+		/* 该包需要drop */
 		kfree_skb(skb);
 		ret = -EPERM;
 	} else if ((verdict & NF_VERDICT_MASK)  == NF_QUEUE) {
+        /* 
+        判定结果有enque，即将数据包传给用户空间的queue handler。
+        这个的verdict被重用了。低16位被用于存储判定结果，而高16位用于存储enqueue的数量。
+        */
 		NFDEBUG("nf_hook: Verdict = QUEUE.\n");
 		if (!nf_queue(skb, elem, pf, hook, indev, outdev, okfn,
 			      verdict >> NF_VERDICT_BITS))
-			goto next_hook;
+			goto next_hook; //只有在这个elem无效时，nf_queue才会返回0，继续下面的hook判定。
 	}
 unlock:
 	rcu_read_unlock();

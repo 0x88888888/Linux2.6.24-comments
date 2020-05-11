@@ -520,6 +520,7 @@ static struct socket *sock_alloc(void)
 	inode->i_uid = current->fsuid;
 	inode->i_gid = current->fsgid;
 
+    //统计值增加一下
 	get_cpu_var(sockets_in_use)++;
 	put_cpu_var(sockets_in_use);
 	return sock;
@@ -587,9 +588,11 @@ void sock_release(struct socket *sock)
 }
 
 /*
- * sys_sendto()
- *  sock_sendmsg()
- *   __sock_sendmsg()
+ * sys_socketcall()
+ *  sys_send()
+ *   sys_sendto()
+ *    sock_sendmsg()
+ *     __sock_sendmsg()
  */
 static inline int __sock_sendmsg(struct kiocb *iocb, struct socket *sock,
 				 struct msghdr *msg, size_t size)
@@ -617,8 +620,10 @@ static inline int __sock_sendmsg(struct kiocb *iocb, struct socket *sock,
  * 
  * 用户层的数据最终都是以msghdr来描述的。
  *
- * sys_sendto()
- *  sock_sendmsg()
+ * sys_socketcall()
+ *  sys_send()
+ *   sys_sendto()
+ *    sock_sendmsg()
  *
  */
 int sock_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
@@ -627,6 +632,7 @@ int sock_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 	struct sock_iocb siocb;
 	int ret;
 
+    //分配、初始化一个kiocb，整个socket io由这个对象来控制了
 	init_sync_kiocb(&iocb, NULL);
 	iocb.private = &siocb;
 	ret = __sock_sendmsg(&iocb, sock, msg, size);

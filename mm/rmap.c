@@ -354,15 +354,15 @@ static int page_referenced_one(struct page *page,
 
 	/* 清空pte的PAGE_ACCESSED标记 */
 	if (ptep_clear_flush_young(vma, address, pte))
-		referenced++;
+		referenced++;//一次被reference
 
 	/* Pretend the page is referenced if the task has the
 	   swap token and is in the middle of a page fault.
-	   如果进程有交换令牌而且正处于缺页异常处理过程中，则假装被引用
+	   如果mm对应进程有交换令牌而且正处于缺页异常处理过程中，则假装被引用
 	 */
 	if (mm != current->mm && has_swap_token(mm) &&
 			rwsem_is_locked(&mm->mmap_sem))
-		referenced++;
+		referenced++; //又被算一次reference了
 
 	(*mapcount)--;
 	pte_unmap_unlock(pte, ptl);
@@ -395,14 +395,18 @@ static int page_referenced_anon(struct page *page)
 	if (!anon_vma)
 		return referenced;
 
+    //得到page->_mapcount值
 	mapcount = page_mapcount(page);
 	/*
 	 * 遍历得到这个page被referenced的值 
 	 * 遍历vma->anon_vma_node,转成到vm_area_struct保存到vma
+	 *
+	 * 遍历page所在anon_vma上所有的node，这个链表可能会很长？
 	 */
 	list_for_each_entry(vma, &anon_vma->head, anon_vma_node) {
-		referenced += page_referenced_one(page, vma, &mapcount);
-		if (!mapcount)
+	    // 如果page在vma中, 基本上每调用一次，referenced都加 1
+		referenced += page_referenced_one(page, vma, &mapcount); 
+		if (!mapcount) //mapcount==0,说明所有的vma中对应的pte都找过了，没有必要在遍历了
 			break;
 	}
 
@@ -499,6 +503,8 @@ static int page_referenced_file(struct page *page)
  *  page_referenced()
  *
  *  当操作系统进行页面回收时，每扫描到一个页面，就会调用该函数设置页面的 PG_referenced 位。如果一个页面的 PG_referenced 位被置位，但是在一定时间内该页面没有被再次访问，那么该页面的 PG_referenced 位会被清除。
+ *
+ *  通过比那里page->anon_vma->vma_node 或者遍历 page->address_sapce->prio_tree来计算
  */
 int page_referenced(struct page *page, int is_locked)
 {

@@ -1674,8 +1674,12 @@ static int dev_gso_segment(struct sk_buff *skb)
 int dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	if (likely(!skb->next)) { //不是skb链表了
-		
-		if (!list_empty(&ptype_all)) /* 按照AF_PACKET定义的方法处理数据包，可以配合捕获网络数据 */
+
+        /* 按照AF_PACKET定义的方法处理数据包，可以配合捕获网络数据 .
+         *
+         * ptype_all上的协议处理，如tcpdump
+	     */		
+		if (!list_empty(&ptype_all)) 
 			dev_queue_xmit_nit(skb, dev);
 
 		if (netif_needs_gso(dev, skb)) { //是GSO数据包，但是网络设备不支持这种特性
@@ -1845,6 +1849,7 @@ gso:
 	 */
 
     // 得到当前网络设备的排队规则
+    // dev->qdisc在dev_activate中设置
 	q = rcu_dereference(dev->qdisc);
 #ifdef CONFIG_NET_CLS_ACT
 	skb->tc_verd = SET_TC_AT(skb->tc_verd,AT_EGRESS);
@@ -1856,8 +1861,11 @@ gso:
      *
      * 如果排队规程定义了入队操作，就说明已经启用了QoS。
      *　因此将待发送的数据包按排队规则加入到队列中，然后进行流量控制，调度队列数据数据包
+     *
+     * 
      */
 	if (q->enqueue) {
+		/* 一般的dev都应该进入这里 */
 		/* Grab device queue */
 		spin_lock(&dev->queue_lock);
 		q = dev->qdisc;

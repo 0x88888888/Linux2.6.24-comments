@@ -24,6 +24,8 @@
 /*
  * Must be an lvalue. Since @var must be a simple identifier,
  * we force a syntax error here if it isn't.
+ *
+ * 会禁止内核态抢占
  */
 #define get_cpu_var(var) (*({				\
 	extern int simple_identifier_##var(void);	\

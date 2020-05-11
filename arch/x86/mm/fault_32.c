@@ -215,7 +215,9 @@ static noinline void force_sig_info_fault(int si_signo, int si_code,
 }
 
 fastcall void do_invalid_op(struct pt_regs *, unsigned long);
-
+/*
+ * 从init_mm.pgd同步到pgd来
+ */
 static inline pmd_t *vmalloc_sync_one(pgd_t *pgd, unsigned long address)
 {
 	unsigned index = pgd_index(address);
@@ -242,8 +244,10 @@ static inline pmd_t *vmalloc_sync_one(pgd_t *pgd, unsigned long address)
 
 	pmd = pmd_offset(pud, address);
 	pmd_k = pmd_offset(pud_k, address);
+	
 	if (!pmd_present(*pmd_k))
 		return NULL;
+	
 	if (!pmd_present(*pmd)) {
 		set_pmd(pmd, *pmd_k);
 		arch_flush_lazy_mmu_mode();

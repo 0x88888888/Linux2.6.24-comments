@@ -1078,6 +1078,8 @@ int __set_page_dirty_no_writeback(struct page *page)
  *
  * We take care to handle the case where the page was truncated from the
  * mapping by re-checking page_mapping() inside tree_lock.
+ *
+ * 设置page为dirty了，插入到对相应的address_space->page_tree中
  */
 int __set_page_dirty_nobuffers(struct page *page)
 {
@@ -1094,11 +1096,13 @@ int __set_page_dirty_nobuffers(struct page *page)
 			BUG_ON(mapping2 != mapping);
 			WARN_ON_ONCE(!PagePrivate(page) && !PageUptodate(page));
 			if (mapping_cap_account_dirty(mapping)) {
+				//zone的统计信息更新
 				__inc_zone_page_state(page, NR_FILE_DIRTY);
 				__inc_bdi_stat(mapping->backing_dev_info,
 						BDI_RECLAIMABLE);
 				task_io_account_write(PAGE_CACHE_SIZE);
 			}
+			//插入到address_space->page_tree中去
 			radix_tree_tag_set(&mapping->page_tree,
 				page_index(page), PAGECACHE_TAG_DIRTY);
 		}

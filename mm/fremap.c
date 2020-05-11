@@ -20,6 +20,12 @@
 #include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
 
+/*
+ * sys_remap_file_pages()
+ *  populate_range()
+ *   install_file_pte()
+ *    zap_pte()
+ */
 static void zap_pte(struct mm_struct *mm, struct vm_area_struct *vma,
 			unsigned long addr, pte_t *ptep)
 {
@@ -45,7 +51,7 @@ static void zap_pte(struct mm_struct *mm, struct vm_area_struct *vma,
 		}
 	} else {
 		if (!pte_file(pte))
-			free_swap_and_cache(pte_to_swp_entry(pte));
+			free_swap_and_cache(pte_to_swp_entry(pte)); //将page从swapper_space中删除
 		
 		pte_clear_not_present_full(mm, addr, ptep, 0);
 	}

@@ -48,8 +48,8 @@ int pid_max = PID_MAX_DEFAULT;
 
 #define RESERVED_PIDS		300
 
-int pid_max_min = RESERVED_PIDS + 1;
-int pid_max_max = PID_MAX_LIMIT;
+int pid_max_min = RESERVED_PIDS + 1; //301
+int pid_max_max = PID_MAX_LIMIT; //0x8000
 
 #define BITS_PER_PAGE		(PAGE_SIZE*8)
 #define BITS_PER_PAGE_MASK	(BITS_PER_PAGE-1)
@@ -343,6 +343,9 @@ int fastcall attach_pid(struct task_struct *task, enum pid_type type,
 	return 0;
 }
 
+/*
+ * 从task->pids[type]中删除所有相应的task_struct对象
+ */
 void fastcall detach_pid(struct task_struct *task, enum pid_type type)
 {
 	struct pid_link *link;

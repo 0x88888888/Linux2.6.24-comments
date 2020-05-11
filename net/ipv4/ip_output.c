@@ -497,7 +497,8 @@ static void ip_copy_metadata(struct sk_buff *to, struct sk_buff *from)
  *	smaller pieces (each of size equal to IP header plus
  *	a block of the data of the original IP data part) that will yet fit in a
  *	single device frame, and queue such a frame for sending.
- *
+ * 
+ *  ip数据包太大时，需要分片发送
  *
  *  ip_rcv
  *	 ip_rcv_finish
@@ -527,7 +528,8 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 	dev = rt->u.dst.dev;
 
 	/*
-	 *	Point into the IP datagram header.
+	 * Point into the IP datagram header.
+	 * 得到IP报文头的指针
 	 */
 
 	iph = ip_hdr(skb);
@@ -544,9 +546,11 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 	/*
 	 *	Setup starting values.
 	 */
-
+    /* 得到IP报文总长度 */
 	hlen = iph->ihl * 4;
+	/* 这里的mtu为真正的MTU-IP报文头，即允许的最大IP数据长度 */
 	mtu = dst_mtu(&rt->u.dst) - hlen;	/* Size of data space */
+	/* 为这个skb_buff置上分片完成的标志 */
 	IPCB(skb)->flags |= IPSKB_FRAG_COMPLETE;
 
 	/* When frag_list is given, use it. First, check its validity:
@@ -557,6 +561,7 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 	 * we can switch to copy when see the first bad fragment.
 	 *
 	 * 快速分片
+	 * 4层有可能会将数据包分片。这些分片存放在skb的frag_list中
 	 */
 	if (skb_shinfo(skb)->frag_list) {
 		struct sk_buff *frag;
@@ -571,10 +576,11 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 			goto slow_path;
 
         /*
-         * 遍历猴急所有的分片
+         * 遍历所有的分片
          */
 		for (frag = skb_shinfo(skb)->frag_list; frag; frag = frag->next) {
 			/* Correct geometry. */
+		    /* 检查每个分片，如果有一个分片不符合要求，就只能使用slow path */
 			if (frag->len > mtu ||
 			    ((frag->len & 7) && frag->next) ||
 			    skb_headroom(frag) < hlen)
@@ -594,15 +600,19 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 		}
 
 		/* Everything is OK. Generate! 
+		 * 现在可以进行fast path了
          * 重新设置ip头信息
 		 */
 
 		err = 0;
 		offset = 0;
+		/* 拿到frag list */
 		frag = skb_shinfo(skb)->frag_list;
+		/* 重置原来的frag list，相当于从skb_buff上取走了frag list */
 		skb_shinfo(skb)->frag_list = NULL;
 		skb->data_len = first_len - skb_headlen(skb);
 		skb->len = first_len;
+		
 		//设置第一个分片首部的总长度字段和MF标志位
 		iph->tot_len = htons(first_len);
 		iph->frag_off = htons(IP_MF);
@@ -613,9 +623,12 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 			/* Prepare header of the next frame,
 			 * before previous one went down. */
 			if (frag) {
+				/* 表示checksm已经算好*/
 				frag->ip_summed = CHECKSUM_NONE;
+                /* 设置传输层*/
 				skb_reset_transport_header(frag);
 				__skb_push(frag, hlen);
+				/* 设置网络层 */
 				skb_reset_network_header(frag);
 				memcpy(skb_network_header(frag), iph, hlen);
 				iph = ip_hdr(frag);
@@ -628,6 +641,7 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 				if (frag->next != NULL)
 					iph->frag_off |= htons(IP_MF);
 				/* Ready, complete checksum */
+				/* 计算分片的校验和 */
 				ip_send_check(iph);
 			}
 
@@ -674,8 +688,9 @@ slow_path: //慢速分片
 	/*
 	 *	Fragment the datagram.
 	 */
-
+    /* 得到偏移 */ 
 	offset = (ntohs(iph->frag_off) & IP_OFFSET) << 3;
+	/* 通过IP_MF标志位，判断是否是最后一个分片 */
 	not_last_frag = iph->frag_off & htons(IP_MF);
 
 	/*
@@ -683,6 +698,7 @@ slow_path: //慢速分片
 	 */
 
 	while (left > 0) {
+		/* 计算分片长度 */
 		len = left;
 		/* IF: it doesn't fit, use 'mtu' - the data space left */
 		if (len > mtu)
@@ -695,7 +711,7 @@ slow_path: //慢速分片
 		/*
 		 *	Allocate buffer.
 		 */
-
+        /* 为分片申请该分片申请一个sk_buff */
 		if ((skb2 = alloc_skb(len+hlen+ll_rs, GFP_ATOMIC)) == NULL) {
 			NETDEBUG(KERN_INFO "IP: frag: no memory for new fragment!\n");
 			err = -ENOMEM;
@@ -705,7 +721,7 @@ slow_path: //慢速分片
 		/*
 		 *	Set up data on packet
 		 */
-
+        /* 复制数据，以及运输层 */
 		ip_copy_metadata(skb2, skb);
 		skb_reserve(skb2, ll_rs);
 		skb_put(skb2, len + hlen);
@@ -736,6 +752,7 @@ slow_path: //慢速分片
 		/*
 		 *	Fill in the new header fields.
 		 */
+		 /* 填充网络层 */
 		iph = ip_hdr(skb2);
 		iph->frag_off = htons((offset >> 3));
 
@@ -745,6 +762,7 @@ slow_path: //慢速分片
 		 * on the initial skb, so that all the following fragments
 		 * will inherit fixed options.
 		 */
+		 /* 如果是第一个分片， 填充ip option */
 		if (offset == 0)
 			ip_options_fragment(skb);
 
@@ -752,6 +770,7 @@ slow_path: //慢速分片
 		 *	Added AC : If we are fragmenting a fragment that's not the
 		 *		   last fragment then keep MF on each bit
 		 */
+		 /* 设置IP_MF标志位 */
 		if (left > 0 || not_last_frag)
 			iph->frag_off |= htons(IP_MF);
 		ptr += len;
@@ -761,9 +780,9 @@ slow_path: //慢速分片
 		 *	Put this fragment into the sending queue.
 		 */
 		iph->tot_len = htons(len + hlen);
-
+        /* 计算校验和 */
 		ip_send_check(iph);
-
+        /* 发送该分片 */ 
 		err = output(skb2);
 		if (err)
 			goto fail;
@@ -811,8 +830,16 @@ csum_page(struct page *page, int offset, int copy)
 }
 
 /*
- * ip_append_data()
- *  ip_ufo_append_data()
+ * sys_socketcall()
+ *  sys_send()
+ *   sys_sendto()
+ *    sock_sendmsg()
+ *     __sock_sendmsg() ; socket->ops->sendmsg
+ *      inet_sendmsg()
+ *       udp_sendmsg()
+ *        ip_append_data()
+ *         ip_ufo_append_data()
+ *
  *
  * 默认处理是创建新的page，拷贝数据，
  * 并将其链入到skb中的分片(skb_shinfo(skb)->frags)中。
@@ -935,8 +962,14 @@ static inline int ip_ufo_append_data(struct sock *sk,
  *     icmp_glue_bits: 用于复制ICMP报文。
  *
  *
- * udp_sendmsg()
- *  ip_append_data()
+ * sys_socketcall()
+ *  sys_send()
+ *   sys_sendto()
+ *    sock_sendmsg()
+ *     __sock_sendmsg() ; socket->ops->sendmsg
+ *      inet_sendmsg()
+ *       udp_sendmsg()
+ *        ip_append_data()
  *
  * ip_send_reply()
  *  ip_append_data()
@@ -976,7 +1009,6 @@ int ip_append_data(struct sock *sk,
 			 * 存在ip选项数据,要为传输控制块设置一些临时信息，将ip选项信息复制到临时控制块中去。
 			 * 并设置IPCORK_OP,表示临时信息控制块中存在IP选项。
 			 */
-		
 			if (inet->cork.opt == NULL) {
 				// 分配opt数据空间
 				inet->cork.opt = kmalloc(sizeof(struct ip_options) + 40, sk->sk_allocation);
@@ -995,7 +1027,7 @@ int ip_append_data(struct sock *sk,
 		inet->cork.fragsize = mtu = inet->pmtudisc == IP_PMTUDISC_PROBE ?
 					    rt->u.dst.dev->mtu :
 					    dst_mtu(rt->u.dst.path); //dst->metrics[index]
-						
+		//路由				
 		inet->cork.rt = rt;
 		inet->cork.length = 0;
 		sk->sk_sndmsg_page = NULL;

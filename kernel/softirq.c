@@ -257,7 +257,7 @@ restart:
 
 	/* 软中断太多了，还有软中断没有处理完，唤醒另外的ksoftirqd线程 */
 	if (pending)
-		wakeup_softirqd(); /* ksoftirqd */
+		wakeup_softirqd(); /* 唤醒ksoftirqd */
 
 	trace_softirq_exit();
 

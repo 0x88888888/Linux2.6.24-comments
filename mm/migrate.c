@@ -48,6 +48,7 @@
  * do_move_pages()
  *  isolate_lru_page()
  *
+ * 将一个page从各种lru链表中删除，
  *
  *
  */
@@ -61,11 +62,13 @@ int isolate_lru_page(struct page *page, struct list_head *pagelist)
 		spin_lock_irq(&zone->lru_lock);
 		if (PageLRU(page) && get_page_unless_zero(page)) {
 			ret = 0;
-			ClearPageLRU(page);
-			if (PageActive(page))
+			ClearPageLRU(page); //清空lru标记
+			if (PageActive(page)) //active的，从zone->active_list中删除
 				del_page_from_active_list(zone, page);
 			else
-				del_page_from_inactive_list(zone, page);
+				del_page_from_inactive_list(zone, page); //从zone->inactive_list中删除
+
+			//然后添加到pagelist中去
 			list_add_tail(&page->lru, pagelist);
 		}
 		spin_unlock_irq(&zone->lru_lock);

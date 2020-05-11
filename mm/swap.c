@@ -219,6 +219,8 @@ EXPORT_SYMBOL(mark_page_accessed);
  *   lru_cache_add()
  *
  * @page: the page to add
+ *
+ * 将page添加到 per_cpu_var(  lru_add_pvecs )
  */
 void fastcall lru_cache_add(struct page *page)
 {

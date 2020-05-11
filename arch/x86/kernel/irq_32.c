@@ -97,6 +97,7 @@ fastcall unsigned int do_IRQ(struct pt_regs *regs)
 #ifdef CONFIG_DEBUG_STACKOVERFLOW
 	/* Debugging check for stack overflow: is there less than 1KB free? */
 	{
+	   //检查stack有没有 overflow
 		long esp;
 
 		__asm__ __volatile__("andl %%esp,%0" :
@@ -123,6 +124,8 @@ fastcall unsigned int do_IRQ(struct pt_regs *regs)
 	 * already using the IRQ stack (because we interrupted a hardirq
 	 * handler) we can't do that and just have to keep using the
 	 * current stack (which is the irq stack already after all)
+	 *
+	 * 当前stack不是hardirq_ctx[]中的值
 	 */
 	if (curctx != irqctx) {
 		/* 中断可以嵌套，所以需要比较一下，判断是否嵌套的中断 */
@@ -229,7 +232,7 @@ asmlinkage void do_softirq(void)
 	union irq_ctx *irqctx;
 	u32 *isp;
 
-    /* 防止中断嵌套 */ 
+    /* 保证同一CPU上只有一个软中断运行实例 */ 
 	if (in_interrupt()) /* 中断上下文，就返回 */
 		return;
 

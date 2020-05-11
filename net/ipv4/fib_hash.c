@@ -84,6 +84,20 @@ struct fn_zone {
  * can be cheaper than memory lookup, so that FZ_* macros are used.
  *
  * fib_table->tb_data[]指向fn_hash结构
+ *
+ * 路由hash表将路由条目按照掩码长度分到不同的33个fn_zones中，
+ * 掩码长度为0即对应fn_zones[0]，掩码长度为1即fn_zones[1]，
+ * 一直到掩码长度为32，则对应fn_zones[32]。
+ * 而fn_zone_list指向的是最长的有路由条目的fn_zones。
+ * 这样查找路由的时候，通过fn_zone_list顺序查找，从而实现了路由的最佳匹配。
+ *
+ * 比如当前有且只有3条路由,
+1) ip route add 0.0.0.0/0 via 10.1.1.1
+2) ip route add 192.168.3.0/24 via 10.1.1.2
+3) ip route add 192.168.3.155/32 via 10.1.1.3
+路由1存储在fn_zones[0]中，路由2存储在fn_zones[24]，路由3存储在fn_zones[32]中。
+那么此时的fn_zone_list指向的是fn_zones[32]，完整的链表为
+fn_zone_list(即fn_zones[32]).next->fn_zones[24]->fn_zones[0]。
  */
 struct fn_hash {
 	struct fn_zone	*fn_zones[33];
@@ -255,29 +269,37 @@ fn_new_zone(struct fn_hash *table, int z)
 	return fz;
 }
 
+/*
+ * fib_lookup()
+ *  fn_hash_looku()
+ */
 static int
 fn_hash_lookup(struct fib_table *tb, const struct flowi *flp, struct fib_result *res)
 {
 	int err;
 	struct fn_zone *fz;
-	// 得到路由表项管理结构
+	/* 得到真正的route hash表 */
 	struct fn_hash *t = (struct fn_hash*)tb->tb_data;
 
     //根据地址前缀匹配路由表项
 	read_lock(&fib_hash_lock);
+	/* 按顺序从fn_zone中查找路由 */
 	for (fz = t->fn_zone_list; fz; fz = fz->fz_next) {
 		struct hlist_head *head;
 		struct hlist_node *node;
 		struct fib_node *f;
+		/* 计算key，实际就是dst的网络部分 */
 		__be32 k = fz_key(flp->fl4_dst, fz);
-
+        /* 计算hash */
 		head = &fz->fz_hash[fn_hash(k, fz)];
+		/* 在桶中遍历所有路由条目 */
 		hlist_for_each_entry(f, node, head, fn_hash) {
+		    /* 地址网络部分的值不同，该路由肯定不符，跳过 */
 			if (f->fn_key != k)
 				continue;
 
             /*
-             * 根据流flp,从路由表中得到路由条目信息：下一跳，接口等等
+             * 根据流flp,从路由表中得到路由条目信息：下一跳，接口,tos等等
              */
 			err = fib_semantic_match(&f->fn_alias,
 						 flp, res,

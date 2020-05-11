@@ -167,9 +167,12 @@ struct sk_buff *skb_recv_datagram(struct sock *sk, unsigned flags,
 		 */
 		if (flags & MSG_PEEK) {
 			unsigned long cpu_flags;
-
+			/* 
+			 * 当查看socket是否有数据包时，需要上锁，因为需要保证其它线程不会将数据包取走。
+			 */
 			spin_lock_irqsave(&sk->sk_receive_queue.lock,
 					  cpu_flags);
+            /* 查看在socket的buffer中是否有数据包 */
 			skb = skb_peek(&sk->sk_receive_queue);
 			if (skb)
 				atomic_inc(&skb->users);
