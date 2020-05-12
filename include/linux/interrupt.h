@@ -46,6 +46,7 @@
  *                registered first in an shared interrupt is considered for
  *                performance reasons)
  */
+ //在调用irqaction的时候，关闭IF标记
 #define IRQF_DISABLED		0x00000020
 #define IRQF_SAMPLE_RANDOM	0x00000040
 #define IRQF_SHARED		0x00000080

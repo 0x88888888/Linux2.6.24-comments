@@ -2493,6 +2493,10 @@ static struct file_operations proc_cgroupstats_operations = {
  *
  * At the point that cgroup_fork() is called, 'current' is the parent
  * task, and the passed argument 'child' points to the child task.
+ *
+ * do_fork()
+ *  copy_process()
+ *   cgroup_fork()
  */
 void cgroup_fork(struct task_struct *child)
 {

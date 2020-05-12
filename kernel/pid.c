@@ -264,15 +264,16 @@ struct pid *alloc_pid(struct pid_namespace *ns)
 		if (nr < 0)
 			goto out_free;
 
-        //确定upid的成员值
+        //确定pid->upid的成员值
 		pid->numbers[i].nr = nr;
 		pid->numbers[i].ns = tmp;
 		tmp = tmp->parent;
 	}
 
 	get_pid_ns(ns);
-	pid->level = ns->level;
+	pid->level = ns->level;//本pid所在的namespace中的层次
 	atomic_set(&pid->count, 1);
+	
 	for (type = 0; type < PIDTYPE_MAX; ++type)
 		INIT_HLIST_HEAD(&pid->tasks[type]);
 
@@ -330,6 +331,11 @@ EXPORT_SYMBOL_GPL(find_pid);
 
 /*
  * attach_pid() must be called with the tasklist_lock write-held.
+ *
+ * 这个函数实际上建立使用同一个PIDTYPE_PGID, PIDTYPE_SID，PIDTYPE_PID的 链接关系的
+ * do_fork()
+ *  copy_process()
+ *   attach_pid()
  */
 int fastcall attach_pid(struct task_struct *task, enum pid_type type,
 		struct pid *pid)
@@ -345,6 +351,14 @@ int fastcall attach_pid(struct task_struct *task, enum pid_type type,
 
 /*
  * 从task->pids[type]中删除所有相应的task_struct对象
+ *
+ * sys_exit()
+ *  do_exit()
+ *   exit_notify()
+ *    release_task()
+ *     __exit_signal()
+ *      __unhash_process()
+ *       detach_pid()
  */
 void fastcall detach_pid(struct task_struct *task, enum pid_type type)
 {
@@ -416,6 +430,9 @@ struct task_struct *find_task_by_pid_ns(pid_t nr, struct pid_namespace *ns)
 }
 EXPORT_SYMBOL(find_task_by_pid_ns);
 
+/*
+ * 根据type返回三种pid的一种
+ */
 struct pid *get_task_pid(struct task_struct *task, enum pid_type type)
 {
 	struct pid *pid;

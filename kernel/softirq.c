@@ -304,7 +304,7 @@ asmlinkage void do_softirq(void)
  */
 void irq_enter(void)
 {
-	__irq_enter();
+	__irq_enter(); //增加preempt_count,暂时禁止内核态抢占
 	 /* 更新系统时间 */
 #ifdef CONFIG_NO_HZ
 	if (idle_cpu(smp_processor_id()))
@@ -497,9 +497,11 @@ static void tasklet_hi_action(struct softirq_action *a)
 		list = list->next;
 
 		if (tasklet_trylock(t)) {
+			//t->count==0，说明tasklet没有被执行
 			if (!atomic_read(&t->count)) {
 				if (!test_and_clear_bit(TASKLET_STATE_SCHED, &t->state))
 					BUG();
+				//调用
 				t->func(t->data);
 				tasklet_unlock(t);
 				continue;
@@ -508,6 +510,7 @@ static void tasklet_hi_action(struct softirq_action *a)
 		}
 
 		local_irq_disable();
+		
 		t->next = __get_cpu_var(tasklet_hi_vec).list;
 		__get_cpu_var(tasklet_hi_vec).list = t;
 		__raise_softirq_irqoff(HI_SOFTIRQ);

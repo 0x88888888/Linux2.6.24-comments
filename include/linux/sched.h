@@ -1061,6 +1061,11 @@ struct task_struct {
        三种不同的pid链表 PID, PGID, SID,得到pid对象
      *
      * 每个pid_link->pid->tasks[PIDTYPE_MAX] 这么多中链接可以连
+     *
+     *
+	 * 从__unhash_process()调用detach_pid的情况来看，
+	 * 只有group_leader才会链接到	PIDTYPE_PGID和PIDTYPE_SID
+	 * 
 	*/
 	struct pid_link pids[PIDTYPE_MAX];
 	/* 几个进程可以合并成一个进程组 */
@@ -1617,6 +1622,10 @@ void yield(void);
  */
 extern struct exec_domain	default_exec_domain;
 
+/*
+ * 如果thread_union的大小为4K,那么异常、中断、softirq都使用额外的内核栈,hardirq_stack,softirq_stack,irq_ctx
+ * 如果thread_union的大小为8k,那么异常、中断、softirq就使用进程的内核栈
+ */
 union thread_union {
 	struct thread_info thread_info;
 	unsigned long stack[THREAD_SIZE/sizeof(long)];

@@ -130,6 +130,10 @@ irqreturn_t no_action(int cpl, void *dev_id)
  *  generic_handle_irq()
  *   handle_IRQ_event()
  *
+ * do_IRQ()
+ *  handle_edge_irq()
+ *   handle_IRQ_event()
+ *
  * 无论handle_edge_irq还是handle_level_irq，都调用这个通用的中断处理函数
  */
 irqreturn_t handle_IRQ_event(unsigned int irq, struct irqaction *action)
@@ -139,6 +143,7 @@ irqreturn_t handle_IRQ_event(unsigned int irq, struct irqaction *action)
 
 	handle_dynamic_tick(action);
 
+    //清空eflag的IF标记，
 	if (!(action->flags & IRQF_DISABLED))
 		local_irq_enable_in_hardirq();
 
@@ -172,7 +177,7 @@ irqreturn_t handle_IRQ_event(unsigned int irq, struct irqaction *action)
  * This is the original x86 implementation which is used for every
  * interrupt type.
  *
- * do_IRQ调用__do_IRQ函数
+ * 没看到do_IRQ调用__do_IRQ函数
  */
 fastcall unsigned int __do_IRQ(unsigned int irq)
 {

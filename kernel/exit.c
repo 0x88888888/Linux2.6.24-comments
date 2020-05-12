@@ -54,9 +54,18 @@ extern void sem_exit (void);
 
 static void exit_mm(struct task_struct * tsk);
 
+/*
+ * sys_exit()
+ *  do_exit()
+ *   exit_notify()
+ *    release_task()
+ *     __exit_signal()
+ *      __unhash_process()
+ */
 static void __unhash_process(struct task_struct *p)
 {
 	nr_threads--;
+	//从各种PIDTYPE_X链表中删除进程
 	detach_pid(p, PIDTYPE_PID);
 	if (thread_group_leader(p)) {
 		detach_pid(p, PIDTYPE_PGID);
@@ -66,11 +75,18 @@ static void __unhash_process(struct task_struct *p)
 		__get_cpu_var(process_counts)--;
 	}
 	list_del_rcu(&p->thread_group);
+	
 	remove_parent(p);
 }
 
 /*
  * This function expects the tasklist_lock write-locked.
+ *
+ * sys_exit()
+ *  do_exit()
+ *   exit_notify()
+ *    release_task()
+ *     __exit_signal()
  */
 static void __exit_signal(struct task_struct *tsk)
 {
@@ -120,6 +136,7 @@ static void __exit_signal(struct task_struct *tsk)
 		sig = NULL; /* Marker for below. */
 	}
 
+    //退出各种TYPEPID_X
 	__unhash_process(tsk);
 
 	tsk->signal = NULL;
@@ -142,6 +159,12 @@ static void delayed_put_task_struct(struct rcu_head *rhp)
 	put_task_struct(container_of(rhp, struct task_struct, rcu));
 }
 
+/*
+ * sys_exit()
+ *  do_exit()
+ *   exit_notify()
+ *    release_task()
+ */
 void release_task(struct task_struct * p)
 {
 	struct task_struct *leader;
@@ -150,8 +173,9 @@ repeat:
 	atomic_dec(&p->user->processes);
 	proc_flush_task(p);
 	write_lock_irq(&tasklist_lock);
-	ptrace_unlink(p);
+	ptrace_unlink(p);//从调试器上断开
 	BUG_ON(!list_empty(&p->ptrace_list) || !list_empty(&p->ptrace_children));
+	//退出各种TYPEPID_X
 	__exit_signal(p);
 
 	/*
@@ -989,6 +1013,12 @@ static inline void exit_child_reaper(struct task_struct *tsk)
 /*
  * sys_exit()
  *  do_exit()
+ *
+ * sys_exit_group()
+ *  do_group_exit()
+ *   do_exit()
+ *
+ * exit之后，发生schedule,之后会有finish_task_switch来回收这个tsk
  */
 fastcall NORET_TYPE void do_exit(long code)
 {
@@ -1003,7 +1033,7 @@ fastcall NORET_TYPE void do_exit(long code)
 	if (unlikely(in_interrupt()))
 		panic("Aiee, killing interrupt handler!");
 	
-	if (unlikely(!tsk->pid))
+	if (unlikely(!tsk->pid))//0 号进程不允许exit
 		panic("Attempted to kill the idle task!");
 
     /* 如果一个被调试的进程退出，就像父进程(debugger)发送信号 */
@@ -1154,7 +1184,7 @@ fastcall NORET_TYPE void do_exit(long code)
 	/* causes final put_task_struct in finish_task_switch(). */
 	tsk->state = TASK_DEAD;
 
-	schedule();
+	schedule(); //schedule之后会有finish_task_switch来回收这个tsk
 	BUG();
 	/* Avoid "noreturn function does return".  */
 	for (;;)
@@ -1181,6 +1211,10 @@ asmlinkage long sys_exit(int error_code)
 /*
  * Take down every thread in the group.  This is called by fatal signals
  * as well as by sys_exit_group (below).
+ *
+ * sys_exit_group()
+ *  do_group_exit()
+ *
  */
 NORET_TYPE void
 do_group_exit(int exit_code)

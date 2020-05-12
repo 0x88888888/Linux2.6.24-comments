@@ -454,6 +454,11 @@ static inline void rotate_irqs_among_cpus(unsigned long useful_load_threshold)
 	return;
 }
 
+/*
+ * balanced_irq_init()
+ *  balanced_irq()
+ *   do_irq_balance()
+ */
 static void do_irq_balance(void)
 {
 	int i, j;
@@ -638,7 +643,12 @@ not_worth_the_effort:
 }
 
 
-/* 平衡各个cpu之间的中断 */
+/* 平衡各个cpu之间的中断 
+ * kirqd 内核线程
+ *
+ * balanced_irq_init()
+ *  balanced_irq()
+ */
 static int balanced_irq(void *unused)
 {
 	int i;
@@ -657,6 +667,7 @@ static int balanced_irq(void *unused)
 		try_to_freeze();
 		if (time_after(jiffies,
 				prev_balance_time+balanced_irq_interval)) {
+				
 			preempt_disable();
 			do_irq_balance();
 			prev_balance_time = jiffies;

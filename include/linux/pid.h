@@ -6,6 +6,10 @@
 enum pid_type
 {
 	PIDTYPE_PID,
+	/*
+	 * 从__unhash_process()调用detach_pid的情况来看，
+	 * 只有group_leader才会链接到	PIDTYPE_PGID和PIDTYPE_SID
+	 */
 	PIDTYPE_PGID,
 	PIDTYPE_SID,
 	PIDTYPE_MAX
@@ -68,6 +72,10 @@ struct pid
 	  数组中每个数组项都是一个散列表头,对应一个id类型
 
 	  PIDTYPE_PID, PIDTYPE_PGID, PIDTYPE_SID
+	  该pid链接到各个TYPE上去
+	 *
+	* 从__unhash_process()调用detach_pid的情况来看，
+	 * 只有group_leader才会链接到	PIDTYPE_PGID和PIDTYPE_SID 
 	*/
 	struct hlist_head tasks[PIDTYPE_MAX];
 	struct rcu_head rcu;
@@ -147,7 +155,7 @@ extern void zap_pid_ns_processes(struct pid_namespace *pid_ns);
  * see also task_xid_nr() etc in include/linux/sched.h
  */
 
-/* 返回从init进程看到的id值
+/* 返回从init进程(全局pid namespac)看到的id值
 */
 static inline pid_t pid_nr(struct pid *pid)
 {

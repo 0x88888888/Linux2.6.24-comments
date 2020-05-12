@@ -111,6 +111,7 @@ fastcall unsigned int do_IRQ(struct pt_regs *regs)
 #endif
 
 #ifdef CONFIG_4KSTACKS
+    //说明thread_union只有4K大小
 
     /* 当前进程的堆栈 */
 	curctx = (union irq_ctx *) current_thread_info();
@@ -125,7 +126,7 @@ fastcall unsigned int do_IRQ(struct pt_regs *regs)
 	 * handler) we can't do that and just have to keep using the
 	 * current stack (which is the irq stack already after all)
 	 *
-	 * 当前stack不是hardirq_ctx[]中的值
+	 * 当前stack不是hardirq_ctx[]中的值,不是嵌套的中断
 	 */
 	if (curctx != irqctx) {
 		/* 中断可以嵌套，所以需要比较一下，判断是否嵌套的中断 */
@@ -163,6 +164,8 @@ fastcall unsigned int do_IRQ(struct pt_regs *regs)
      * desc->handle_irq设置为handle_level_irq, 或者handle_edge_level
      *
      * handle_level_irq负责调用所有该irq的所有的中断服务例程
+     * handle_edge_irq
+     * 
      */
 	desc->handle_irq(irq, desc);
 

@@ -105,6 +105,14 @@ static inline void ptrace_link(struct task_struct *child,
 	if (unlikely(child->ptrace))
 		__ptrace_link(child, new_parent);
 }
+
+/*
+ * sys_exit()
+ *  do_exit()
+ *   exit_notify()
+ *    release_task()
+ *     ptrace_unlink()
+ */				   
 static inline void ptrace_unlink(struct task_struct *child)
 {
 	if (unlikely(child->ptrace))

@@ -1009,6 +1009,10 @@ __group_send_sig_info(int sig, struct siginfo *info, struct task_struct *p)
 
 /*
  * Nuke all other threads in the group.
+ *
+ * sys_exit_group()
+ *  do_group_exit()
+ *   zap_other_threads()
  */
 void zap_other_threads(struct task_struct *p)
 {
@@ -1024,6 +1028,8 @@ void zap_other_threads(struct task_struct *p)
 		if (t->exit_state)
 			continue;
 
+		// 发送KILL信号
+		
 		/* SIGKILL will be handled before any pending SIGSTOP */
 		sigaddset(&t->pending.signal, SIGKILL);
 		signal_wake_up(t, 1);

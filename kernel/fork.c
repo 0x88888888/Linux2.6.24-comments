@@ -1180,6 +1180,8 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	 * If multiple threads are within copy_process(), then this check
 	 * triggers too late. This doesn't hurt, the check is only there
 	 * to stop root fork bombs.
+	 *
+	 * 
 	 */
 	if (nr_threads >= max_threads)
 		goto bad_fork_cleanup_count;
@@ -1227,7 +1229,7 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	INIT_LIST_HEAD(&p->cpu_timers[1]);
 	INIT_LIST_HEAD(&p->cpu_timers[2]);
 
-	p->lock_depth = -1;		/* -1 = no lock */
+	p->lock_depth = -1;		/* 大内核锁的深度 -1 = no lock */
 	do_posix_clock_monotonic_gettime(&p->start_time);
 	p->real_start_time = p->start_time;
 	monotonic_to_bootbased(&p->real_start_time);
@@ -1641,7 +1643,7 @@ long do_fork(unsigned long clone_flags,
 	long nr;
 
 	if (unlikely(current->ptrace)) {
-		/*父进程正在被调试，子进程也要被调试(trace)状态*/
+		/* 当前进程(父进程)正在被调试，子进程也要被调试(trace)状态*/
 		trace = fork_traceflag (clone_flags);
 		if (trace)
 			clone_flags |= CLONE_PTRACE;
@@ -1692,7 +1694,7 @@ long do_fork(unsigned long clone_flags,
 			p->state = TASK_STOPPED;
 
         /* 如果被调试，就要发送SIGTRAP信号 */
-		if (unlikely (trace)) {
+		if (unlikely (trace)) { //通知调试进程
 			current->ptrace_message = nr;
 			ptrace_notify ((trace << 8) | SIGTRAP);
 		}

@@ -465,7 +465,8 @@ handle_edge_irq(unsigned int irq, struct irq_desc *desc)
 {
 	const unsigned int cpu = smp_processor_id();
 
-	spin_lock(&desc->lock);
+    //防止多个cpu同时处理同一种类型的中断
+	spin_lock(&desc->lock); 
 
 	desc->status &= ~(IRQ_REPLAY | IRQ_WAITING);
 
