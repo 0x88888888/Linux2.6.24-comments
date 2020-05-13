@@ -41,10 +41,13 @@
 #include <linux/wait.h>
 #include <linux/rwsem.h>
 
+/*
+ * 看up,down函数
+ */
 struct semaphore {
     /* 信号量的值 */
 	atomic_t count;
-	int sleepers; /* wait中的等待进程数量 */
+	int sleepers; /* 是否有进程在这个semaphore上等待 */
 	wait_queue_head_t wait; /* 等待进程队列 */
 };
 
@@ -93,6 +96,9 @@ fastcall void __up_wakeup(void /* special register calling convention */);
  * This is ugly, but we want the default case to fall through.
  * "__down_failed" is a special asm handler that calls the C
  * routine that actually waits. See arch/i386/kernel/semaphore.c
+ *
+ * up()
+ *  down()
  */
 static inline void down(struct semaphore * sem)
 {
@@ -103,7 +109,7 @@ static inline void down(struct semaphore * sem)
 		"jns 2f\n"
 		"\tlea %0,%%eax\n\t"
 		"call __down_failed\n"
-		"2:"
+		"2:" //缓存成功了
 		:"+m" (sem->count)
 		:
 		:"memory","ax");
@@ -157,15 +163,17 @@ static inline int down_trylock(struct semaphore * sem)
 /*
  * Note! This is subtle. We jump to wake people up only if
  * the semaphore was negative (== somebody was waiting on it).
+ *
+ * 释放一次semaphore
  */
 static inline void up(struct semaphore * sem)
 {
 	__asm__ __volatile__(
 		"# atomic up operation\n\t"
 		LOCK_PREFIX "incl %0\n\t"     /* ++sem->count */
-		"jg 1f\n\t"
+		"jg 1f\n\t" //如果incl之后是大于0，说明没有进程在等待，无需wake_up
 		"lea %0,%%eax\n\t"
-		"call __up_wakeup\n"
+		"call __up_wakeup\n" //去唤醒等待的进程
 		"1:"
 		:"+m" (sem->count)
 		:

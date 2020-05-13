@@ -163,6 +163,10 @@ __create_workqueue_key(const char *name, int singlethread,
 		       const char *lock_name);
 
 #ifdef CONFIG_LOCKDEP
+/*
+ * create_workqueue()
+ *  __create_workqueue()
+ */
 #define __create_workqueue(name, singlethread, freezeable)	\
 ({								\
 	static struct lock_class_key __key;			\

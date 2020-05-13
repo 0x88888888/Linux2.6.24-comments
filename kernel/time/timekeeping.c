@@ -92,6 +92,10 @@ static inline s64 __get_nsec_offset(void)
  *
  * Returns the time of day in a timespec. Used by
  * do_gettimeofday() and get_realtime_clock_ts().
+ *
+ * sys_gettimeofday()
+ *  do_gettimeofday()
+ *   __get_realtime_clock_ts()
  */
 static inline void __get_realtime_clock_ts(struct timespec *ts)
 {
@@ -127,6 +131,9 @@ EXPORT_SYMBOL(getnstimeofday);
  * @tv:		pointer to the timeval to be set
  *
  * NOTE: Users should be converted to using get_realtime_clock_ts()
+ *
+ * sys_gettimeofday()
+ *  do_gettimeofday()
  */
 void do_gettimeofday(struct timeval *tv)
 {

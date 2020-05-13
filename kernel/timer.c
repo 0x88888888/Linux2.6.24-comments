@@ -647,6 +647,7 @@ static inline void __run_timers(tvec_base_t *base)
 {
 	struct timer_list *timer;
 
+    //获得spinlock,并且禁止本地中断
 	spin_lock_irq(&base->lock);
 
 	//jiffies比 base->timer_jiffies大
@@ -666,6 +667,7 @@ static inline void __run_timers(tvec_base_t *base)
 				(!cascade(base, &base->tv3, INDEX(1))) &&
 					!cascade(base, &base->tv4, INDEX(2)))
 			cascade(base, &base->tv5, INDEX(3));
+		
 		++base->timer_jiffies;
 		/*得到某个jiffies的定时器链表*/
 		list_replace_init(base->tv1.vec + index, &work_list);
@@ -920,6 +922,10 @@ EXPORT_SYMBOL(avenrun);
 /*
  * calc_load - given tick count, update the avenrun load estimates.
  * This is called while holding a write_lock on xtime_lock.
+ *
+ * do_timer
+ *  update_times
+ *   calc_load()
  */
 static inline void calc_load(unsigned long ticks)
 {
@@ -930,6 +936,7 @@ static inline void calc_load(unsigned long ticks)
 	if (unlikely(count < 0)) {
 		active_tasks = count_active_tasks();
 		do {
+			//分别统计1分钟，5分钟，15分钟负载
 			CALC_LOAD(avenrun[0], EXP_1, active_tasks);
 			CALC_LOAD(avenrun[1], EXP_5, active_tasks);
 			CALC_LOAD(avenrun[2], EXP_15, active_tasks);
@@ -950,7 +957,7 @@ static void run_timer_softirq(struct softirq_action *h)
 
 	hrtimer_run_queues(); /* 跑挂在hrtimer_bases[cpuid]->active上的到期定时器 */
 
-	/* 时间比较 */
+	/* 时间比较, base->timer_jiffies < jiffies 才有的跑*/
 	if (time_after_eq(jiffies, base->timer_jiffies))
 		__run_timers(base);/* 跑挂在tvec_bases[cpuid] 上的时间对象 */
 }
@@ -975,11 +982,11 @@ void run_local_timers(void)
  *
  *
  * do_timer
- *   update_times
+ *  update_times
  */
 static inline void update_times(unsigned long ticks)
 {
-	update_wall_time();/* 更新墙上时钟，即系统自启动以来，运行了多久 */
+	update_wall_time();/* 更新墙上时钟(xtimes)，即系统自启动以来，运行了多久 */
 	calc_load(ticks); /* 统计各个cpu的负载 */
 }
 

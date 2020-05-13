@@ -255,6 +255,14 @@ int queue_delayed_work_on(int cpu, struct workqueue_struct *wq,
 }
 EXPORT_SYMBOL_GPL(queue_delayed_work_on);
 
+/*
+ * create_workqueue()
+ *  __create_workqueue()
+ *   __create_workqueue_key()
+ *    ......
+ *     worker_thread()
+ *      run_workqueue()
+ */
 static void run_workqueue(struct cpu_workqueue_struct *cwq)
 {
 	spin_lock_irq(&cwq->lock);
@@ -270,6 +278,7 @@ static void run_workqueue(struct cpu_workqueue_struct *cwq)
 	while (!list_empty(&cwq->worklist)) {
 		struct work_struct *work = list_entry(cwq->worklist.next,
 						struct work_struct, entry);
+		
 		work_func_t f = work->func;
 #ifdef CONFIG_LOCKDEP
 		/*
@@ -291,7 +300,9 @@ static void run_workqueue(struct cpu_workqueue_struct *cwq)
 		work_clear_pending(work); /* 清除WORK_STRUCT_PENDING标记 */
 		lock_acquire(&cwq->wq->lockdep_map, 0, 0, 0, 2, _THIS_IP_);
 		lock_acquire(&lockdep_map, 0, 0, 0, 2, _THIS_IP_);
+		
 		f(work); /*执行注册在work上的函数*/
+		
 		lock_release(&lockdep_map, 1, _THIS_IP_);
 		lock_release(&cwq->wq->lockdep_map, 1, _THIS_IP_);
 
@@ -313,7 +324,16 @@ static void run_workqueue(struct cpu_workqueue_struct *cwq)
 	spin_unlock_irq(&cwq->lock);
 }
 
-/* 执行work_queue的线程函数 */
+/* 执行work_queue的线程函数 
+ *
+ *
+ * create_workqueue()
+ *  __create_workqueue()
+ *   __create_workqueue_key()
+ *    ......
+ *     worker_thread()
+ *
+ */
 static int worker_thread(void *__cwq)
 {
 	struct cpu_workqueue_struct *cwq = __cwq;
@@ -325,11 +345,14 @@ static int worker_thread(void *__cwq)
 	set_user_nice(current, -5);
 
 	for (;;) {
+		//先等待有work_struct到来
 		prepare_to_wait(&cwq->more_work, &wait, TASK_INTERRUPTIBLE);
+		
 		if (!freezing(current) &&
 		    !kthread_should_stop() &&
 		    list_empty(&cwq->worklist))
-			schedule();
+			schedule();//本线程被唤醒，但是没有work_struct可做，就放弃cpu吧
+		
 		finish_wait(&cwq->more_work, &wait);
 
 		try_to_freeze();
@@ -694,6 +717,12 @@ int current_is_keventd(void)
 
 }
 
+/*
+ * create_workqueue()
+ *  __create_workqueue()
+ *   __create_workqueue_key()
+ *    init_cpu_workqueue()
+ */
 static struct cpu_workqueue_struct *
 init_cpu_workqueue(struct workqueue_struct *wq, int cpu)
 {
@@ -707,6 +736,14 @@ init_cpu_workqueue(struct workqueue_struct *wq, int cpu)
 	return cwq;
 }
 
+/*
+ * create_workqueue()
+ *  __create_workqueue()
+ *   __create_workqueue_key()
+ *    create_workqueue_thread()
+ * 
+ *
+ */
 static int create_workqueue_thread(struct cpu_workqueue_struct *cwq, int cpu)
 {
 	struct workqueue_struct *wq = cwq->wq;
@@ -741,6 +778,11 @@ static void start_workqueue_thread(struct cpu_workqueue_struct *cwq, int cpu)
 	}
 }
 
+/*
+ * create_workqueue()
+ *  __create_workqueue()
+ *   __create_workqueue_key()
+ */
 struct workqueue_struct *__create_workqueue_key(const char *name,
 						int singlethread, /* 是否只有一个线程对应本workqueue */
 						int freezeable,
@@ -751,10 +793,12 @@ struct workqueue_struct *__create_workqueue_key(const char *name,
 	struct cpu_workqueue_struct *cwq;
 	int err = 0, cpu;
 
+    //分配一个workqueue对象
 	wq = kzalloc(sizeof(*wq), GFP_KERNEL);
 	if (!wq)
 		return NULL;
 
+    //
 	wq->cpu_wq = alloc_percpu(struct cpu_workqueue_struct);
 	if (!wq->cpu_wq) {
 		kfree(wq);
@@ -767,16 +811,17 @@ struct workqueue_struct *__create_workqueue_key(const char *name,
 	wq->freezeable = freezeable;
 	INIT_LIST_HEAD(&wq->list);
 
-	if (singlethread) {
+	if (singlethread) { //只有一个worker线程
 		
 		cwq = init_cpu_workqueue(wq, singlethread_cpu);
 		/*
-		 * 创建worker thread
+		 * 创建worker thread, worker_thread作为入口函数
 		 */
 		err = create_workqueue_thread(cwq, singlethread_cpu);
 	
 		start_workqueue_thread(cwq, -1);
-	} else {
+	} else { //有NR_CPU个线程
+		
 		mutex_lock(&workqueue_mutex);
 		list_add(&wq->list, &workqueues);
 
@@ -784,10 +829,15 @@ struct workqueue_struct *__create_workqueue_key(const char *name,
          * 每个cpu都有自己的work queue,worker thread
          */
 		for_each_possible_cpu(cpu) {
+		
 			cwq = init_cpu_workqueue(wq, cpu);
 			if (err || !cpu_online(cpu))
 				continue;
+		  /*
+		   * 创建worker thread, worker_thread作为入口函数
+		   */			
 			err = create_workqueue_thread(cwq, cpu);
+			//启动work thread
 			start_workqueue_thread(cwq, cpu);
 		}
 		mutex_unlock(&workqueue_mutex);

@@ -132,6 +132,7 @@ enum hrtimer_restart it_real_fn(struct hrtimer *timer)
 	struct signal_struct *sig =
 		container_of(timer, struct signal_struct, real_timer);
 
+    //发送SIGALRM信号
 	send_group_sig_info(SIGALRM, SEND_SIG_PRIV, sig->tsk);
 
 	return HRTIMER_NORESTART;

@@ -152,6 +152,11 @@ do {								\
 		__raw_spin_lock_flags(&(lock)->raw_lock, *(flags))
 # define _raw_spin_trylock(lock)	__raw_spin_trylock(&(lock)->raw_lock)
 # define _raw_spin_unlock(lock)		__raw_spin_unlock(&(lock)->raw_lock)
+/*
+ * read_lock()
+ *  _read_lock()
+ *   _raw_read_lock()
+ */
 # define _raw_read_lock(rwlock)		__raw_read_lock(&(rwlock)->raw_lock)
 # define _raw_read_trylock(rwlock)	__raw_read_trylock(&(rwlock)->raw_lock)
 # define _raw_read_unlock(rwlock)	__raw_read_unlock(&(rwlock)->raw_lock)

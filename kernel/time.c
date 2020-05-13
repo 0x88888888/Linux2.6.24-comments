@@ -93,6 +93,9 @@ asmlinkage long sys_stime(time_t __user *tptr)
 
 #endif /* __ARCH_WANT_SYS_TIME */
 
+/*
+ * 实际上就是获取xtime的值
+ */
 asmlinkage long sys_gettimeofday(struct timeval __user *tv, struct timezone __user *tz)
 {
 	if (likely(tv != NULL)) {

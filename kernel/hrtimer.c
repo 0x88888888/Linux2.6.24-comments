@@ -922,8 +922,7 @@ remove_hrtimer(struct hrtimer *timer, struct hrtimer_clock_base *base)
  * do_nanosleep() 或者 do_setitimer() 或者 timerfd_setup() 或者start_apic_timer() 或者kvm_migrate_apic_timer()
  *  hrtimer_start()
  */
-int
-hrtimer_start(struct hrtimer *timer, ktime_t tim, const enum hrtimer_mode mode)
+int hrtimer_start(struct hrtimer *timer, ktime_t tim, const enum hrtimer_mode mode)
 {
 	struct hrtimer_clock_base *base, *new_base;
 	unsigned long flags;
@@ -1519,6 +1518,8 @@ long __sched hrtimer_nanosleep_restart(struct restart_block *restart)
 /*
  * sys_nanosleep()
  *  hrtimer_nanosleep()
+ *
+ * 设置hrtimer在run_timer_softirq()中运行了
  */
 long hrtimer_nanosleep(struct timespec *rqtp, struct timespec *rmtp,
 		       const enum hrtimer_mode mode, const clockid_t clockid)
@@ -1554,7 +1555,10 @@ long hrtimer_nanosleep(struct timespec *rqtp, struct timespec *rmtp,
 }
 
 
-/* nanosleep系统调用 */
+/* nanosleep系统调用 
+ *
+ * 设置hrtimer在run_timer_softirq()中运行了
+ */
 asmlinkage long
 sys_nanosleep(struct timespec __user *rqtp, struct timespec __user *rmtp)
 {
@@ -1566,7 +1570,7 @@ sys_nanosleep(struct timespec __user *rqtp, struct timespec __user *rmtp)
 
 	if (!timespec_valid(&tu))
 		return -EINVAL;
-
+   
 	ret = hrtimer_nanosleep(&tu, rmtp ? &rmt : NULL, HRTIMER_MODE_REL,
 				CLOCK_MONOTONIC);
 

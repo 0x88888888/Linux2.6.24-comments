@@ -431,7 +431,10 @@ struct signal_struct {
 	/* POSIX.1b Interval Timers */
 	struct list_head posix_timers;
 
-	/* ITIMER_REAL timer for the process */
+	/* ITIMER_REAL timer for the process 
+	 * 系统调用sys_setitimer来设置这个值
+	 * 回调函数是it_real_fn
+	 */
 	struct hrtimer real_timer;
 	struct task_struct *tsk;
 	ktime_t it_real_incr;

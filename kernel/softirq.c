@@ -91,6 +91,9 @@ static inline void __local_bh_disable(unsigned long ip)
 }
 #endif /* CONFIG_TRACE_IRQFLAGS */
 
+/*
+ * 就是关闭软中断处理
+ */
 void local_bh_disable(void)
 {
 	__local_bh_disable((unsigned long)__builtin_return_address(0));

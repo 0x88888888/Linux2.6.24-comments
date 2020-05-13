@@ -412,12 +412,20 @@ void profile_hits(int type, void *__pc, unsigned int nr_hits)
 
 EXPORT_SYMBOL_GPL(profile_hits);
 
+/*
+ * tick_periodic
+ * tick_nohz_handler
+ * tick_sched_timer
+ *  profile_tick()
+ *
+ */
 void profile_tick(int type)
 {
 	struct pt_regs *regs = get_irq_regs();
 
 	if (type == CPU_PROFILING && timer_hook)
 		timer_hook(regs);
+	
 	if (!user_mode(regs) && cpu_isset(smp_processor_id(), prof_cpu_mask))
 		profile_hit(type, (void *)profile_pc(regs));
 }

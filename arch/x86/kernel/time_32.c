@@ -156,6 +156,9 @@ EXPORT_SYMBOL(profile_pc);
  * timer_action->handler==timer_interrupt
  * irq0->handler=timer_interrupt
  *
+ * 可以看<<深入理解LINUX内核>>p237
+ * timer_interrupt为pit或者hpet时钟的中断服务列程
+ *
  *
  * 此为低分辨率模式下，时钟中断的处理函数
  * 

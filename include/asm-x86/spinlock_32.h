@@ -34,14 +34,18 @@ static inline int __raw_spin_is_locked(raw_spinlock_t *x)
 
 static inline void __raw_spin_lock(raw_spinlock_t *lock)
 {
+    /*
+     * SF置位 1方式：
+     * 如果运算结果为负，即一个数的最高位为1，则SF置1，否则SF清零。
+     */
 	asm volatile("\n1:\t"
-		     LOCK_PREFIX " ; decb %0\n\t"
-		     "jns 3f\n"
+		     LOCK_PREFIX " ; decb %0\n\t"  //lock->slock --
+		     "jns 3f\n"     // --之后flags寄存器的SF==0时，跳转到3。
 		     "2:\t"
 		     "rep;nop\n\t"
-		     "cmpb $0,%0\n\t"
-		     "jle 2b\n\t"
-		     "jmp 1b\n"
+		     "cmpb $0,%0\n\t"  //探测，和0比较
+		     "jle 2b\n\t"      // lock->slock<=0,就跳转到2
+		     "jmp 1b\n"        // 否则说明 lock->slock >0, 跳转到到 1
 		     "3:\n\t"
 		     : "+m" (lock->slock) : : "memory");
 }
@@ -165,13 +169,31 @@ static inline int __raw_write_can_lock(raw_rwlock_t *x)
 {
 	return (x)->lock == RW_LOCK_BIAS;
 }
-
+/*
+ * read_lock()
+ *  _read_lock()
+ *   _raw_read_lock()
+ *    __raw_read_lock()
+ */
 static inline void __raw_read_lock(raw_rwlock_t *rw)
 {
-	asm volatile(LOCK_PREFIX " subl $1,(%0)\n\t"
-		     "jns 1f\n"
+   /*
+    * SF标志寄存器设置方式：
+    * 如果运算结果为负，即一个数的最高位为1，则SF置1，否则SF清零。
+    *
+    * JNS   ;符号位为 "0" 时转移
+    */
+
+		 /**
+		  * 如果减1后，lock值>=0。就说明此时未锁，或者只有读者，申请读锁成功。
+		  */
+	asm volatile(LOCK_PREFIX " subl $1,(%0)\n\t" 
+		     "jns 1f\n" //如果有写者占用锁时，rw->lock的值为0x00000000,减1之后，符号位就设置为1了。
+		      /**
+		      * 此时有写者，申请不成功，转到__read_lock_failed
+		      */  
 		     "call __read_lock_failed\n\t"
-		     "1:\n"
+		     "1:\n" //获取读锁成功
 		     ::"a" (rw) : "memory");
 }
 

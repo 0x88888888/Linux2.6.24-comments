@@ -14,6 +14,7 @@ struct thread_info {
 	struct pcb_struct	pcb;		/* palcode state */
 
 	struct task_struct	*task;		/* main task structure */
+	//这个flags的值看下面的TIF_SYSCALL_TRACE~~~TIF_RESTORE_SIGMASK
 	unsigned int		flags;		/* low level flags */
 	unsigned int		ieee_state;	/* see fpu.h */
 
@@ -74,7 +75,7 @@ register struct thread_info *__current_thread_info __asm__("$8");
 #define TIF_UAC_NOPRINT		5	/* see sysinfo.h */
 #define TIF_UAC_NOFIX		6
 #define TIF_UAC_SIGBUS		7
-#define TIF_MEMDIE		8
+#define TIF_MEMDIE		8    /* 如果thread_info->flags有这个标记，说明进程正在被kill以释放内存 */
 #define TIF_RESTORE_SIGMASK	9	/* restore signal mask in do_signal */
 
 #define _TIF_SYSCALL_TRACE	(1<<TIF_SYSCALL_TRACE)

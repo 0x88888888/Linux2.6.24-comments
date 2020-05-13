@@ -771,6 +771,8 @@ static __kprobes void default_do_nmi(struct pt_regs * regs)
 
 		return;
 	}
+
+	//
 	if (notify_die(DIE_NMI, "nmi", regs, reason, 2, SIGINT) == NOTIFY_STOP)
 		return;
 	if (reason & 0x80)
@@ -788,6 +790,10 @@ static int ignore_nmis;
 
 /*
  * 3号中断
+ *
+ * 不能通过eflags的IF标志来禁止nmi中断
+ * 这个中断是local apic或者io apic来产生的
+ *
  */
 fastcall __kprobes void do_nmi(struct pt_regs * regs, long error_code)
 {

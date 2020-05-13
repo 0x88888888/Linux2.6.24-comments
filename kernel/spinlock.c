@@ -68,6 +68,10 @@ EXPORT_SYMBOL(_write_trylock);
 #if !defined(CONFIG_PREEMPT) || !defined(CONFIG_SMP) || \
 	defined(CONFIG_DEBUG_LOCK_ALLOC)
 
+/*
+ * read_lock()
+ *  _read_lock()
+ */
 void __lockfunc _read_lock(rwlock_t *lock)
 {
 	preempt_disable();
