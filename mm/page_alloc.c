@@ -373,6 +373,12 @@ __page_find_buddy(struct page *page, unsigned long page_idx, unsigned int order)
 {
     /*
      *page_idx号对应buddy的page号
+     * 
+     * 使用(1<<order) 掩码的异或(XOR)装换page_idx第order位的值.
+     * 因此如果这个位原先是0，buddy_idx就等于page_idx + order_size;
+     * 相反，如果这个位原先是1，buddy_idx就等于page_idx - order_size
+     *
+     * 根据这个算法 page_idx = 2, order =0 时， buddy_idx = 2 ^ (1 << 0) = 3
      */
 	unsigned long buddy_idx = page_idx ^ (1 << order);
 
@@ -468,6 +474,13 @@ static inline int page_is_buddy(struct page *page, struct page *buddy,
  * free_hot_cold_page()
  *  free_pages_bulk()
  *   __free_one_page()
+ *
+ * alloc_pages_node()
+ *  __alloc_pages()
+ *   drain_all_local_pages()
+ *    __drain_pages()
+ *     free_pages_bulk()
+ *      __free_one_page()
  *
  * 在free的时候，没有修改migrate type啊
  * 即使buddy合并，也没有修改migrate type,只是从order A 对应的migrate type中移动到 order B对应的migrate type列表中
@@ -569,6 +582,11 @@ static inline int free_pages_check(struct page *page)
  * free_hot_cold_page()
  *  free_pages_bulk()
  *
+ * alloc_pages_node()
+ *  __alloc_pages()
+ *   drain_all_local_pages()
+ *    __drain_pages()
+ *     free_pages_bulk()
  */
 static void free_pages_bulk(struct zone *zone, int count,
 					struct list_head *list, int order)
@@ -617,9 +635,7 @@ static void free_one_page(struct zone *zone, struct page *page, int order)
 	spin_unlock(&zone->lock);
 }
 
-/*
- * __free_pages()
- *  __free_pages_ok()
+/* 
  *
  * start_kernel()
  *  mem_init()
@@ -628,6 +644,17 @@ static void free_one_page(struct zone *zone, struct page *page, int order)
  *     __free_pages_bootmem()
  *      __free_pages()
  *       __free_pages_ok()
+ *
+ * cpucache_init()
+ *  start_cpu_timer()
+ *   ......
+ *    cache_reap()
+ *     drain_freelist()
+ *      slab_destroy()
+ *       kmem_freepages()
+ *        free_pages()
+ *         __free_pages()
+ *          __free_pages_ok()
  */
 static void __free_pages_ok(struct page *page, unsigned int order)
 {
@@ -1456,7 +1483,7 @@ again:
 
 	VM_BUG_ON(bad_range(zone, page));
 
-	/* 重新设置页的标记之类的准备工作 */
+	/* 重新设置页的flags, private,count之类的准备工作 */
 	if (prep_new_page(page, order, gfp_flags))
 		goto again;
 	return page;
@@ -1579,6 +1606,11 @@ static inline int should_fail_alloc_page(gfp_t gfp_mask, unsigned int order)
  * 确定是否可以从zone获得内存
  * Return 1 if free pages are above 'mark'. This takes into account the order
  * of the allocation.
+ *
+ * alloc_pages_node()
+ *  __alloc_pages()
+ *   get_page_from_freelist()
+ *    zone_watermark_ok()
  */
 int zone_watermark_ok(struct zone *z, int order, unsigned long mark,
 		      int classzone_idx, int alloc_flags)
@@ -1781,6 +1813,7 @@ zonelist_scan:
 	 */
 	z = zonelist->zones;
 
+    //遍历各个zone，尝试分配
 	do { 
 		/*
 		 * In NUMA, this could be a policy zonelist which contains
@@ -1811,7 +1844,7 @@ zonelist_scan:
 		if (!(alloc_flags & ALLOC_NO_WATERMARKS)) {
 			unsigned long mark;
 			
-			/* 确定mark */
+			/* 确定mark，用于检测zone中空闲page的底线 */
 			if (alloc_flags & ALLOC_WMARK_MIN)
 				mark = zone->pages_min;
 			else if (alloc_flags & ALLOC_WMARK_LOW)
@@ -1833,6 +1866,7 @@ zonelist_scan:
 		page = buffered_rmqueue(zonelist, zone, order, gfp_mask);
 		if (page)
 			break;
+		
 this_zone_full:
 		if (NUMA_BUILD)
 			zlc_mark_zone_full(zonelist, z);
@@ -1879,7 +1913,8 @@ __alloc_pages(gfp_t gfp_mask, unsigned int order,
 
 	might_sleep_if(wait);
 
-	if (should_fail_alloc_page(gfp_mask, order))
+    //一些参数合法检测
+ 	if (should_fail_alloc_page(gfp_mask, order))
 		return NULL;
 
 restart:
@@ -2007,7 +2042,7 @@ nofail_alloc:
 	if (!wait)
 		goto nopage;
 
-    /* 先释放cpu */
+    /* 先释放cpu ,让给kswapd进程执行*/
 	cond_resched();
 
 	/* We now go into synchronous reclaim 
@@ -2015,7 +2050,7 @@ nofail_alloc:
 	*/
 	cpuset_memory_pressure_bump();
 
-	//需要释放一部分物理内存了
+	//需要kill掉进程，释放一部分物理内存了
 	p->flags |= PF_MEMALLOC;
 	reclaim_state.reclaimed_slab = 0;
 	p->reclaim_state = &reclaim_state;
@@ -2168,6 +2203,16 @@ void __pagevec_free(struct pagevec *pvec)
  *    free_all_bootmem_core()
  *     __free_pages_bootmem()
  *      __free_pages()
+ *
+ * cpucache_init()
+ *  start_cpu_timer()
+ *   ......
+ *    cache_reap()
+ *     drain_freelist()
+ *      slab_destroy()
+ *       kmem_freepages()
+ *        free_pages()
+ *         __free_pages()
  */
 fastcall void __free_pages(struct page *page, unsigned int order)
 {
@@ -2183,6 +2228,16 @@ fastcall void __free_pages(struct page *page, unsigned int order)
 
 EXPORT_SYMBOL(__free_pages);
 
+/*
+ * cpucache_init()
+ *  start_cpu_timer()
+ *   ......
+ *    cache_reap()
+ *     drain_freelist()
+ *      slab_destroy()
+ *       kmem_freepages()
+ *        free_pages()
+ */
 fastcall void free_pages(unsigned long addr, unsigned int order)
 {
 	if (addr != 0) {

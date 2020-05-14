@@ -5,11 +5,13 @@
  *   kmap函数只是一个前端，用于确定指定的页是否确实在高端内存域中
  *
  * 高端物理地址需要用kmap来映射，返回一个内核的3G+892M之上的内核虚拟内存地址
+ *
+ * 和kmap_atomic比较，kmap是会sleep的，不可以在中断处理程序中使用
  */
 void *kmap(struct page *page)
 {
 	might_sleep();
-	if (!PageHighMem(page))
+	if (!PageHighMem(page)) //并非高端物理page
 		return page_address(page);
 	
 	return kmap_high(page);
@@ -44,7 +46,7 @@ void *kmap_atomic_prot(struct page *page, enum km_type type, pgprot_t prot)
 	/* even !CONFIG_PREEMPT needs this, for in_atomic in do_page_fault */
 	pagefault_disable();
 
-	if (!PageHighMem(page))
+	if (!PageHighMem(page))//非高端物理内存的page
 		return page_address(page);
 
 	/* 不同的cpu，被分配的页不一样 */
@@ -59,6 +61,8 @@ void *kmap_atomic_prot(struct page *page, enum km_type type, pgprot_t prot)
 
 /* fixed map(固定映射)
  * 不睡眠
+ *
+ * 和kmap对比，这个函数是不会sleep的，可以在中断中使用
  */
 void *kmap_atomic(struct page *page, enum km_type type)
 {

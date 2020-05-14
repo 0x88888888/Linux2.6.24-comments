@@ -1887,6 +1887,11 @@ static int kswapd(void *p)
 
 /*
  * A zone is low on free memory, so wake its kswapd task to service it.
+ *
+ * alloc_pages_node()
+ *  __alloc_pages()
+ *   wakeup_kswapd()
+ *
  */
 void wakeup_kswapd(struct zone *zone, int order)
 {
@@ -1898,10 +1903,13 @@ void wakeup_kswapd(struct zone *zone, int order)
 	pgdat = zone->zone_pgdat;
 	if (zone_watermark_ok(zone, order, zone->pages_low, 0, 0))
 		return;
+	
 	if (pgdat->kswapd_max_order < order)
 		pgdat->kswapd_max_order = order;
+	
 	if (!cpuset_zone_allowed_hardwall(zone, GFP_KERNEL))
 		return;
+	
 	if (!waitqueue_active(&pgdat->kswapd_wait))
 		return;
 	wake_up_interruptible(&pgdat->kswapd_wait);

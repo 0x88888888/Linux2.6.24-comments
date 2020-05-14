@@ -228,7 +228,7 @@ typedef unsigned int kmem_bufctl_t;
 struct slab {
 	struct list_head list;   // 用于将slab链入kmem_list3的链表
 	unsigned long colouroff;  // Slab中第一个对象的偏移 
-	void *s_mem;		/* 指向slab中的第一个对象 including colour offset */
+	void *s_mem;		/* 指向slab中的第一个对象(已被分配或者未被分配)including colour offset */
 	unsigned int inuse;	/* 已分配出去的对象, num of objs active in slab */
 	kmem_bufctl_t free;  // 下一个空闲对象的下标
 	unsigned short nodeid;  // 节点标识号
@@ -312,7 +312,7 @@ struct arraycache_init {
  */
 struct kmem_list3 {
     /*
-     * 链接slab对象
+     * 链接slab对象,链接到slab->list
      */
 	struct list_head slabs_partial;	/* 部分空闲链表 partial list first, better asm code */
 	struct list_head slabs_full;    /* 全满 */
@@ -1084,6 +1084,7 @@ static void __cpuinit start_cpu_timer(int cpu)
 	 */
 	if (keventd_up() && reap_work->work.func == NULL) {
 		init_reap_node(cpu);
+		//设置cache_reap为回调函数
 		INIT_DELAYED_WORK(reap_work, cache_reap);
 		schedule_delayed_work_on(cpu, reap_work,
 					__round_jiffies_relative(HZ, cpu));
@@ -2011,6 +2012,14 @@ static void *kmem_getpages(struct kmem_cache *cachep, gfp_t flags, int nodeid)
 
 /*
  * Interface to system's page release.
+ *
+ * cpucache_init()
+ *  start_cpu_timer()
+ *   ......
+ *    cache_reap()
+ *     drain_freelist()
+ *      slab_destroy()
+ *       kmem_freepages()
  */
 static void kmem_freepages(struct kmem_cache *cachep, void *addr)
 {
@@ -2265,6 +2274,13 @@ static void slab_destroy_objs(struct kmem_cache *cachep, struct slab *slabp)
  * Destroy all the objs in a slab, and release the mem back to the system.
  * Before calling the slab must have been unlinked from the cache.  The
  * cache-lock is not held/needed.
+ *
+ * cpucache_init()
+ *  start_cpu_timer()
+ *   ......
+ *    cache_reap()
+ *     drain_freelist()
+ *      slab_destroy()
  */
 static void slab_destroy(struct kmem_cache *cachep, struct slab *slabp)
 {
@@ -3020,6 +3036,12 @@ static void drain_cpu_caches(struct kmem_cache *cachep)
  * Specify the number of slabs to drain in tofree.
  *
  * Returns the actual number of slabs released.
+ *
+ * cpucache_init()
+ *  start_cpu_timer()
+ *   ......
+ *    cache_reap()
+ *     drain_freelist()
  */
 static int drain_freelist(struct kmem_cache *cache,
 			struct kmem_list3 *l3, int tofree)
@@ -3038,6 +3060,7 @@ static int drain_freelist(struct kmem_cache *cache,
 			goto out;
 		}
 
+        //删除slab，归还slab所占的page
 		slabp = list_entry(p, struct slab, list);
 #if DEBUG
 		BUG_ON(slabp->inuse);
@@ -4889,6 +4912,11 @@ void drain_array(struct kmem_cache *cachep, struct kmem_list3 *l3,
  *
  * If we cannot acquire the cache chain mutex then just give up - we'll try
  * again on the next iteration.
+ *
+ * cpucache_init()
+ *  start_cpu_timer()
+ *   ......
+ *    cache_reap()
  */
 static void cache_reap(struct work_struct *w)
 {

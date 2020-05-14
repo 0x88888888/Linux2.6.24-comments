@@ -291,6 +291,8 @@ struct zone {
 	 * to run OOM on the lower zones despite there's tons of freeable ram
 	 * on the higher zones). This array is recalculated at runtime if the
 	 * sysctl_lowmem_reserve_ratio sysctl changes.
+	 *
+	 *
 	 * 预留的关键page数量，在紧急时刻使用,确保无论如何都不能分配失败。
 	 * 可以使用我(本zone)的内存，但是必须要保留lowmem_reserve[NORMAL]给我自己使用。
 	 */
@@ -702,7 +704,10 @@ typedef struct   {
 	                                     total size of physical page
 					                     range, including holes */
 	int node_id;                      /* 全局结点ID，系统中的NUMA结点都从0开始编号 */       
-	wait_queue_head_t kswapd_wait;    /* swap进程的等待队列,在将页帧换出节点时会用到 */
+    /* swap进程的等待队列,在将页帧换出节点时会用到,
+    在kswapd()中将kswapd线程挂到这个链表上等待，
+    在wakeup_kswapd()中唤醒kswapd线程 */							 
+	wait_queue_head_t kswapd_wait;    
 	struct task_struct *kswapd;       /* 指向负责该节点的交换守护进程的task_struct. */
 	int kswapd_max_order;             /* 用于交换子系统的实现，定义需要释放的区域的长度 */
 } pg_data_t;

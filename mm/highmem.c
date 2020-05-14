@@ -68,12 +68,17 @@ unsigned int nr_free_highpages (void)
  * 1表示该位置关联的页已经映射,但由于cpu和tlb没有更新而无法使用，此时访问改页，或者失败，或者会访问到一个不正确的地址
  *
  * LAST_PKMAP 在没有PAE的情况下是1024
+ * 
+ * 看pkmap_page_table的注释
 */
 static int pkmap_count[LAST_PKMAP];
 
 static unsigned int last_pkmap_nr;
 static  __cacheline_aligned_in_smp DEFINE_SPINLOCK(kmap_lock);
 
+//用于映射高端物理内存的内核线性地址的pte，一个有1024或者512项这种pte
+// 在permanent_kmaps_init()中初始化
+// 每一项被引用的计数在pkmap_count[]中与之一一对应
 pte_t * pkmap_page_table;
 
 /* 等待队列  */
@@ -145,11 +150,13 @@ static inline unsigned long map_new_virtual(struct page *page)
 
 start:
 	count = LAST_PKMAP;
-	/* Find an empty entry */
+	/* Find an empty entry 
+	 * 在pkmap_count[]中找到一个没有被使用的entry
+	 */
 	for (;;) {
 		/*  内核将上次使用过的页表项的索引保存在last_pkmap_nr变量中,避免了重复查找 */
 		last_pkmap_nr = (last_pkmap_nr + 1) & LAST_PKMAP_MASK;
-		if (!last_pkmap_nr) {
+		if (!last_pkmap_nr) {//last_pkmap_nr==0了，
 			flush_all_zero_pkmaps(); /* 页表项已经被修改，所以需要重新加载页表 */
 			count = LAST_PKMAP;
 		}
@@ -157,12 +164,12 @@ start:
 		if (!pkmap_count[last_pkmap_nr]) /* 如果找到计数器为0的，则获得这个页表项对应的页表的线性地址 */
 			break;	/* Found a usable entry */
 		
-		if (--count)
+		if (--count) // count!=0的时候，一直continue
 			continue;
 
 		/*
 		 * Sleep for somebody else to unmap their entries
-		 * kmap会导致进程阻塞
+		 * count==0了， 本进程睡眠，kmap会导致进程阻塞
 		 */
 		{
 			DECLARE_WAITQUEUE(wait, current);
@@ -211,6 +218,8 @@ void fastcall *kmap_high(struct page *page)
 	 * after we have the lock.
 	 *
 	 * We cannot call this from interrupts, as it may block
+	 *
+	 * 
 	 */
 	spin_lock(&kmap_lock);
 

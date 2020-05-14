@@ -340,6 +340,9 @@ struct rq {
 	unsigned int clock_warps, clock_overflows;
 	u64 idle_clock;
 	unsigned int clock_deep_idle_events;
+	/*
+	 * 在scheduler_tick()中重新设置
+	 */
 	u64 tick_timestamp;
 
 	atomic_t nr_iowait;
@@ -419,6 +422,10 @@ static inline int cpu_of(struct rq *rq)
  * 对就绪队列的时钟更新
  * Update the per-runqueue clock, as finegrained as the platform can give
  * us, but without assuming monotonicity, etc.:
+ *
+ * update_process_times()
+ *  scheduler_tick()  
+ *   __update_rq_clock()
  */
 static void __update_rq_clock(struct rq *rq)
 {
@@ -1671,17 +1678,19 @@ static int try_to_wake_up(struct task_struct *p, unsigned int state, int sync)
 	int new_cpu;
 #endif
 
-	rq = task_rq_lock(p, &flags);
+    // 关中断，获得锁
+ 	rq = task_rq_lock(p, &flags);
+
 	old_state = p->state;
-	if (!(old_state & state))
+	if (!(old_state & state)) //不是预期的state
 		goto out;
 
-	if (p->se.on_rq)
+	if (p->se.on_rq) //已经在可运行队列了
 		goto out_running;
 
-	cpu = task_cpu(p);
+	cpu = task_cpu(p);//以前运行的cpu
 	orig_cpu = cpu;
-	this_cpu = smp_processor_id();
+	this_cpu = smp_processor_id();//当前的cpu
 
 #ifdef CONFIG_SMP
 	if (unlikely(task_running(rq, p)))
@@ -1690,7 +1699,7 @@ static int try_to_wake_up(struct task_struct *p, unsigned int state, int sync)
 	new_cpu = cpu;
 
 	schedstat_inc(rq, ttwu_count);
-	if (cpu == this_cpu) {
+	if (cpu == this_cpu) {//依旧在同一个cpu
 		schedstat_inc(rq, ttwu_local);
 		goto out_set_cpu;
 	}
@@ -1771,7 +1780,7 @@ static int try_to_wake_up(struct task_struct *p, unsigned int state, int sync)
 	new_cpu = cpu; /* Could not wake to this_cpu. Wake to cpu instead */
 out_set_cpu:
 	new_cpu = wake_idle(new_cpu, p);
-	if (new_cpu != cpu) {
+	if (new_cpu != cpu) { //在不同的cpu了
 		set_task_cpu(p, new_cpu);
 		task_rq_unlock(rq, &flags);
 		/* might preempt at this point */
@@ -1779,6 +1788,7 @@ out_set_cpu:
 		old_state = p->state;
 		if (!(old_state & state))
 			goto out;
+		
 		if (p->se.on_rq)
 			goto out_running;
 
@@ -1793,11 +1803,15 @@ out_activate:
 		schedstat_inc(p, se.nr_wakeups_sync);
 	if (orig_cpu != cpu)
 		schedstat_inc(p, se.nr_wakeups_migrate);
+	
 	if (cpu == this_cpu)
 		schedstat_inc(p, se.nr_wakeups_local);
 	else
 		schedstat_inc(p, se.nr_wakeups_remote);
+
+	//更新rq->clock
 	update_rq_clock(rq);
+	//进入可运行队列
 	activate_task(rq, p, 1);
 	check_preempt_curr(rq, p);
 	success = 1;
@@ -2553,6 +2567,13 @@ out:
  *  rebalance_domains()
  *   load_balance()
  *    move_tasks()
+ *
+ * schedule()
+ *  idle_balance()
+ *   load_balance_newidle()
+ *    move_tasks()
+ *
+ * 从busiest上迁移一部进程到this_rq上来运行
  */
 static int move_tasks(struct rq *this_rq, int this_cpu, struct rq *busiest,
 		      unsigned long max_load_move,
@@ -3002,6 +3023,7 @@ static int load_balance(int this_cpu, struct rq *this_rq,
 	schedstat_inc(sd, lb_count[idle]);
 
 redo:
+	//工作量最大的那个group
 	group = find_busiest_group(sd, this_cpu, &imbalance, idle, &sd_idle,
 				   &cpus, balance);
 
@@ -3134,6 +3156,10 @@ out_one_pinned:
  *
  * Called from schedule when this_rq is about to become idle (CPU_NEWLY_IDLE).
  * this_rq is locked.
+ *
+ * schedule()
+ *  idle_balance()
+ *   load_balance_newidle()
  */
 static int
 load_balance_newidle(int this_cpu, struct rq *this_rq, struct sched_domain *sd)
@@ -3158,6 +3184,7 @@ load_balance_newidle(int this_cpu, struct rq *this_rq, struct sched_domain *sd)
 
 	schedstat_inc(sd, lb_count[CPU_NEWLY_IDLE]);
 redo:
+	//load最繁重的sched_group
 	group = find_busiest_group(sd, this_cpu, &imbalance, CPU_NEWLY_IDLE,
 				   &sd_idle, &cpus, NULL);
 	if (!group) {
@@ -3165,6 +3192,7 @@ redo:
 		goto out_balanced;
 	}
 
+    //load最繁重的rq
 	busiest = find_busiest_queue(group, CPU_NEWLY_IDLE, imbalance,
 				&cpus);
 	if (!busiest) {
@@ -3182,6 +3210,7 @@ redo:
 		double_lock_balance(this_rq, busiest);
 		/* this_rq->clock is already updated */
 		update_rq_clock(busiest);
+	
 		ld_moved = move_tasks(this_rq, this_cpu, busiest,
 					imbalance, sd, CPU_NEWLY_IDLE,
 					&all_pinned);
@@ -3217,6 +3246,9 @@ out_balanced:
 /*
  * idle_balance is called by schedule() if this_cpu is about to become
  * idle. Attempts to pull tasks from other CPUs.
+ *
+ * schedule()
+ *  idle_balance()
  */
 static void idle_balance(int this_cpu, struct rq *this_rq)
 {
@@ -3461,6 +3493,12 @@ out:
  * run_rebalance_domains is triggered when needed from the scheduler tick.
  * In CONFIG_NO_HZ case, the idle load balance owner will do the
  * rebalancing for all the cpus for whom scheduler ticks are stopped.
+ *
+ * update_process_times()
+ *  scheduler_tick() 
+ *   trigger_load_balance()
+ *    ......
+ *     run_rebalance_domains()
  *
  * 由函数trigger_load_balance触发SCHEDULE_SOFTIRQ软中断来执行
  */
@@ -3921,13 +3959,15 @@ need_resched:
 	// 当前进程的切换次数
 	switch_count = &prev->nivcsw;
 
+    //如果prev占有大内核锁，需要释放大内核锁
 	release_kernel_lock(prev);
 need_resched_nonpreemptible:
 
-	schedule_debug(prev);
+	schedule_debug(prev); //统计信息
 
 	/*
 	 * Do the rq-clock update outside the rq lock:
+	 * 关中断
 	 */
 	local_irq_disable();
 	// 更新就绪队列上的时钟 rq->clock
@@ -3963,7 +4003,8 @@ need_resched_nonpreemptible:
 		switch_count = &prev->nvcsw;
 	}
 
-	if (unlikely(!rq->nr_running))
+    //如果没有可运行的进程了，就调用idle_balance，去别的cpu迁移一些进程过来运行
+	if (unlikely(!rq->nr_running)) 
 		idle_balance(cpu, rq);
 
     /* 首先通知调度器类当前运行的进程将要被另一个进程替换 
@@ -4409,6 +4450,7 @@ void rt_mutex_setprio(struct task_struct *p, int prio)
  * sys_nice()
  *  set_user_nice()
  *
+ * 设置current->static_prio
  */
 void set_user_nice(struct task_struct *p, long nice)
 {
@@ -4430,7 +4472,7 @@ void set_user_nice(struct task_struct *p, long nice)
 	 * it wont have any effect on scheduling until the task is
 	 * SCHED_FIFO/SCHED_RR:
 	 *
-	 * RT进程
+	 * RT进程,只设置到static_prio，就退出了
 	 */
 	if (task_has_rt_policy(p)) {
 		p->static_prio = NICE_TO_PRIO(nice);
@@ -4450,6 +4492,7 @@ void set_user_nice(struct task_struct *p, long nice)
 	/* 根据优先级设置权重 */
 	set_load_weight(p);
 	old_prio = p->prio;
+	//重新计算prio
 	p->prio = effective_prio(p);
 	delta = p->prio - old_prio;
 
@@ -4493,6 +4536,8 @@ int can_nice(const struct task_struct *p, const int nice)
  *
  * sys_setpriority is a more generic, but much slower function that
  * does similar things.
+ *
+ * 设置current->static_prio
  */
 asmlinkage long sys_nice(int increment)
 {

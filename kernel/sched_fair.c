@@ -844,11 +844,14 @@ static void entity_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 {
 	/*
 	 * Update run-time statistics of the 'current'.
+	 *
+	 * 更新current->vruntime
+	 *     current->exec_start
 	 */
 	update_curr(cfs_rq);
     /* 如果就绪队列中的进程数量>1，需要检查当前进程的时间片是否到期 */
 	if (cfs_rq->nr_running > 1 || !sched_feat(WAKEUP_PREEMPT))
-		check_preempt_tick(cfs_rq, curr);
+		check_preempt_tick(cfs_rq, curr);//设置curr->flags的TIF_NEED_RESCHED
 }
 
 /**************************************************

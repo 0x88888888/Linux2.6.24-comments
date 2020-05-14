@@ -967,7 +967,7 @@ struct task_struct {
 #endif
 #endif
 
-	int prio /* 动态优先级*/, static_prio/* 普通优先级 */, normal_prio /* 普通优先级 */;
+	int prio /* 动态优先级*/, static_prio/* 静态优先级 */, normal_prio /* 普通优先级 */;
 	struct list_head run_list;
 	/*
 	 * 调度器类,rt_sched_class ,fair_sched_class ,idle_sched_class

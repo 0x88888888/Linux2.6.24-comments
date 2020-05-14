@@ -21,8 +21,11 @@
  */
 struct cache_sizes {
 	size_t		 	cs_size; //cache的object大小
+
+	//适用于普通的kmalloc
 	struct kmem_cache	*cs_cachep;
 #ifdef CONFIG_ZONE_DMA
+    //适用于在dma中分配小内存
 	struct kmem_cache	*cs_dmacachep;
 #endif
 };
