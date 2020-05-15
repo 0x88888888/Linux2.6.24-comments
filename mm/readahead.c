@@ -101,6 +101,18 @@ EXPORT_SYMBOL(read_cache_pages);
  *        ondemand_readahead()
  *         __do_page_cache_readahead()
  *          read_pages()
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       page_cache_sync_readahead()
+ *        ondemand_readahead()
+ *         ra_submit()
+ *          __do_page_cache_readahead()
+ *           read_pages()
  * 
  * nr_pages为链表pages的长度
  */
@@ -193,6 +205,17 @@ out:
  *      filemap_fault()
  *       do_page_cache_readahead() 
  *        __do_page_cache_readahead()
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       page_cache_sync_readahead()
+ *        ondemand_readahead()
+ *         ra_submit()
+ *          __do_page_cache_readahead()
  */
 static int
 __do_page_cache_readahead(struct address_space *mapping, struct file *filp,
@@ -339,6 +362,16 @@ subsys_initcall(readahead_init);
  *        ondemand_readahead()
  *         ra_submit()
  *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       page_cache_sync_readahead()
+ *        ondemand_readahead()
+ *         ra_submit()
+ *
  * 根据file_ra_state对象，进行预读
  */
 static unsigned long ra_submit(struct file_ra_state *ra,
@@ -470,6 +503,15 @@ static unsigned long get_next_ra_size(struct file_ra_state *ra,
  *     do_generic_file_read() 
  *      do_generic_mapping_read()
  *       page_cache_sync_readahead(, hit_readahead_marker == false)
+ *        ondemand_readahead()
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       page_cache_sync_readahead()
  *        ondemand_readahead()
  */
 static unsigned long

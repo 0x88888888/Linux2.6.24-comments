@@ -2509,7 +2509,7 @@ static int __do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 	vmf.page = NULL;
 
 	BUG_ON(vma->vm_flags & VM_PFNMAP);
-
+     // vma->vm_ops == generic_file_vm_ops 或者shmem_vm_ops
 	if (likely(vma->vm_ops->fault)) {
 		/* 去读入对应的数据,fault通常是filemap_fault方法 
 		 *
@@ -2811,6 +2811,9 @@ static inline int handle_pte_fault(struct mm_struct *mm,
 	
 	if (!pte_present(entry)) { /* pte对应的数据不在内存中，需要从磁盘上读过来 */
 		if (pte_none(entry) /*即entry==0,需要重新从文件中读取或者分配物理内存 */ ) {
+			/*
+			 * vma->vm_ops == generic_file_vm_ops 或者shmem_vm_ops
+			 */
 			if (vma->vm_ops) {
 				/* 已经设置了相关vm_area_struct的处理函数,说明是一个文件的线性映射 */
 				if (vma->vm_ops->fault || vma->vm_ops->nopage)

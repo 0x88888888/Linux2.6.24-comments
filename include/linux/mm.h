@@ -70,6 +70,8 @@ extern unsigned int kobjsize(const void *objp);
 
 /*
  * vm_flags..
+ *
+ * vm_area_struct->vm_page_prot, vm_area_struct->vm_flags的标记
  */
 #define VM_READ		0x00000001	/* currently active flags */
 #define VM_WRITE	0x00000002
@@ -89,7 +91,7 @@ extern unsigned int kobjsize(const void *objp);
 #define VM_DENYWRITE	0x00000800	/* ETXTBSY on write attempts.. */
 
 #define VM_EXECUTABLE	0x00001000
-#define VM_LOCKED	0x00002000
+#define VM_LOCKED	0x00002000  /* 这个vm_area_struct  不可以被swap出去 */
 #define VM_IO           0x00004000	/* Memory mapped I/O or similar */
 
 					/* Used by sys_madvise() */

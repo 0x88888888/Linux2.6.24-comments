@@ -76,6 +76,9 @@ static inline void vunmap_pud_range(pgd_t *pgd, unsigned long addr,
  * iounmap()
  *	remove_vm_area()
  *	 __remove_vm_area()
+ *
+ * 只是情况init_mm.pgd对应的页表，应用进程对应的页表似乎没有被清空
+ * 用户空间不会间接用到vmalloc
  */
 void unmap_kernel_range(unsigned long addr, unsigned long size)
 {
@@ -85,6 +88,7 @@ void unmap_kernel_range(unsigned long addr, unsigned long size)
 	unsigned long end = addr + size;
 
 	BUG_ON(addr >= end);
+	//从init_mm.pgd中获取 pgd_offset的值，这是一个物理内存地址
 	pgd = pgd_offset_k(addr);
 	flush_cache_vunmap(addr, end);
 	do {
@@ -528,6 +532,7 @@ void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 	area->pages = pages;
 	/*如果这个数组没有分配到内存，就释放vm_struct描述符，返回*/ 
 	if (!area->pages) {
+		//从vmlist中删除area对象
 		remove_vm_area(area->addr);
 		kfree(area);
 		return NULL;
@@ -545,7 +550,8 @@ void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 		else
 			
 			area->pages[i] = alloc_pages_node(node, gfp_mask, 0);
-		if (unlikely(!area->pages[i])) {
+		if (unlikely(!area->pages[i])) { //分配失败了
+		
 			/* Successfully allocated i pages, free them in __vunmap() */
 			area->nr_pages = i;
 			goto fail;
@@ -617,10 +623,13 @@ static void *__vmalloc_node(unsigned long size, gfp_t gfp_mask, pgprot_t prot,
  *  gfp_mask = GFP_KERNEL | __GFP_HIGHMEM
  *
  * vmalloc分配的区域用一个vm_struct 表示
+ * 
+ * 用户空间不会间接用到vmalloc
  *
  * vmalloc()
  *  __vmalloc()
-*/
+ * 
+ */
 void *__vmalloc(unsigned long size, gfp_t gfp_mask, pgprot_t prot)
 {
 	return __vmalloc_node(size, gfp_mask, prot, -1);
@@ -646,7 +655,8 @@ EXPORT_SYMBOL(__vmalloc);
  * 发生page fault时，此时在page fault的处理流程中进行“进程页表”的更新：
  *
  *
- *
+ * 用户空间不会间接用到vmalloc
+ * vmalloc_32 只从ZONE_NORMAL和ZONE_DMA中分配物理内存，vmalloc没有这个限制
  */
 void *vmalloc(unsigned long size)
 {
@@ -734,6 +744,9 @@ void *vmalloc_exec(unsigned long size)
  *
  *	Allocate enough 32bit PA addressable pages to cover @size from the
  *	page level allocator and map them into contiguous kernel virtual space.
+ *
+ *  vmalloc_32 只从ZONE_NORMAL和ZONE_DMA中分配物理内存，vmalloc没有这个限制
+ *
  */
 void *vmalloc_32(unsigned long size)
 {

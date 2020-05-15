@@ -320,6 +320,7 @@ struct mm_struct {
 	struct rw_semaphore mmap_sem;
 	spinlock_t page_table_lock;		/* Protects page tables and some counters */
 
+    //链接到系统中所有的mm_struct对象
 	struct list_head mmlist;		/* List of maybe swapped mm's.	These are globally strung
 						 * together off init_mm.mmlist, and are protected
 						 * by mmlist_lock
@@ -368,12 +369,15 @@ struct mm_struct {
 
 	unsigned long flags; /* Must use atomic bitops to access the bits */
 
-	/* coredumping support */
+	/* coredumping support 
+	 * 正在把进程地址空间的内容卸载到转储文件中的轻量级进程的数量
+	 */
 	int core_waiters;
 	struct completion *core_startup_done, core_done;
 
 	/* aio bits */
 	rwlock_t		ioctx_list_lock;
+	//异步上下文链表
 	struct kioctx		*ioctx_list;
 };
 

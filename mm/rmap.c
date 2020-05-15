@@ -799,6 +799,16 @@ void page_dup_rmap(struct page *page, struct vm_area_struct *vma, unsigned long 
  *  try_to_unmap_file()
  *   try_to_unmap_one()
  *    page_remove_rmap()
+ *
+ * sys_munmap() 
+ *	do_munmap()
+ *	 unmap_region()
+ *	  unmap_vmas()
+ *	   unmap_page_range()
+ *		zap_pud_range()
+ *		 zap_pmd_range()
+ *        zap_pte_range()
+ *         page_remove_rmap()
  */
 void page_remove_rmap(struct page *page, struct vm_area_struct *vma)
 {
@@ -898,12 +908,16 @@ static int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 			/*
 			 * Store the swap location in the pte.
 			 * See handle_pte_fault() ...
+			 *
+			 * swap_map[entry]++;
 			 */
 			swap_duplicate(entry);
 			if (list_empty(&mm->mmlist)) {
 				spin_lock(&mmlist_lock);
+				
 				if (list_empty(&mm->mmlist))
 					list_add(&mm->mmlist, &init_mm.mmlist);
+				
 				spin_unlock(&mmlist_lock);
 			}
 			dec_mm_counter(mm, anon_rss);

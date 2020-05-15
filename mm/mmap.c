@@ -353,7 +353,7 @@ void validate_mm(struct mm_struct *mm)
 #endif
 
 /*
- * 返回addr所在vma,并且pprev中待会addr所在的vma的前一个vma，以及红黑树相关的节点 
+ * 返回vma->start <= addr < vma->end所在vma,并且pprev中待会addr所在的vma的前一个vma，以及红黑树相关的节点 
  *
  * insert_vm_struct()
  *  find_vma_prepare()
@@ -1217,8 +1217,6 @@ int vma_wants_writenotify(struct vm_area_struct *vma)
  *        MAP_DENYWRITE:只允许对映射区域的写入操作，其他对文件直接写入的操作将会被拒绝
  *        MAP_LOCKED:  将映射区域锁定住，这表示该区域不会被置换（swap）
  *
-
- * do_mmap_pgoff()->mmap_region
  *
  * do_mmap_pgoff()
  *  mmap_region()
@@ -1243,7 +1241,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	/* Clear old maps */
 	error = -ENOMEM;
 munmap_back:
-	/* addr所在的vma */
+	/* addr所在的vma,prev    vma，和parent vma */
 	vma = find_vma_prepare(mm, addr, &prev, &rb_link, &rb_parent);
 
 	/* 如果指定的addr中已经存在一个映射,则通过do_munmap删除它 */
@@ -1330,7 +1328,7 @@ munmap_back:
 		/* ext2的ext2_file_operations为generic_file_mmap
 		   ext3的也是,
            在generic_file_mmap中设置:
-           	vma->vm_ops = &generic_file_vm_ops;
+           	vma->vm_ops = &generic_file_vm_ops; 在page_fault的时候，会调用generic_file_vm_ops.fault == filemap_fault
             vma->vm_flags |= VM_CAN_NONLINEAR;
 		*/
 		error = file->f_op->mmap(file, vma);
@@ -1633,11 +1631,15 @@ get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 	/*
 	 * mm->get_unmapped_area在arch_pick_mmap_layout()中设定,
 	 * 通常是arch_get_unmapped_area_topdown,老式的是arch_get_unmapped_area
+	 *
+	 * 匿名映射的情况用mm_struct->get_unmapped_area
 	 */
 	get_area = current->mm->get_unmapped_area;
 
 	/*
 	 * ext2:ext2_file_operations.get_unmapped_area == NULL
+	 *
+	 * 文件映射的情况,用file_operations->get_unmapped_area
 	 */
 	if (file && file->f_op && file->f_op->get_unmapped_area)
 		get_area = file->f_op->get_unmapped_area;
@@ -1658,7 +1660,10 @@ get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 
 EXPORT_SYMBOL(get_unmapped_area);
 
-/* Look up the first VMA which satisfies  addr < vm_end,  NULL if none. */
+/* Look up the first VMA which satisfies  addr < vm_end,  NULL if none.
+ *
+ * 查找第一个vm_end> addr的vm_area_struct对象，如果addr不在vma中，返回addr后面的第一个vma
+ */
 struct vm_area_struct * find_vma(struct mm_struct * mm, unsigned long addr)
 {
 	struct vm_area_struct *vma = NULL;
@@ -1687,6 +1692,7 @@ struct vm_area_struct * find_vma(struct mm_struct * mm, unsigned long addr)
 				} else
 					rb_node = rb_node->rb_right;
 			}
+			//缓存，记录一下，下次查找快点
 			if (vma)
 				mm->mmap_cache = vma;
 		}
@@ -1969,6 +1975,7 @@ static void remove_vma_list(struct mm_struct *mm, struct vm_area_struct *vma)
  * Get rid of page table information in the indicated region.
  *
  * Called with the mm semaphore held.
+ * 释放vma对应的page
  * 
  * sys_munmap() 
  *  do_munmap()
@@ -2031,9 +2038,23 @@ detach_vmas_to_be_unmapped(struct mm_struct *mm, struct vm_area_struct *vma,
 /*
  * Split a vma into two pieces at address 'addr', a new vma is allocated
  * either for the first part or the tail.
+ *
+ * sys_brk()
+ *  do_brk()
+ *   do_munmap()
+ *    split_vma()
+ *
+ * 将vma从addr处分成两半
  */
 int split_vma(struct mm_struct * mm, struct vm_area_struct * vma,
-	      unsigned long addr, int new_below)
+	      unsigned long addr, int new_below /* 如果new_below == 0 说明线性地址区间的结束地址在vma线性区的内部，
+	                                         * 因此必须把新线性区放在vma线性区之后,所以把new->vm_start 和vma->vm_end都赋值为addr.
+                                             *
+                                             * 如果new_below标志等于1，说明线性地址区间的结束地址在vma线性区的内部，
+                                             * 因此必须把新线性区放在vma线性区的前面，所以函数把字段new->vm_end和vma->vm_start都赋值为addr.
+                                             */
+	                                         
+	      )
 {
 	struct mempolicy *pol;
 	struct vm_area_struct *new;
@@ -2051,9 +2072,9 @@ int split_vma(struct mm_struct * mm, struct vm_area_struct * vma,
 	/* most fields are the same, copy all, and then fixup */
 	*new = *vma;
 
-	if (new_below)
+	if (new_below)//new 在vma前面
 		new->vm_end = addr;
-	else {
+	else { //new 在vma后面
 		new->vm_start = addr;
 		new->vm_pgoff += ((addr - vma->vm_start) >> PAGE_SHIFT);
 	}
@@ -2071,7 +2092,8 @@ int split_vma(struct mm_struct * mm, struct vm_area_struct * vma,
 	if (new->vm_ops && new->vm_ops->open)
 		new->vm_ops->open(new);
 
-	if (new_below)
+    //重新跳转vma->vm_start, vma->vm_end
+	if (new_below)  )//new 在vma前面
 		vma_adjust(vma, addr, vma->vm_end, vma->vm_pgoff +
 			((addr - new->vm_start) >> PAGE_SHIFT), new);
 	else
@@ -2114,7 +2136,7 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len)
 
 	/* if it doesn't overlap, we have nothing.. */
 	end = start + len;
-	if (vma->vm_start >= end)
+	if (vma->vm_start >= end)  //没有重叠的部分，返回吧
 		return 0;
 
 	/*
@@ -2124,7 +2146,7 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len)
 	 * unmapped vm_area_struct will remain in use: so lower split_vma
 	 * places tmp vma above, and higher split_vma places tmp vma below.
 	 */
-	if (start > vma->vm_start) {
+	if (start > vma->vm_start) { //unmmap 掉vma中间的一段虚拟地址
 		int error = split_vma(mm, vma, start, 0);
 		if (error)
 			return error;

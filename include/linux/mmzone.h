@@ -282,6 +282,8 @@ struct zone {
        如果空闲页多于pages_high，则内存域的状态是理想的,__alloc_pages 的gfp_mask有ALLOC_WMARK_HIGH标记。
        如果空闲页少于pages_low，则内核开始将页换出到硬盘,__alloc_pages 的gfp_mask有ALLOC_WMARK_LOW标记。
        如果空闲页低于pages_min,那么页回收工作的压力就比较大了，因为内存急需空闲页,,__alloc_pages 的gfp_mask有ALLOC_WMARK_MIN标记
+     *
+     * 这三个值表示zone中的空闲物理页面的数量 pages_high > pages_low> pages_min
     */
 	unsigned long		pages_min, pages_low, pages_high;
 	/*

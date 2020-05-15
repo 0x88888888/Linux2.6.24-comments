@@ -1714,10 +1714,15 @@ struct vm_operations_struct generic_file_vm_ops = {
 };
 
 /* 
-do_mmap_pgoff
-	do_mmap_shared_file
-	   generic_file_mmap
-设置vma->vm_ops = &generic_file_vm_ops;
+ * do_mmap_pgoff
+ *  do_mmap_shared_file
+ *   generic_file_mmap
+ *
+ * do_mmap_pgoff()
+ *  mmap_region()
+ *   generic_file_mmap()
+ *
+ * 设置vma->vm_ops = &generic_file_vm_ops;
    This is used for a general mmap of a disk file 
  */
 

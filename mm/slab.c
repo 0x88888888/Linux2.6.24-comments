@@ -321,7 +321,7 @@ struct kmem_list3 {
 	unsigned int free_limit;        /* 指定了所有slab上容许未使用对象的最大数目 */
 	unsigned int colour_next;	/* 下一个slab的颜色, Per-node cache coloring */
 	spinlock_t list_lock;
-	struct array_cache *shared;	/* 有各个节点内部共享或者源自其他节点，与NUMA系统相关。 shared per node */
+	struct array_cache *shared;	/* 每个kmem_cache中的kmem_list3.shared上array_cache可以被所有CPU共享.。 shared per node */
 	struct array_cache **alien;	/* on other nodes */
 	unsigned long next_reap;	/* 内核在两次shrink缓存之间，必须经过的时间间隔。其想法是防止有频繁的
 	                               shrink缓存和增长操作而降低系统性能，这种操作可能在某些系统负荷下发生。
@@ -4234,6 +4234,11 @@ __cache_alloc(struct kmem_cache *cachep, gfp_t flags, void *caller)
   *
   * __drain_alien_cache()
   *  free_block()
+  *
+  * kmem_cache_free()
+  *  __cache_free()
+  *   cache_flusharray()
+  *    free_block()
   */
 static void free_block(struct kmem_cache *cachep, void **objpp, int nr_objects,
 		       int node)
@@ -4295,7 +4300,13 @@ static void free_block(struct kmem_cache *cachep, void **objpp, int nr_objects,
 	}
 }
 
-static void cache_flusharray(struct kmem_cache *cachep, struct array_cache *ac)
+/*
+ * kmem_cache_free()
+ *  __cache_free()
+ *   cache_flusharray()
+ */
+static void cache_flusharray(struct kmem_cache *cachep, 
+                                     struct array_cache *ac /* 这个ac为当前cpu的array_cache对象 */ )
 {
 	int batchcount;
 	struct kmem_list3 *l3;
@@ -4311,7 +4322,7 @@ static void cache_flusharray(struct kmem_cache *cachep, struct array_cache *ac)
     /* 获取当前cache的slab 三链，kmem_list3结构  */
 	l3 = cachep->nodelists[node];
 	spin_lock(&l3->list_lock);
-	/* 如果有shared 的local cache */
+	/* 如果有shared 的local cache ,首先归还到 kmem_cache->l3->shared上 */
 	if (l3->shared) {
 		struct array_cache *shared_array = l3->shared;
 		/* 计算当前shared local cache还能容纳多少slab对象，limit是上限，avail是当前拥有的空闲数量 */
@@ -4359,6 +4370,9 @@ free_done:
 /*
  * Release an obj back to its cache. If the obj has a constructed state, it must
  * be in this state _before_ it is released.  Called with disabled ints.
+ *
+ * kmem_cache_free()
+ *  __cache_free()
  */
 static inline void __cache_free(struct kmem_cache *cachep, void *objp)
 {

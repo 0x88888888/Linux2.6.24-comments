@@ -887,6 +887,19 @@ static int ext2_readpage(struct file *file, struct page *page)
  *         __do_page_cache_readahead()
  *          read_pages()
  *           ext2_readpages()
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       page_cache_sync_readahead()
+ *        ondemand_readahead()
+ *         ra_submit()
+ *          __do_page_cache_readahead()
+ *           read_pages()
+ *            ext2_readpages()
  */
 static int
 ext2_readpages(struct file *file, struct address_space *mapping,

@@ -1542,6 +1542,7 @@ static int should_fail_alloc_page(gfp_t gfp_mask, unsigned int order)
 		return 0;
 	if (fail_page_alloc.ignore_gfp_highmem && (gfp_mask & __GFP_HIGHMEM))
 		return 0;
+	
 	if (fail_page_alloc.ignore_gfp_wait && (gfp_mask & __GFP_WAIT))
 		return 0;
 
@@ -2125,6 +2126,7 @@ nofail_alloc:
 		if (gfp_mask & __GFP_NOFAIL)
 			do_retry = 1;
 	}
+	
 	if (do_retry) {
 		congestion_wait(WRITE, HZ/50);
 		goto rebalance;

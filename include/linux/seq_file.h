@@ -24,6 +24,10 @@ struct seq_file {
 	void *private;
 };
 
+/*
+ * swaps_op,
+ * 
+ */
 struct seq_operations {
 	void * (*start) (struct seq_file *m, loff_t *pos);
 	void (*stop) (struct seq_file *m, void *v);
