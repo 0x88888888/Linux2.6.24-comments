@@ -293,6 +293,14 @@ static void __init get_fs_names(char *page)
 	*s = '\0';
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   prepare_namespace()
+ *    mount_root()
+ *     mount_block_root()
+ *      do_mount_root()
+ */
 static int __init do_mount_root(char *name, char *fs, int flags, void *data)
 {
 	int err = sys_mount(name, "/root", fs, flags, data);
@@ -308,6 +316,13 @@ static int __init do_mount_root(char *name, char *fs, int flags, void *data)
 	return 0;
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   prepare_namespace()
+ *    mount_root()
+ *     mount_block_root()
+ */
 void __init mount_block_root(char *name, int flags)
 {
 	char *fs_names = __getname();
@@ -404,6 +419,12 @@ void __init change_floppy(char *fmt, ...)
 }
 #endif
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   prepare_namespace()
+ *    mount_root()
+ */
 void __init mount_root(void)
 {
 #ifdef CONFIG_ROOT_NFS

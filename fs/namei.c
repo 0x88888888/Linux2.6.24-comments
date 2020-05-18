@@ -824,6 +824,20 @@ static int __follow_mount(struct path *path)
 	return res;
 }
 
+/*
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk() 这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             follow_dotdot()
+ *              follow_mount()
+ */
 static void follow_mount(struct vfsmount **mnt, struct dentry **dentry)
 {
 	while (d_mountpoint(*dentry)) {
@@ -1208,6 +1222,8 @@ return_err:
  *		   do_path_lookup()
  *          path_walk() 这里设置 current->total_link_count = 0;
  *           link_path_walk() 
+ *
+ * path_walk和link_path_walk是路径查找的核心函数 
  */
 static int fastcall link_path_walk(const char *name, struct nameidata *nd)
 {
@@ -1245,6 +1261,8 @@ static int fastcall link_path_walk(const char *name, struct nameidata *nd)
 *	   __path_lookup_intent_open()
 *	    do_path_lookup()
 *        path_walk()
+*
+* path_walk和link_path_walk是路径查找的核心函数
 */
 
 static int fastcall path_walk(const char * name, struct nameidata *nd)

@@ -201,6 +201,13 @@ error:
  * Requires inode->i_mapping->i_mmap_lock
  * 将vma从vma->shared.vm_set.list中删去
  * 或者从mmaping->i_mmap(prio_tree_root)中删去vma
+ *
+ * sys_munmap() 
+ *  do_munmap()
+ *   unmap_region()
+ *    free_pgtables()
+ *     unlink_file_vma()
+ *      __remove_shared_vm_struct()
  */
 static void __remove_shared_vm_struct(struct vm_area_struct *vma,
 		struct file *file, struct address_space *mapping)
@@ -222,6 +229,12 @@ static void __remove_shared_vm_struct(struct vm_area_struct *vma,
 /*
  * Unlink a file-based vm structure from its prio_tree, to hide
  * vma from rmap and vmtruncate before freeing its page tables.
+ *
+ * sys_munmap() 
+ *  do_munmap()
+ *   unmap_region()
+ *    free_pgtables()
+ *     unlink_file_vma()
  */
 void unlink_file_vma(struct vm_area_struct *vma)
 {
@@ -423,10 +436,23 @@ void __vma_link_rb(struct mm_struct *mm, struct vm_area_struct *vma,
 }
 
 /*
- 如果vma有对应的后备文件
-
- 如果是VM_NONLINEAR(非线性映射)vma->shared.vm_set.list插入 vma->vm_file->f_mapping->i_mapp_nonlinear链表 
- 否则 vma->shard.prio_tree_node插入到vma->vm_file->f_mapping->i_mmap优先树 
+ * 如果vma有对应的后备文件
+ *
+ * 如果是VM_NONLINEAR(非线性映射)vma->shared.vm_set.list插入 vma->vm_file->f_mapping->i_mapp_nonlinear链表 
+ * 否则 vma->shard.prio_tree_node插入到vma->vm_file->f_mapping->i_mmap优先树 
+ *
+ * sys_brk()
+ *  do_brk()
+ *   vma_link()
+ *    __vma_link_file()
+ *
+ * copy_vma()
+ *  vma_link()
+ *   __vma_link_file()
+ *
+ * mmap_region()
+ *  vma_link()
+ *   __vma_link_file()
 */
 static inline void __vma_link_file(struct vm_area_struct *vma)
 {
@@ -1001,9 +1027,14 @@ void vm_stat_account(struct mm_struct *mm, unsigned long flags,
  * The caller must hold down_write(current->mm->mmap_sem).
  *
  * sys_mmap2在 /arch/x86/kernel/sys_i386_32.c中
- * sys_mmap2->do_mmap_pgoff
- * do_mmap2 ->do_mmap_pgoff
- * do_mmap ->do_mmap_pgoff
+ * sys_mmap2()
+ *  do_mmap_pgoff()
+ *
+ * do_mmap2()
+ *  do_mmap_pgoff()
+ *
+ * do_mmap()
+ *  do_mmap_pgoff()
  */
 
 unsigned long do_mmap_pgoff(struct file * file, unsigned long addr,
@@ -1995,6 +2026,8 @@ static void unmap_region(struct mm_struct *mm,
 	
 	unmap_vmas(&tlb, vma, start, end, &nr_accounted, NULL);
 	vm_unacct_memory(nr_accounted);
+
+	//这个重点了
 	free_pgtables(&tlb, vma, prev? prev->vm_end: FIRST_USER_ADDRESS,
 				 next? next->vm_start: 0);
 	tlb_finish_mmu(tlb, start, end);

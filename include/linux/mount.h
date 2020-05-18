@@ -35,6 +35,9 @@ struct mnt_namespace;
 #define MNT_UNBINDABLE	0x2000	/* if the vfsmount is a unbindable mount */
 #define MNT_PNODE_MASK	0x3000	/* propagation flag mask */
 
+/*
+ * 表示某个文件系统的一个挂载
+ */
 struct vfsmount {
 	struct list_head mnt_hash;      /* 链接到mount_hashtable表 */
 	struct vfsmount *mnt_parent;	/* vfsmount形成的树形结构,fs we are mounted on */

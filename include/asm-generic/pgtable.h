@@ -81,6 +81,7 @@ do {									\
 #endif
 
 #ifndef __HAVE_ARCH_PTEP_CLEAR_FLUSH
+/* 获取页表项内容，返回__pte，然后清空页表项 */
 #define ptep_clear_flush(__vma, __address, __ptep)			\
 ({									\
 	pte_t __pte;							\

@@ -180,6 +180,7 @@ static void __init check_config(void)
  */
 void __init check_bugs(void)
 {
+    //启动sysenter
 	identify_boot_cpu();
 #ifndef CONFIG_SMP
 	printk("CPU: ");

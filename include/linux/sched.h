@@ -411,7 +411,10 @@ struct signal_struct {
 	/* current thread group signal load-balancing target: */
 	struct task_struct	*curr_target;
 
-	/* shared signal handling: */
+	/* shared signal handling: 
+	 *
+	 * 整个线程组(进程)共享
+	 */
 	struct sigpending	shared_pending;
 
 	/* thread group exit support */

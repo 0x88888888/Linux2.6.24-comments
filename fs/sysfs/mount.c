@@ -103,6 +103,12 @@ static struct file_system_type sysfs_fs_type = {
 	.kill_sb	= kill_anon_super,
 };
 
+/*
+ * start_kernel()
+ *  vfs_caches_init()
+ *   mnt_init()
+ *    sysfs_init()
+ */
 int __init sysfs_init(void)
 {
 	int err = -ENOMEM;

@@ -256,7 +256,7 @@ int __init init_rootfs(void)
 	if (err)
 		return err;
 
-    /* rootfs 注册,在init_mount_tree中挂载rootfs */
+    /* rootfs 注册,随后就在init_mount_tree中挂载rootfs */
 	err = register_filesystem(&rootfs_fs_type);
 	if (err)
 		bdi_destroy(&ramfs_backing_dev_info);

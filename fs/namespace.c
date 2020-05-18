@@ -110,6 +110,9 @@ void free_vfsmnt(struct vfsmount *mnt)
  *              __follow_mount()
  *               lookup_mnt()
  *                __lookup_mnt()
+ *
+ * 查找挂载在dentry下面,并且父vfsmount==mnt的vfsmount对象
+ * 通常dentry必然是一个挂载点，才会调用这个函数的
  */
 struct vfsmount *__lookup_mnt(struct vfsmount *mnt, struct dentry *dentry,
 			      int dir)
@@ -149,6 +152,15 @@ struct vfsmount *__lookup_mnt(struct vfsmount *mnt, struct dentry *dentry,
  *             do_lookup()
  *              __follow_mount()
  *               lookup_mnt()
+ *
+ *		   do_path_lookup()
+ *          path_walk() 这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             follow_dotdot()
+ *              follow_mount()
+ *               lookup_mnt()
+ *
  */
 struct vfsmount *lookup_mnt(struct vfsmount *mnt, struct dentry *dentry)
 {
@@ -1522,7 +1534,9 @@ int copy_mount_options(const void __user * data, unsigned long *where)
  * sys_mount()
  *  do_mount()
  */
-long do_mount(char *dev_name, char *dir_name, char *type_page,
+long do_mount(char *dev_name /* 文件系统所在的设备文件名称 */, 
+                  char *dir_name, 
+                  char *type_page,
 		  unsigned long flags, void *data_page)
 {
 	struct nameidata nd;
@@ -1676,7 +1690,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
 	return new_ns;
 }
 
-asmlinkage long sys_mount(char __user * dev_name /* 设备名称 */, char __user * dir_name /* 挂载点路径 */,
+asmlinkage long sys_mount(char __user * dev_name /* 文件系统所在的设备文件名称 */, char __user * dir_name /* 挂载点路径 */,
 			  char __user * type /* 挂载文件系统类型 */, unsigned long flags,
 			  void __user * data /* 选项信息 */)
 {

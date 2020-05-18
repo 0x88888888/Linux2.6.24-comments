@@ -467,6 +467,7 @@ void signal_wake_up(struct task_struct *t, int resume)
 {
 	unsigned int mask;
 
+    //设置thread_info->flags |= TIF_SIGPENDING;
 	set_tsk_thread_flag(t, TIF_SIGPENDING);
 
 	/*
@@ -523,7 +524,9 @@ static int rm_from_queue(unsigned long mask, struct sigpending *s)
 	if (!sigtestsetmask(&s->signal, mask))
 		return 0;
 
+    //情况mask标记的信号
 	sigdelsetmask(&s->signal, mask);
+	//删除
 	list_for_each_entry_safe(q, n, &s->list, list) {
 		if (q->info.si_signo < SIGRTMIN &&
 		    (mask & sigmask(q->info.si_signo))) {
@@ -569,6 +572,15 @@ static void do_notify_parent_cldstop(struct task_struct *tsk, int why);
  * time regardless of blocking, ignoring, or handling.  This does the
  * actual continuing for SIGCONT, but not the actual stopping for stop
  * signals.  The process stop is done as a signal action for SIG_DFL.
+ *
+ * sys_kill()
+ *  kill_something_info()
+ *   kill_pid_info()
+ *    group_send_sig_info()
+ *     __group_send_sig_info()
+ *      handle_stop_signal()
+ *
+ * 处理SIGCONT，SIGSTOP信号
  */
 static void handle_stop_signal(int sig, struct task_struct *p)
 {
@@ -583,18 +595,20 @@ static void handle_stop_signal(int sig, struct task_struct *p)
 	if (sig_kernel_stop(sig)) {
 		/* 接受到SIGSTOP信号 */
 		/*
-		 * 处理进程信号队列 
+		 * 处理进程信号队列 ,这是一个SIGSTOP信号，移除shared_pending中的SIGCONT
+		 *
 		 * This is a stop signal.  Remove SIGCONT from all queues.
 		 */
 		rm_from_queue(sigmask(SIGCONT), &p->signal->shared_pending);
 		t = p;
 		do {
-			/* 处理线程信号队列 */
+			/* 同样，移除各个thread中的SIGCONT信号*/
 			rm_from_queue(sigmask(SIGCONT), &t->pending);
 			t = next_thread(t);
 		} while (t != p);
 	} else if (sig == SIGCONT) {
 		/*
+		 * 这是一个SIGCONT信号，移除各个SIG_KERNEL_STOP_MASK (SIGSTOP|   SIGTSTP|SIGTTIN|SIGTTOU )信号
 		 * Remove all stop signals from all queues,
 		 * and wake all threads.
 		 */
@@ -642,8 +656,10 @@ static void handle_stop_signal(int sig, struct task_struct *p)
 				set_tsk_thread_flag(t, TIF_SIGPENDING);
 				state |= TASK_INTERRUPTIBLE;
 			}
+			//唤醒
 			wake_up_state(t, state);
 
+            //下一个task_struct
 			t = next_thread(t);
 		} while (t != p);
 
@@ -695,6 +711,8 @@ static int send_signal(int sig, struct siginfo *info, struct task_struct *t,
 	/*
 	 * fast-pathed signals for kernel-internal things like SIGSTOP
 	 * or SIGKILL.
+	 *
+	 * SIGSTOP,SIGKILL是两个特别的信号，特殊处理了
 	 */
 	if (info == SEND_SIG_FORCED)
 		goto out_set;
@@ -879,6 +897,16 @@ static inline int wants_signal(int sig, struct task_struct *p)
 	return task_curr(p) || !signal_pending(p);
 }
 
+/*
+ * sys_kill()
+ *  kill_something_info()
+ *   kill_pid_info()
+ *    group_send_sig_info()
+ *     __group_send_sig_info()
+ *      __group_complete_signal()
+ *
+ * 唤醒进程中能够处理sig信号的一个task_struct
+ */
 static void
 __group_complete_signal(int sig, struct task_struct *p)
 {
@@ -889,6 +917,8 @@ __group_complete_signal(int sig, struct task_struct *p)
 	 *
 	 * If the main thread wants the signal, it gets first crack.
 	 * Probably the least surprising to the average bear.
+	 *
+	 * 查找一个合适task_struct来处理sig，如果main task_struct可处理，就优先让它处理了
 	 */
 	if (wants_signal(sig, p))
 		t = p;
@@ -901,12 +931,15 @@ __group_complete_signal(int sig, struct task_struct *p)
 	else {
 		/*
 		 * Otherwise try to find a suitable thread.
+		 *
+		 * 查找一个普通task_struct
 		 */
 		t = p->signal->curr_target;
 		if (t == NULL)
 			/* restart balancing at this thread */
 			t = p->signal->curr_target = p;
 
+        //选择一个task_struct
 		while (!wants_signal(sig, t)) {
 			t = next_thread(t);
 			if (t == p->signal->curr_target)
@@ -923,6 +956,8 @@ __group_complete_signal(int sig, struct task_struct *p)
 	/*
 	 * Found a killable thread.  If the signal will be fatal,
 	 * then start taking the whole group down immediately.
+	 *
+	 * 一些致命signal ,SIGKILL SIGSTOP之类的
 	 */
 	if (sig_fatal(p, sig) && !(p->signal->flags & SIGNAL_GROUP_EXIT) &&
 	    !sigismember(&t->real_blocked, sig) &&
@@ -941,6 +976,7 @@ __group_complete_signal(int sig, struct task_struct *p)
 			p->signal->group_exit_code = sig;
 			p->signal->group_stop_count = 0;
 			t = p;
+			//给每个task_struct 设置SIGKILL信号
 			do {
 				sigaddset(&t->pending.signal, SIGKILL);
 				signal_wake_up(t, 1);
@@ -963,8 +999,10 @@ __group_complete_signal(int sig, struct task_struct *p)
 		p->signal->group_stop_count = 0;
 		p->signal->group_exit_task = t;
 		p = t;
+		//唤醒每个task_struct
 		do {
 			p->signal->group_stop_count++;
+			//唤醒每个task_struct来处理SIGKILL之类的信号
 			signal_wake_up(t, t == p);
 		} while_each_thread(p, t);
 		return;
@@ -973,17 +1011,28 @@ __group_complete_signal(int sig, struct task_struct *p)
 	/*
 	 * The signal is already in the shared-pending queue.
 	 * Tell the chosen thread to wake up and dequeue it.
+	 * 唤醒task_struct来处理
 	 */
 	signal_wake_up(t, sig == SIGKILL);
 	return;
 }
 
+
+/*
+ * sys_kill()
+ *  kill_something_info()
+ *   kill_pid_info()
+ *    group_send_sig_info()
+ *     __group_send_sig_info()
+ */
 int
 __group_send_sig_info(int sig, struct siginfo *info, struct task_struct *p)
 {
 	int ret = 0;
 
 	assert_spin_locked(&p->sighand->siglock);
+
+	
 	handle_stop_signal(sig, p);
 
 	/* Short-circuit ignored signals.  */
@@ -998,11 +1047,14 @@ __group_send_sig_info(int sig, struct siginfo *info, struct task_struct *p)
 	 * Put this signal on the shared-pending queue, or fail with EAGAIN.
 	 * We always use the shared queue for process-wide signals,
 	 * to avoid several races.
+	 *
+	 * 发送到shared_pending
 	 */
 	ret = send_signal(sig, info, p, &p->signal->shared_pending);
 	if (unlikely(ret))
 		return ret;
 
+    //唤醒进程中能够处理sig信号的一个task_struct
 	__group_complete_signal(sig, p);
 	return 0;
 }
@@ -1057,6 +1109,12 @@ struct sighand_struct *lock_task_sighand(struct task_struct *tsk, unsigned long 
 	return sighand;
 }
 
+/*
+ * sys_kill()
+ *  kill_something_info()
+ *   kill_pid_info()
+ *    group_send_sig_info()
+ */
 int group_send_sig_info(int sig, struct siginfo *info, struct task_struct *p)
 {
 	unsigned long flags;
@@ -1106,6 +1164,11 @@ int kill_pgrp_info(int sig, struct siginfo *info, struct pid *pgrp)
 	return retval;
 }
 
+/*
+ * sys_kill()
+ *  kill_something_info()
+ *   kill_pid_info()
+ */
 int kill_pid_info(int sig, struct siginfo *info, struct pid *pid)
 {
 	int error;
@@ -1178,21 +1241,27 @@ EXPORT_SYMBOL_GPL(kill_pid_info_as_uid);
  *
  * POSIX specifies that kill(-1,sig) is unspecified, but what we have
  * is probably wrong.  Should make it like BSD or SYSV.
+ *
+ * sys_kill()
+ *  kill_something_info()
  */
 
 static int kill_something_info(int sig, struct siginfo *info, int pid)
 {
 	int ret;
 	rcu_read_lock();
+	
 	if (!pid) {
 		ret = kill_pgrp_info(sig, info, task_pgrp(current));
 	} else if (pid == -1) {
+	   //线程组
 		int retval = 0, count = 0;
 		struct task_struct * p;
 
 		read_lock(&tasklist_lock);
 		for_each_process(p) {
-			if (p->pid > 1 && !same_thread_group(p, current)) {
+			if (p->pid > 1 && !same_thread_group(p, current)) { //必须是同一个tgid
+				
 				int err = group_send_sig_info(sig, info, p);
 				++count;
 				if (err != -EPERM)
@@ -1201,9 +1270,9 @@ static int kill_something_info(int sig, struct siginfo *info, int pid)
 		}
 		read_unlock(&tasklist_lock);
 		ret = count ? retval : -ESRCH;
-	} else if (pid < 0) {
+	} else if (pid < 0) { //进程组
 		ret = kill_pgrp_info(sig, info, find_vpid(-pid));
-	} else {
+	} else { //当前进程
 		ret = kill_pid_info(sig, info, find_vpid(pid));
 	}
 	rcu_read_unlock();
@@ -1659,6 +1728,12 @@ static inline int may_ptrace_stop(void)
  *
  * If we actually decide not to stop at all because the tracer is gone,
  * we leave nostop_code in current->exit_code.
+ *
+ * syscall_entry ( 在entry_32.S中)
+ *  syscall_trace_entry ( 在entry_32.S中)
+ *   do_syscall_trace 
+ *    ptrace_notify()
+ *     ptrace_stop()
  */
 static void ptrace_stop(int exit_code, int nostop_code, siginfo_t *info)
 {
@@ -1707,6 +1782,12 @@ static void ptrace_stop(int exit_code, int nostop_code, siginfo_t *info)
 	recalc_sigpending_tsk(current);
 }
 
+/*
+ * syscall_entry ( 在entry_32.S中)
+ *  syscall_trace_entry ( 在entry_32.S中)
+ *   do_syscall_trace 
+ *    ptrace_notify()
+ */
 void ptrace_notify(int exit_code)
 {
 	siginfo_t info;
@@ -1753,6 +1834,13 @@ finish_stop(int stop_count)
  * We have to stop all threads in the thread group.
  * Returns nonzero if we've actually stopped and released the siglock.
  * Returns zero if we didn't stop and still hold the siglock.
+ *
+ * do_notify_resume()
+ *  do_signal()
+ *   get_signal_to_deliver()
+ *    do_signal_stop()
+ *
+ *
  */
 static int do_signal_stop(int signr)
 {
@@ -1778,6 +1866,7 @@ static int do_signal_stop(int signr)
 		sig->group_exit_code = signr;
 
 		stop_count = 0;
+		//逐个唤醒task_struct 
 		for (t = next_thread(current); t != current; t = next_thread(t))
 			/*
 			 * Setting state to TASK_STOPPED for a group
@@ -1794,6 +1883,7 @@ static int do_signal_stop(int signr)
 
 	if (stop_count == 0)
 		sig->flags = SIGNAL_STOP_STOPPED;
+	
 	current->exit_code = sig->group_exit_code;
 	__set_current_state(TASK_STOPPED);
 
@@ -1868,7 +1958,7 @@ relock:
 		struct k_sigaction *ka;
 
 		if (unlikely(current->signal->group_stop_count > 0) &&
-		    handle_group_stop())
+		    handle_group_stop()) //处理SIGSTOP信号
 			goto relock;
 
 		signr = dequeue_signal(current, mask, info);
@@ -1876,6 +1966,7 @@ relock:
 		if (!signr)
 			break; /* will return 0 */
 
+        //进程被trace，需要通知
 		if ((current->ptrace & PT_PTRACED) && signr != SIGKILL) {
 			ptrace_signal_deliver(regs, cookie);
 

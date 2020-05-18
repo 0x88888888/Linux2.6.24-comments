@@ -53,6 +53,7 @@ static int __init vdso_setup(char *s)
 
 __setup("vdso=", vdso_setup);
 
+/* 定义在entry_32.S中 */
 extern asmlinkage void sysenter_entry(void);
 
 static __init void reloc_symtab(Elf32_Ehdr *ehdr,
@@ -172,6 +173,14 @@ static __init void relocate_vdso(Elf32_Ehdr *ehdr)
 	}
 }
 
+/*
+ * start_kernel()
+ *  check_bugs()
+ *   identify_boot_cpu()
+ *    enable_sep_cpu()
+ *
+ * 写入MSR_IA32_SYSENTER_CS之类的信息
+ */
 void enable_sep_cpu(void)
 {
 	int cpu = get_cpu();

@@ -50,6 +50,7 @@ struct files_struct {
    */
 	spinlock_t file_lock ____cacheline_aligned_in_smp;
 	int next_fd;  /* 下一次打开新文件时使用的文件描述符 */
+	//执行exec时需要关闭的文件描述符集合
 	struct embedded_fd_set close_on_exec_init;
 	struct embedded_fd_set open_fds_init;  /* 最初的文件描述符集合 */
 	struct file * fd_array[NR_OPEN_DEFAULT]; /* 指向打开文件的file实例 */

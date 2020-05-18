@@ -241,6 +241,12 @@ badframe:
 
 /*
  * Set up a signal frame.
+ *
+ * do_notify_resume()
+ *  do_signal() 
+ *   handle_signal()
+ *    setup_frame()
+ *     setup_sigcontext()
  */
 
 static int
@@ -286,6 +292,13 @@ setup_sigcontext(struct sigcontext __user *sc, struct _fpstate __user *fpstate,
 
 /*
  * Determine which stack to use..
+ *
+ * do_notify_resume()
+ *  do_signal() 
+ *   handle_signal()
+ *    setup_frame()
+ *     get_sigframe()
+ *
  */
 static inline void __user *
 get_sigframe(struct k_sigaction *ka, struct pt_regs * regs, size_t frame_size)
@@ -307,7 +320,7 @@ get_sigframe(struct k_sigaction *ka, struct pt_regs * regs, size_t frame_size)
 		 ka->sa.sa_restorer) {
 		esp = (unsigned long) ka->sa.sa_restorer;
 	}
-
+    //这个stack实际还是用户态原来的stack，并没有分配额外的对象，只是esp移动了
 	esp -= frame_size;
 	/* Align the stack pointer according to the i386 ABI,
 	 * i.e. so that on function entry ((sp + 4) & 15) == 0. */
@@ -323,9 +336,11 @@ extern void __user __kernel_rt_sigreturn;
 
 /*
  * do_notify_resume()
- *   do_signal() 
- *     handle_signal()
- *       setup_frame()
+ *  do_signal() 
+ *   handle_signal()
+ *    setup_frame()
+ *
+ * 处理信号时，创建处理信号的用户态堆栈
  */
 static int setup_frame(int sig, struct k_sigaction *ka,
 		       sigset_t *set, struct pt_regs * regs)
@@ -353,6 +368,7 @@ static int setup_frame(int sig, struct k_sigaction *ka,
 	if (err)
 		goto give_sigsegv;
 
+	//将regs等复制到frame上去，返回内核态的时候，再从内核态返回，恢复到最早的调用路径
 	err = setup_sigcontext(&frame->sc, &frame->fpstate, regs, set->sig[0]);
 	if (err)
 		goto give_sigsegv;
@@ -408,6 +424,7 @@ static int setup_frame(int sig, struct k_sigaction *ka,
 	 * 把pt_regs结构中的eip设置为进程的用户态信号处理函数地址
 	 */
 	regs->esp = (unsigned long) frame;
+	//修改返回到用户太的执行地址，
 	regs->eip = (unsigned long) ka->sa.sa_handler;
 	regs->eax = (unsigned long) sig;
 	regs->edx = (unsigned long) 0;
@@ -584,7 +601,8 @@ handle_signal(unsigned long sig, siginfo_t *info, struct k_sigaction *ka,
 	if (ka->sa.sa_flags & SA_SIGINFO)
 		ret = setup_rt_frame(sig, ka, info, oldset, regs);
 	else
-		ret = setup_frame(sig, ka, oldset, regs); /* 看这个 */
+		ret = setup_frame(sig, ka, oldset, regs); /* 看这个，建立用户态堆栈 */
+	
 	if (ret == 0) {
 		spin_lock_irq(&current->sighand->siglock);
 		sigorsets(&current->blocked,&current->blocked,&ka->sa.sa_mask);
@@ -623,7 +641,7 @@ static void fastcall do_signal(struct pt_regs *regs)
  	 * before reaching here, so testing against kernel
  	 * CS suffices.
  	 * 
- 	 * 
+ 	 * 中断处理后，如果不是返回用户态，就不处理
 	 */
 	if (!user_mode(regs))
 		return;
@@ -633,7 +651,7 @@ static void fastcall do_signal(struct pt_regs *regs)
 	else
 		oldset = &current->blocked;
 
-    /* 取出信号 */
+    /* 取出待deliver的信号 */
 	signr = get_signal_to_deliver(&info, &ka, regs, NULL);
 	if (signr > 0) {
 		/* Re-enable any watchpoints before delivering the
@@ -648,7 +666,9 @@ static void fastcall do_signal(struct pt_regs *regs)
 		if (unlikely(current->thread.debugreg[7]))
 			set_debugreg(current->thread.debugreg[7], 7);
 
-		/* Whee!  Actually deliver the signal.  */
+		/* Whee!  Actually deliver the signal. 
+		 * 处理signal了
+		 */
 		if (handle_signal(signr, &info, &ka, oldset, regs) == 0) {
 			/* a signal was successfully delivered; the saved
 			 * sigmask will have been stored in the signal frame,

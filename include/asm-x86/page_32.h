@@ -27,11 +27,30 @@
  */
  
 #define clear_page(page)	memset((void *)(page), 0, PAGE_SIZE)
+/*
+ * do_page_fault()
+ *  handle_pte_fault()
+ *   do_swap_page() 
+ *    do_wp_page()
+ *     cow_user_page()
+ *      copy_user_highpage()
+ *       copy_user_page()
+ *        copy_page()
+ */
 #define copy_page(to,from)	memcpy((void *)(to), (void *)(from), PAGE_SIZE)
 
 #endif
 
 #define clear_user_page(page, vaddr, pg)	clear_page(page)
+/*
+ * do_page_fault()
+ *  handle_pte_fault()
+ *   do_swap_page() 
+ *    do_wp_page()
+ *     cow_user_page()
+ *      copy_user_highpage()
+ *       copy_user_page()
+ */
 #define copy_user_page(to, from, vaddr, pg)	copy_page(to, from)
 
 #define __alloc_zeroed_user_highpage(movableflags, vma, vaddr) \

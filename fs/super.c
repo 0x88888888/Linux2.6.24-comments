@@ -40,6 +40,9 @@
 #include <asm/uaccess.h>
 
 
+/*
+ * 系统中所有的super_block都通过super_block->s_list链接到这个链表上来
+ */
 LIST_HEAD(super_blocks);
 DEFINE_SPINLOCK(sb_lock);
 
@@ -325,6 +328,18 @@ EXPORT_SYMBOL(generic_shutdown_super);
  *	@test:	comparison callback
  *	@set:	setup callback
  *	@data:	argument to each of them
+ *
+ *
+ * sys_mount()
+ *  do_mount()
+ *   do_new_mount()
+ *    do_kern_mount() 
+ *     vfs_kern_mount() 
+ *      ext2_get_sb()
+ *       get_sb_bdev(,fill_super==ext2_fill_super)
+ *        sget()
+ *
+ * 查找super_block
  */
 struct super_block *sget(struct file_system_type *type,
 			int (*test)(struct super_block *,void *),
@@ -764,7 +779,9 @@ static int test_bdev_super(struct super_block *s, void *data)
  *
  */
 int get_sb_bdev(struct file_system_type *fs_type,
-	int flags, const char *dev_name, void *data,
+	int flags, 
+	const char *dev_name /* 文件系统所在的 设备文件路径 */, 
+	void *data,
 	int (*fill_super)(struct super_block *, void *, int),
 	struct vfsmount *mnt)
 {
@@ -773,7 +790,7 @@ int get_sb_bdev(struct file_system_type *fs_type,
 	int error = 0;
 
 	/*
-	 * 根据路径查找到block_device对象
+	 * 根据路径查找到block_device对象, 文件系统所在的 设备文件路径
 	 */
 	bdev = open_bdev_excl(dev_name, flags, fs_type);
 	if (IS_ERR(bdev))
@@ -918,6 +935,14 @@ EXPORT_SYMBOL(get_sb_single);
  *	 do_new_mount()
  *    do_kern_mount() 
  *     vfs_kern_mount()
+ *
+ *
+ * start_kernel()
+ *  vfs_caches_init()
+ *   mnt_init()
+ *    sysfs_init()
+ *     kern_mount_data()
+ *      vfs_kern_mount()
  */
 struct vfsmount *
 vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void *data)
@@ -1014,7 +1039,7 @@ static struct vfsmount *fs_set_subtype(struct vfsmount *mnt, const char *fstype)
 */
 
 struct vfsmount *
-do_kern_mount(const char *fstype, int flags, const char *name, void *data)
+do_kern_mount(const char *fstype  /* 文件系统名称 */, int flags, const char *name, void *data)
 {
     //获取文件系统类型
 	struct file_system_type *type = get_fs_type(fstype);
@@ -1026,10 +1051,18 @@ do_kern_mount(const char *fstype, int flags, const char *name, void *data)
 	if (!IS_ERR(mnt) && (type->fs_flags & FS_HAS_SUBTYPE) &&
 	    !mnt->mnt_sb->s_subtype)
 		mnt = fs_set_subtype(mnt, fstype);
+	
 	put_filesystem(type);
 	return mnt;
 }
 
+/*
+ * start_kernel()
+ *  vfs_caches_init()
+ *   mnt_init()
+ *    sysfs_init()
+ *     kern_mount_data()
+ */
 struct vfsmount *kern_mount_data(struct file_system_type *type, void *data)
 {
 	return vfs_kern_mount(type, MS_KERNMOUNT, type->name, data);

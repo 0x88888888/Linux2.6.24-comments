@@ -166,6 +166,11 @@ struct vm_fault {
  * 如何将vm_operations_struct与address_space?
  * 使用vm_operations_struct->fault(filemap_fault)标准实现将vm_operations_struct与address_space实现起来
  *
+ * packet_mmap_ops, generic_file_vm_ops,
+ * xip_file_vm_ops, hugetlb_vm_ops
+ * kvm_vcpu_vm_ops, kvm_vm_vm_ops 
+ * special_mapping_vmops, generic_file_vm_ops
+ * shm_vm_ops,shmem_vm_ops
  */
 struct vm_operations_struct {
 	void (*open)(struct vm_area_struct * area);

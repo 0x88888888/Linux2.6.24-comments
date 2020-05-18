@@ -261,6 +261,12 @@ void free_pgd_range(struct mmu_gather **tlb,
 	} while (pgd++, addr = next, addr != end);
 }
 
+/*
+ * sys_munmap() 
+ *  do_munmap()
+ *   unmap_region()
+ *    free_pgtables()
+ */ 
 void free_pgtables(struct mmu_gather **tlb, struct vm_area_struct *vma,
 		unsigned long floor, unsigned long ceiling)
 {
@@ -270,9 +276,11 @@ void free_pgtables(struct mmu_gather **tlb, struct vm_area_struct *vma,
 
 		/*
 		 * Hide vma from rmap and vmtruncate before freeing pgtables
+		 *
+		 * 下面两个重点
 		 */
-		anon_vma_unlink(vma);
-		unlink_file_vma(vma);
+		anon_vma_unlink(vma);//从anon_vma中删除vma的链接
+		unlink_file_vma(vma);//从address_space->i_mmap中国删除vma
 
 		if (is_vm_hugetlb_page(vma)) {
 			hugetlb_free_pgd_range(tlb, addr, vma->vm_end,
@@ -1667,6 +1675,13 @@ static inline pte_t maybe_mkwrite(pte_t pte, struct vm_area_struct *vma)
 	return pte;
 }
 
+/*
+ * do_page_fault()
+ *  handle_pte_fault()
+ *   do_swap_page() 
+ *    do_wp_page()
+ *     cow_user_page()
+ */
 static inline void cow_user_page(struct page *dst, struct page *src, unsigned long va, struct vm_area_struct *vma)
 {
 	/*
@@ -1748,7 +1763,11 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	 */
 	if (PageAnon(old_page)) { //是anonymous页面
 		if (!TestSetPageLocked(old_page)) {
-			
+
+		    /*
+		     * 如果page_mapcount(old_page) == 1,说明只有一个pte在映射到这个page了
+		     * 只需要把这个page的pte改为可写就可以了
+		     */
 			reuse = can_share_swap_page(old_page);
 			unlock_page(old_page);
 		}
@@ -1793,7 +1812,8 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct *vma,
 		reuse = 1;
 	}
 
-	if (reuse) {
+	if (reuse) { //只有一个pte映射到这个page
+	    //修改掉pte，可写就可以了
 		flush_cache_page(vma, address, pte_pfn(orig_pte));
 		entry = pte_mkyoung(orig_pte);
 		entry = maybe_mkwrite(pte_mkdirty(entry), vma);

@@ -235,6 +235,11 @@ static void page_unlock_anon_vma(struct anon_vma *anon_vma)
  * Returns virtual address or -EFAULT if page's index/offset is not
  * within the range mapped the @vma.
  *
+ * try_to_unmap()
+ *  try_to_unmap_file()
+ *   try_to_unmap_one() 
+ *    vma_address()
+ *
  * page对应在vma中的虚拟内存地址的值
  *
  *
@@ -251,7 +256,9 @@ vma_address(struct page *page, struct vm_area_struct *vma)
 	address = vma->vm_start + ((pgoff - vma->vm_pgoff) << PAGE_SHIFT);
 	
 	if (unlikely(address < vma->vm_start || address >= vma->vm_end)) {
-		/* page should be within @vma mapping range */
+		/* page should be within @vma mapping range
+		 * page不在vma表示的线性地址范围内
+		 */
 		return -EFAULT;
 	}
 	return address;
@@ -852,7 +859,7 @@ void page_remove_rmap(struct page *page, struct vm_area_struct *vma)
  * repeatedly from either try_to_unmap_anon or try_to_unmap_file.
  *
  * try_to_unmap()
- *  try_to_unmap_anon()
+ *  try_to_unmap_anon() 这里循环调用try_to_unmap_anon
  *   try_to_unmap_one()
  *
  * try_to_unmap()
@@ -871,7 +878,7 @@ static int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 
     /* page在vma中的虚拟地址 */
 	address = vma_address(page, vma);
-	if (address == -EFAULT)
+	if (address == -EFAULT) //page在vma中没有被map，所以直接返回了
 		goto out;
 
 	/* 确认address是否已经映射到mm空间中了 */
@@ -883,6 +890,9 @@ static int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 	 * If the page is mlock()d, we cannot swap it out.
 	 * If it's recently referenced (perhaps page_referenced
 	 * skipped over this mm) then we should reactivate it.
+	 *
+	 * vma有VM_LOCKED标记，就不能被swap out了，
+	 * 清空pte 的ACCESSED标记
 	 */
 	if (!migration && ((vma->vm_flags & VM_LOCKED) ||
 			(ptep_clear_flush_young(vma, address, pte)))) {
@@ -892,16 +902,26 @@ static int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 
 	/* Nuke the page table entry. */
 	flush_cache_page(vma, address, page_to_pfn(page));
+	 /* 获取页表项内容，保存到pteval中，然后清空页表项 */		
 	pteval = ptep_clear_flush(vma, address, pte);
 
 	/* Move the dirty bit to the physical page now the pte is gone. */
 	if (pte_dirty(pteval))
-		set_page_dirty(page); /* 调用address_space->set_page_dirty()或者设置PG_dirty位 */
+		set_page_dirty(page); /*  设置页描述符的PG_dirty标记 ,调用address_space->set_page_dirty()或者设置PG_dirty位 */
 
-	/* Update high watermark before we lower rss */
+	/* Update high watermark before we lower rss
+	 *
+	 * 更新进程所拥有的最大页框数
+	 */
 	update_hiwater_rss(mm);
 
 	if (PageAnon(page)) { /* 是匿名映射页(MAP_PRIVATE,MAP_SHARED映射) */
+
+	
+        /* 获取page->private中保存的内容，
+         * 调用到try_to_unmap()前会把此页加入到swapcache，
+         * 然后分配一个以swap页槽偏移量为内容的swp_entry_t 
+         */
 		swp_entry_t entry = { .val = page_private(page) };
 
 		if (PageSwapCache(page)) { //是PG_swapcache页
@@ -909,10 +929,12 @@ static int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 			 * Store the swap location in the pte.
 			 * See handle_pte_fault() ...
 			 *
-			 * swap_map[entry]++;
+			 * 检查entry是否有效
+             * 然后就是 swap_map[entry]++ 
 			 */
-			swap_duplicate(entry);
-			if (list_empty(&mm->mmlist)) {
+			swap_duplicate(entry); 
+			if (list_empty(&mm->mmlist)) { //此vma所属进程的mm没有加入到所有进程的mmlist中(init_mm.mmlist)
+				
 				spin_lock(&mmlist_lock);
 				
 				if (list_empty(&mm->mmlist))
@@ -920,7 +942,8 @@ static int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 				
 				spin_unlock(&mmlist_lock);
 			}
-			dec_mm_counter(mm, anon_rss);
+			
+			dec_mm_counter(mm, anon_rss);//就是mm->_anon_rss--
 #ifdef CONFIG_MIGRATION
 		} else {
 			/*
@@ -929,9 +952,12 @@ static int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 			 * pte is removed and then restart fault handling.
 			 */
 			BUG_ON(!migration);
+			
+            /* 为此匿名页创建一个页迁移使用的swp_entry_t，此swp_entry_t指向此匿名页 */			
 			entry = make_migration_entry(page, pte_write(pteval));
 #endif
 		}
+		//设置pte的值为swap_entry
 		set_pte_at(mm, address, pte, swp_entry_to_pte(entry));
 		BUG_ON(pte_file(*pte));
 	} else
@@ -939,14 +965,19 @@ static int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 	if (migration) {
 		/* Establish migration entry for a file page */
 		swp_entry_t entry;
+		/* 建立一个迁移使用的swp_entry_t，用于文件页迁移 */
 		entry = make_migration_entry(page, pte_write(pteval));
+        /* 将此页表的pte页表项写入entry转为的页表项内容 */
 		set_pte_at(mm, address, pte, swp_entry_to_pte(entry));
 	} else
 #endif
 		dec_mm_counter(mm, file_rss);
 
-
+	/* 
+	 * 更新一些统计
+	 */
 	page_remove_rmap(page, vma);
+    /* 每个进程对此页进行了unmap操作，此页的page->_count--，并判断是否为0，如果为0则释放此页，一般这里不会为0 */	
 	page_cache_release(page);
 
 out_unmap:
@@ -1066,7 +1097,7 @@ static int try_to_unmap_anon(struct page *page, int migration)
 	list_for_each_entry(vma, &anon_vma->head, anon_vma_node) {
 	    /* 同一个page，在不同的vma中被映射了，所以需要调用多次try_to_unmap_one */
 		ret = try_to_unmap_one(page, vma, migration);
-		if (ret == SWAP_FAIL || !page_mapped(page))
+		if (ret == SWAP_FAIL || !page_mapped(page) /* page_mapped()返回0，说明page只被一个pte映射了，可以提前结束寻呼 */)
 			break;
 	}
 
@@ -1104,7 +1135,10 @@ static int try_to_unmap_file(struct page *page, int migration)
 
 	spin_lock(&mapping->i_mmap_lock);
     
-	/* 线性映射相关的vma,(   MAP_PRIVATE,MAP_SHARED映射出来的         )*/
+	/* 线性映射相关的vma,(   MAP_PRIVATE,MAP_SHARED映射出来的         )
+	 * 
+	 * 遍历address_space->prio_tree_root
+	 */
 	vma_prio_tree_foreach(vma, &iter, &mapping->i_mmap, pgoff, pgoff) {
 		ret = try_to_unmap_one(page, vma, migration);
 		if (ret == SWAP_FAIL || !page_mapped(page))

@@ -93,18 +93,36 @@ void vma_prio_tree_add(struct vm_area_struct *vma, struct vm_area_struct *old)
 
 	if (!old->shared.vm_set.parent) /* 已经是一个tree node了 */
 		list_add(&vma->shared.vm_set.list,
-				&old->shared.vm_set.list);
+				&old->shared.vm_set.list);//直接挂到前面的vma->shared.vm_set.list上去
 	else if (old->shared.vm_set.head)  /* list head of vmas mapping same range */
 		list_add_tail(&vma->shared.vm_set.list,
-				&old->shared.vm_set.head->shared.vm_set.list);
-	else {
+				&old->shared.vm_set.head->shared.vm_set.list);//old是一个head，所以就后面的第一个vma就要挂载到这个head.vm_set.list上去
+	else { //以前old->shared->vm_set.head为NULL，现在不是了
+		
 		INIT_LIST_HEAD(&vma->shared.vm_set.list);
 		vma->shared.vm_set.head = old;
 		old->shared.vm_set.head = vma;
 	}
 }
 
-/* mmap映射到文件时，调用这个函数 */
+/* mmap映射到文件时，调用这个函数
+ *
+ * sys_brk()
+ *  do_brk()
+ *   vma_link()
+ *    __vma_link_file()
+ *     vma_prio_tree_insert()
+ *
+ * copy_vma()
+ *  vma_link()
+ *   __vma_link_file()
+ *    vma_prio_tree_insert()
+ *
+ * mmap_region()
+ *  vma_link()
+ *   __vma_link_file()
+ *    vma_prio_tree_insert()
+ */
 void vma_prio_tree_insert(struct vm_area_struct *vma,
 			  struct prio_tree_root *root)
 {
@@ -124,6 +142,14 @@ void vma_prio_tree_insert(struct vm_area_struct *vma,
 /*
  * sys_remap_file_pages()
  *  vma_prio_tree_remove()
+ *
+ * sys_munmap() 
+ *  do_munmap()
+ *   unmap_region()
+ *    free_pgtables()
+ *     unlink_file_vma()
+ *      __remove_shared_vm_struct()
+ *       vma_prio_tree_remove()
  *
  *从prio_tree中删除
  */

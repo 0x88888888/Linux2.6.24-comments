@@ -77,6 +77,13 @@ static inline void vunmap_pud_range(pgd_t *pgd, unsigned long addr,
  *	remove_vm_area()
  *	 __remove_vm_area()
  *
+ * vfree()
+ *  __vunmap()
+ *   remove_vm_area()
+ *    __remove_vm_area()
+ *     unmap_vm_area()
+ *      unmap_kernel_range()
+ *
  * 只是情况init_mm.pgd对应的页表，应用进程对应的页表似乎没有被清空
  * 用户空间不会间接用到vmalloc
  */
@@ -90,7 +97,7 @@ void unmap_kernel_range(unsigned long addr, unsigned long size)
 	BUG_ON(addr >= end);
 	//从init_mm.pgd中获取 pgd_offset的值，这是一个物理内存地址
 	pgd = pgd_offset_k(addr);
-	flush_cache_vunmap(addr, end);
+	flush_cache_vunmap(addr, end); //空函数
 	do {
 		next = pgd_addr_end(addr, end);
 		if (pgd_none_or_clear_bad(pgd))
@@ -100,6 +107,13 @@ void unmap_kernel_range(unsigned long addr, unsigned long size)
 	flush_tlb_kernel_range(start, end);
 }
 
+/*
+ * vfree()
+ *  __vunmap()
+ *   remove_vm_area()
+ *    __remove_vm_area()
+ *     unmap_vm_area()
+ */
 static void unmap_vm_area(struct vm_struct *area)
 {
 	unmap_kernel_range((unsigned long)area->addr, area->size);
@@ -348,6 +362,11 @@ static struct vm_struct *__find_vm_area(void *addr)
  *  iounmap()
  *   remove_vm_area()
  *    __remove_vm_area()
+ *
+ * vfree()
+ *  __vunmap()
+ *   remove_vm_area()
+ *    __remove_vm_area()
  */
 static struct vm_struct *__remove_vm_area(void *addr)
 {
@@ -361,6 +380,7 @@ static struct vm_struct *__remove_vm_area(void *addr)
 
 found:
 	unmap_vm_area(tmp);
+	//这句就是把tmp从vmlist中删除了
 	*p = tmp->next;
 
 	/*
@@ -382,7 +402,13 @@ found:
  *
  *  free_vm_area()
  *   remove_vm_area()
+ *
  *  iounmap()
+ *   remove_vm_area()
+ *
+ *
+ * vfree()
+ *  __vunmap()
  *   remove_vm_area()
  */
 struct vm_struct *remove_vm_area(void *addr)
@@ -394,6 +420,10 @@ struct vm_struct *remove_vm_area(void *addr)
 	return v;
 }
 
+/*
+ * vfree()
+ *  __vunmap()
+ */
 static void __vunmap(void *addr, int deallocate_pages)
 {
 	struct vm_struct *area;
@@ -407,7 +437,7 @@ static void __vunmap(void *addr, int deallocate_pages)
 		return;
 	}
 
-	area = remove_vm_area(addr);
+	area = remove_vm_area(addr);//从vm_list中删除，清空init_mm的页表
 	if (unlikely(!area)) {
 		printk(KERN_ERR "Trying to vfree() nonexistent vm area (%p)\n",
 				addr);
@@ -645,12 +675,12 @@ EXPORT_SYMBOL(__vmalloc);
  *	For tight control over page level allocator and protection flags
  *	use __vmalloc() instead.
  *  在调用vmalloc()时建立的映射是在物理内存和主内核页表(init_mm)之间的,
- *  并没有涉及到进程的页表
+ *  并没有涉及到用户进程的页表
  *
  *
  * 以vmalloc为例(最常使用)，这部分区域对应的线性地址在内核使用vmalloc分配内存时，
  * 其实就已经分配了相应的物理内存，并做了相应的映射，建立了相应的页表项，
- * 但相关页表项仅写入了“内核页表”，并没有实时更新到“进程页表中”，
+ * 但相关页表项仅写入了“内核页表”(init_mm)，并没有实时更新到“进程页表中”，
  * 内核在这里使用了“延迟更新”的策略，将“进程页表”真正更新推迟到第一次访问相关线性地址，
  * 发生page fault时，此时在page fault的处理流程中进行“进程页表”的更新：
  *

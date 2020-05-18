@@ -65,6 +65,8 @@ struct page {
 		 * 如果一个page用与slub分配期，因为只会被内核映射，内核则不需要使用_mapcount来记录多少个pte映射了该page,而用该字段来记录本page内被多少个对象使用(slub时已经指定对象大小了),就用union中的inuse了
 		 *
 		 * 内核用page_mapped() 来确定是否被map
+		 *
+		 * page_mapcount 函数接收页描述符地址，返回值为 _mapcount + 1（这样，如果返回值为 1，表明是某个进程的用户态地址控件存放的一个非共享页）。
 		 */
 		atomic_t _mapcount;	/*  内存管理子系统中映射的页表项计数，
 		                        用于表示页是否已经映射，还用于限制逆序映射搜索.
@@ -228,13 +230,21 @@ struct vm_area_struct {
 	 *
 	 */
 	union {
+
+	    /*
+	     * 这个结构的操作看__remove_shared_vm_struct()
+	     */
 		struct {
-			/* vm_file不为空时(也就是有对应的磁盘文件时),  并且有vma有VM_NONLINEAR(非线性映射)属性时  ,这个成员链接到vma->vm_file->f_mapping->i_mapping_nonlinear链表*/
+			/* vm_file不为空时(也就是有对应的磁盘文件时),  并且有vma有VM_NONLINEAR(非线性映射)属性时  ,这个成员链接到vma->vm_file->f_mapping->i_mapping_nonlinear链表
+			 *
+			 * 在vma_nonlinear_insert()操作
+		     */
 			struct list_head list; 
 			void *parent;	/* aligns with prio_tree_node parent */
-			struct vm_area_struct *head;
+			struct vm_area_struct *head; //当多个vma对应相同的page时，用这个head链接其各个不同的vma
 		} vm_set; /* address_space->i_mmap */
 
+        //看vma_prio_tree_insert()，vma_prio_tree_insert()， vma_prio_tree_add()
 		struct raw_prio_tree_node prio_tree_node; /* 用于有file的非匿名映射， mmap线性映射时,链接到vma->vm_file->f_mapping->i_mmap */
 	} shared;
 

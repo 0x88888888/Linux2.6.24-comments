@@ -882,6 +882,7 @@ struct file {
 	unsigned int 		f_flags;
 	mode_t			f_mode;
 	loff_t			f_pos;
+	//通过信号进行I/O事件通知
 	struct fown_struct	f_owner;
 	unsigned int		f_uid, f_gid;
 	//在__dentry_open中调用file_ra_state_init初始化
@@ -1066,6 +1067,10 @@ extern int send_sigurg(struct fown_struct *fown);
 #define MNT_DETACH	0x00000002	/* Just detach from the tree */
 #define MNT_EXPIRE	0x00000004	/* Mark for expiry */
 
+/*
+ * 在super.c中定义
+ * 系统中所有的super_block都通过super_block->s_list链接到这个链表上来
+ */ 
 extern struct list_head super_blocks;
 extern spinlock_t sb_lock;
 
@@ -1074,7 +1079,7 @@ extern spinlock_t sb_lock;
 
 /* 每个分区都对应一个super_block */
 struct super_block {
-    /* 每一个分区都有一个super_block     对象，所有的super_block都通过s_list连接 */
+    /* 每一个分区都有一个super_block     对象，所有的super_block都通过s_list连接到全局遍历super_blocks上 */
 	struct list_head	s_list;		/* Keep this first */
 	dev_t			s_dev;		/* search index; _not_ kdev_t */
 	// 以字节为单位表示块的大小。系统对文件的存取操作是以块为单位的，该值即代表这个块的具体大小；
@@ -1141,7 +1146,7 @@ struct super_block {
 
 	char s_id[32];				/* Informational name */
 
-	void 			*s_fs_info;	/* 指向ext2_sb_info, Filesystem private info */
+	void 			*s_fs_info;	/* 指向ext2_sb_info之类具体的文件系统super_block在内存中的对象, Filesystem private info */
 
 	/*
 	 * The next field is for VFS *only*. No filesystems have any business

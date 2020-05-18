@@ -329,6 +329,10 @@ ptrace_get_thread_area(struct task_struct *child,
 
 /*
  * Perform set_thread_area on behalf of the traced child.
+ *
+ * sys_ptrace()
+ *  arch_ptrace()
+ *   ptrace_set_thread_area()
  */
 static int
 ptrace_set_thread_area(struct task_struct *child,
@@ -384,6 +388,7 @@ long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 		tmp = 0;  /* Default return condition */
 		if(addr < FRAME_SIZE*sizeof(long))
 			tmp = getreg(child, addr);
+		
 		if(addr >= (long) &dummy->u_debugreg[0] &&
 		   addr <= (long) &dummy->u_debugreg[7]){
 			addr -= (long) &dummy->u_debugreg[0];
@@ -622,6 +627,12 @@ long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 	return ret;
 }
 
+/*
+ * syscall_entry ( 在entry_32.S中)
+ *  syscall_trace_entry ( 在entry_32.S中)
+ *   do_syscall_trace 
+ *    send_sigtrap()
+ */
 void send_sigtrap(struct task_struct *tsk, struct pt_regs *regs, int error_code)
 {
 	struct siginfo info;
@@ -642,14 +653,26 @@ void send_sigtrap(struct task_struct *tsk, struct pt_regs *regs, int error_code)
 
 /* notification of system call entry/exit
  * - triggered by current->work.syscall_trace
+ *
+ * 如果thread_info->flag |= TIF_SYSCALL_TRACE,
+ * do_syscall_trace会被调用两次，分别在系统调用的前后
+ *
+ * syscall_entry ( 在entry_32.S中)
+ *  syscall_trace_entry ( 在entry_32.S中)
+ *   do_syscall_trace 
+ *
+ * 这个函数在在系统调用的时候，会在系统调用前后分别调用两次
  */
 __attribute__((regparm(3)))
 int do_syscall_trace(struct pt_regs *regs, int entryexit)
 {
+
+    // 是否是 不用真的去调用系统调用
 	int is_sysemu = test_thread_flag(TIF_SYSCALL_EMU);
 	/*
 	 * With TIF_SYSCALL_EMU set we want to ignore TIF_SINGLESTEP for syscall
 	 * interception
+	 * 是否是单步调试状态
 	 */
 	int is_singlestep = !is_sysemu && test_thread_flag(TIF_SINGLESTEP);
 	int ret = 0;
@@ -662,6 +685,7 @@ int do_syscall_trace(struct pt_regs *regs, int entryexit)
 		if (entryexit)
 			audit_syscall_exit(AUDITSC_RESULT(regs->eax),
 						regs->eax);
+		
 		/* Debug traps, when using PTRACE_SINGLESTEP, must be sent only
 		 * on the syscall exit path. Normally, when TIF_SYSCALL_AUDIT is
 		 * not used, entry.S will call us only on syscall exit, not
@@ -676,6 +700,7 @@ int do_syscall_trace(struct pt_regs *regs, int entryexit)
 			goto out;
 	}
 
+    //没有TRACED标记
 	if (!(current->ptrace & PT_PTRACED))
 		goto out;
 
@@ -694,7 +719,10 @@ int do_syscall_trace(struct pt_regs *regs, int entryexit)
 
 	/* the 0x80 provides a way for the tracing parent to distinguish
 	   between a syscall stop and SIGTRAP delivery */
-	/* Note that the debugger could change the result of test_thread_flag!*/
+	/* Note that the debugger could change the result of test_thread_flag!
+	 *
+	 * 发送SIGTRAP给跟踪进程
+	 */
 	ptrace_notify(SIGTRAP | ((current->ptrace & PT_TRACESYSGOOD) ? 0x80:0));
 
 	/*

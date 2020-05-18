@@ -150,6 +150,14 @@ static inline void __deprecated memclear_highpage_flush(struct page *page,
 
 #ifndef __HAVE_ARCH_COPY_USER_HIGHPAGE
 
+/*
+ * do_page_fault()
+ *  handle_pte_fault()
+ *   do_swap_page() 
+ *    do_wp_page()
+ *     cow_user_page()
+ *      copy_user_highpage()
+ */
 static inline void copy_user_highpage(struct page *to, struct page *from,
 	unsigned long vaddr, struct vm_area_struct *vma)
 {

@@ -176,10 +176,8 @@ int ptrace_may_attach(struct task_struct *task)
 }
 
 /*
- * sys_ptrace_attach()
- *  do_ptrace()
- *   ptrace_attach()
- *   
+ * sys_ptrace()
+ *  ptrace_attach()
  *
  */
 int ptrace_attach(struct task_struct *task)
@@ -239,7 +237,7 @@ repeat:
 	/* 设置task->parent以及一些child关系 */
 	__ptrace_link(task, current);
 
-    /* 发送SIGSTOP给被调试进程，使之停止执行 */
+    /* 发送SIGSTOP给被调试进程(task)，使之停止执行 */
 	force_sig_specific(SIGSTOP, task);
 
 bad:
@@ -249,6 +247,13 @@ out:
 	return retval;
 }
 
+/*
+ * sys_ptrace()
+ *  arch_ptrace()
+ *   ptrace_request()
+ *    ptrace_detach()
+ *     __ptrace_detach()
+ */
 static inline void __ptrace_detach(struct task_struct *child, unsigned int data)
 {
 	child->exit_code = data;
@@ -259,6 +264,12 @@ static inline void __ptrace_detach(struct task_struct *child, unsigned int data)
 		wake_up_process(child);
 }
 
+/*
+ * sys_ptrace()
+ *  arch_ptrace()
+ *   ptrace_request()
+ *    ptrace_detach()
+ */
 int ptrace_detach(struct task_struct *child, unsigned int data)
 {
 	if (!valid_signal(data))
@@ -327,6 +338,12 @@ int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned long ds
 	return copied;
 }
 
+/*
+ * sys_ptrace()
+ *  arch_ptrace()
+ *   ptrace_request()
+ *    ptrace_setoptions()
+ */
 static int ptrace_setoptions(struct task_struct *child, long data)
 {
 	child->ptrace &= ~PT_TRACE_MASK;
@@ -355,6 +372,12 @@ static int ptrace_setoptions(struct task_struct *child, long data)
 	return (data & ~PTRACE_O_MASK) ? -EINVAL : 0;
 }
 
+/*
+ * sys_ptrace()
+ *  arch_ptrace()
+ *   ptrace_request()
+ *    ptrace_getsiginfo()
+ */
 static int ptrace_getsiginfo(struct task_struct *child, siginfo_t __user * data)
 {
 	siginfo_t lastinfo;
@@ -376,6 +399,12 @@ static int ptrace_getsiginfo(struct task_struct *child, siginfo_t __user * data)
 	return error;
 }
 
+/*
+ * sys_ptrace()
+ *  arch_ptrace()
+ *   ptrace_request()
+ *    ptrace_setsiginfo()
+ */
 static int ptrace_setsiginfo(struct task_struct *child, siginfo_t __user * data)
 {
 	siginfo_t newinfo;
@@ -398,6 +427,11 @@ static int ptrace_setsiginfo(struct task_struct *child, siginfo_t __user * data)
 	return error;
 }
 
+/*
+ * sys_ptrace()
+ *  arch_ptrace()
+ *   ptrace_request()
+ */
 int ptrace_request(struct task_struct *child, long request,
 		   long addr, long data)
 {
@@ -434,6 +468,9 @@ int ptrace_request(struct task_struct *child, long request,
  *
  * Performs checks and sets PT_PTRACED.
  * Should be used by all ptrace implementations for PTRACE_TRACEME.
+ *
+ * sys_ptrace()
+ *  ptrace_traceme()
  */
 int ptrace_traceme(void)
 {
@@ -502,6 +539,7 @@ asmlinkage long sys_ptrace(long request, long pid, long addr, long data)
 	lock_kernel();
 	
 	if (request == PTRACE_TRACEME) {
+		//current为被调试进程
 		ret = ptrace_traceme();
 		goto out;
 	}
@@ -540,6 +578,11 @@ asmlinkage long sys_ptrace(long request, long pid, long addr, long data)
 }
 #endif /* __ARCH_SYS_PTRACE */
 
+/*
+ * sys_ptrace()
+ *  arch_ptrace()
+ *   generic_ptrace_peekdata()
+ */
 int generic_ptrace_peekdata(struct task_struct *tsk, long addr, long data)
 {
 	unsigned long tmp;

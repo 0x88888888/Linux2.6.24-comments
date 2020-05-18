@@ -391,6 +391,11 @@ __setup("serialnumber", x86_serial_nr_setup);
 
 /*
  * This does the hard work of actually picking apart the CPU stuff...
+ *
+ * start_kernel()
+ *  check_bugs()
+ *   identify_boot_cpu()
+ *    identify_cpu()
  */
 static void __cpuinit identify_cpu(struct cpuinfo_x86 *c)
 {
@@ -505,10 +510,17 @@ static void __cpuinit identify_cpu(struct cpuinfo_x86 *c)
 	mcheck_init(c);
 }
 
+/*
+ * start_kernel()
+ *  check_bugs()
+ *   identify_boot_cpu()
+ */
 void __init identify_boot_cpu(void)
 {
 	identify_cpu(&boot_cpu_data);
 	sysenter_setup();
+
+	
 	enable_sep_cpu();
 	mtrr_bp_init();
 }

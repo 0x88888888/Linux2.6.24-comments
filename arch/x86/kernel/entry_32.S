@@ -401,12 +401,14 @@ ENTRY(system_call)
 	SAVE_ALL
 	GET_THREAD_INFO(%ebp)
 					# system call tracing in operation / emulation
-	/* Note, _TIF_SECCOMP is bit number 8, and so it needs testw and not testb */
+	/* Note, _TIF_SECCOMP is bit number 8, and so it needs testw and not testb 
+	 * 这里主要看_TIF_SYSCALL_TRACE(各种工具用这个来跟踪系统调用)和_TIF_SYSCALL_AUDIT
+	 */
 	testw $(_TIF_SYSCALL_EMU|_TIF_SYSCALL_TRACE|_TIF_SECCOMP|_TIF_SYSCALL_AUDIT),TI_flags(%ebp)
 	jnz syscall_trace_entry
 	cmpl $(nr_syscalls), %eax
 	jae syscall_badsys
-syscall_call:
+syscall_call: /* syscall_trace_entry() 中跳转到这里来 */
 	call *sys_call_table(,%eax,4)
 	movl %eax,PT_EAX(%esp)		# store the return value
 syscall_exit:
@@ -554,6 +556,9 @@ END(work_pending)
 
 	# perform syscall exit tracing
 	ALIGN
+/*
+ * 由syscall_entry跳转而来
+ */	
 syscall_trace_entry:
 	movl $-ENOSYS,PT_EAX(%esp)
 	movl %esp, %eax
@@ -570,7 +575,7 @@ END(syscall_trace_entry)
 
 	# perform syscall exit tracing
 	ALIGN
-syscall_exit_work:
+syscall_exit_work: /* system_call跳转到这里 */
 	testb $(_TIF_SYSCALL_TRACE|_TIF_SYSCALL_AUDIT|_TIF_SINGLESTEP), %cl
 	jz work_pending
 	TRACE_IRQS_ON

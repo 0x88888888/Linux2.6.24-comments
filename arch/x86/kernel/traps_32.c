@@ -66,6 +66,7 @@ int panic_on_unrecovered_nmi;
 DECLARE_BITMAP(used_vectors, NR_VECTORS);
 EXPORT_SYMBOL_GPL(used_vectors);
 
+/* 定义在entry_32.S中 */
 asmlinkage int system_call(void);
 
 /* Do we ignore FPU interrupts ? */

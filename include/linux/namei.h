@@ -30,7 +30,7 @@ struct nameidata {
 	unsigned int	flags;
 	// 表示当前dentry的类型
 	int		last_type;
-	// 表示符号链接当前的嵌套级别，最大不能超过MAX_NESTED_LINKS；
+	// 查找过程中，当前的符号链接嵌套级别，最大不能超过MAX_NESTED_LINKS；
 	unsigned	depth;
 	/*
      * 由于在定位过程中，会遇到符号链接，指针数组saved_names指向每一级别的符号链接

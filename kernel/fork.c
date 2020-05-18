@@ -301,7 +301,7 @@ static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
 		tmp = kmem_cache_alloc(vm_area_cachep, GFP_KERNEL);
 		if (!tmp)
 			goto fail_nomem;
-		/* 直接复制父进程的vma的数据到子进程的vma */
+		/* 直接复制父进程的vma的数据到子进程的vma,如果anon_vma,也复制了 */
 		*tmp = *mpnt;
 		/* 视情况复制父进程vma的权限，非vm_flags */
 		pol = mpol_copy(vma_policy(mpnt));
@@ -314,7 +314,7 @@ static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
 		tmp->vm_mm = mm;
 		tmp->vm_next = NULL;
 
-		/* 处理子进程的匿名映射的逆向映射的链接 */
+		/* 处理子进程的匿名映射的逆向映射的链接，添加到anon_vma */
 		anon_vma_link(tmp);
 
 		/* 如果这个vm_area_struct是对应一个文件映射区域
@@ -358,6 +358,7 @@ static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
 		 */
 		retval = copy_page_range(mm, oldmm, mpnt);
 
+        //通常没有open函数
 		if (tmp->vm_ops && tmp->vm_ops->open)
 			tmp->vm_ops->open(tmp);
 
