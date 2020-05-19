@@ -450,6 +450,28 @@ static int block_fsync(struct file *filp, struct dentry *dentry, int datasync)
 static  __cacheline_aligned_in_smp DEFINE_SPINLOCK(bdev_lock);
 static struct kmem_cache * bdev_cachep __read_mostly;
 
+/*
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ *    ext2_mkdir()
+ *     ext2_new_inode()
+ *      new_inode()
+ *       alloc_inode()
+ *        bdev_alloc_inode()
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *       ext2_create()
+ *        ext2_new_inode()
+ *         new_inode()
+ *          alloc_inode()
+ *           bdev_alloc_inode()
+ */
 static struct inode *bdev_alloc_inode(struct super_block *sb)
 {
 	struct bdev_inode *ei = kmem_cache_alloc(bdev_cachep, GFP_KERNEL);
@@ -1152,6 +1174,14 @@ static int __blkdev_put(struct block_device *bdev, int for_part);
  *   blkdev_get()
  *    __blkdev_get() 
  *     do_open()
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    nameidata_to_filp()
+ *     __dentry_open()
+ *      blkdev_open()
+ *       do_open()
  */
 static int do_open(struct block_device *bdev, struct file *file, int for_part)
 {
@@ -1201,6 +1231,7 @@ static int do_open(struct block_device *bdev, struct file *file, int for_part)
 				bdi = blk_get_backing_dev_info(bdev);
 				if (bdi == NULL)
 					bdi = &default_backing_dev_info;
+				
 				bdev->bd_inode->i_data.backing_dev_info = bdi;
 			}
 			//重新读取分区信息
@@ -1309,10 +1340,14 @@ int blkdev_get(struct block_device *bdev, mode_t mode, unsigned flags)
 }
 EXPORT_SYMBOL(blkdev_get);
 
+
 /*
  * sys_open()
- *  ....
- *  blkdev_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    nameidata_to_filp()
+ *     __dentry_open()
+ *      blkdev_open()
  */
 static int blkdev_open(struct inode * inode, struct file * filp)
 {

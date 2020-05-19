@@ -154,6 +154,12 @@ static int ext2_create (struct inode * dir, struct dentry * dentry, int mode, st
 	return err;
 }
 
+/*
+ * sys_mknod()
+ *  sys_mknodat()
+ *   vfs_mknod()
+ *    ext2_mknod()
+ */
 static int ext2_mknod (struct inode * dir, struct dentry *dentry, int mode, dev_t rdev)
 {
 	struct inode * inode;

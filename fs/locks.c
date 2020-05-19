@@ -1098,6 +1098,13 @@ int locks_mandatory_locked(struct inode *inode)
  * Searches the inode's list of locks to find any POSIX locks which conflict.
  * This function is called from rw_verify_area() and
  * locks_verify_truncate().
+ *
+ * sys_read()
+ *  vfs_read()
+ *   rw_verify_area()
+ *    locks_mandatory_area()
+ *
+ * 强制锁检测
  */
 int locks_mandatory_area(int read_write, struct inode *inode,
 			 struct file *filp, loff_t offset,

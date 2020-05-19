@@ -16,7 +16,10 @@
 #include <linux/kobject.h>
 #include <linux/kobj_map.h>
 
-/* 通过要加入系统的设备的主设备号major（major=MAJOR(dev)）来获得probes数组的索引值i（i = major % 255）*/
+/* 通过要加入系统的设备的主设备号major（major=MAJOR(dev)）来获得probes数组的索引值i（i = major % 255）
+ *
+ * 两个全局对象cdev_map和bdev_map,分别用来存放字符设备对象和块设备对象
+ */
 struct kobj_map {
 	struct probe {
 		struct probe *next;/* 将所有的散列元素链接成链表 */

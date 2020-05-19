@@ -653,6 +653,19 @@ struct kobject * kset_find_obj(struct kset * kset, const char * name)
 	return ret;
 }
 
+/*
+ * isa_bus_init()
+ *  bus_register()
+ *   subsystem_register(&bus->subsys)
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *	 do_basic_setup()
+ *	  driver_init()
+ *     system_bus_init()
+ *      subsystem_register(&bus_subsys)
+ *
+ */
 int subsystem_register(struct kset *s)
 {
 	return kset_register(s);

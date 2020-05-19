@@ -117,6 +117,25 @@ static void wake_up_inode(struct inode *inode)
  *    sock_alloc()
  *     new_inodes()
  *      alloc_inode()
+ *
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ *    ext2_mkdir()
+ *     ext2_new_inode()
+ *      new_inode()
+ *       alloc_inode()
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *       ext2_create()
+ *        ext2_new_inode()
+ *         new_inode()
+ *          alloc_inode()
  */
 static struct inode *alloc_inode(struct super_block *sb)
 {
@@ -126,6 +145,7 @@ static struct inode *alloc_inode(struct super_block *sb)
 	struct inode *inode;
 
     // sockfs_ops->alloc_inode == sock_alloc_inode
+    // bdev_sops->alloc_inode == bdev_alloc_inode
 	if (sb->s_op->alloc_inode)
 		inode = sb->s_op->alloc_inode(sb);
 	else
@@ -569,6 +589,22 @@ repeat:
  *    sock_alloc()
  *     new_inodes()
  *
+ * sys_mkdir()
+ *  sys_mkdirat()
+ *   vfs_mkdir()
+ *    ext2_mkdir()
+ *     ext2_new_inode()
+ *      new_inode()
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *       ext2_create()
+ *        ext2_new_inode()
+ *         new_inode()
  */
 struct inode *new_inode(struct super_block *sb)
 {

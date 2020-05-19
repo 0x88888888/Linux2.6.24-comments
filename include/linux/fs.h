@@ -1242,7 +1242,10 @@ int generic_osync_inode(struct inode *, struct address_space *, int);
  */
 typedef int (*filldir_t)(void *, const char *, int, loff_t, u64, unsigned);
 
-/* 这些函数不是由vfs代码直接调用，而是由def_blk_fops中的函数间接调用 */
+/* 这些函数不是由vfs代码直接调用，而是由def_blk_fops中的函数间接调用
+ *
+ * idescsi_ops,idedisk_ops
+ */
 struct block_device_operations {
 	int (*open) (struct inode *, struct file *);
 	int (*release) (struct inode *, struct file *);

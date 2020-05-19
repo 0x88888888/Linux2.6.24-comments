@@ -711,9 +711,14 @@ static ide_driver_t idescsi_driver = {
 };
 
 /*
- * blkdev_open()
- *  do_open()
- *   idescsi_ide_open()
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    nameidata_to_filp()
+ *     __dentry_open()
+ *      blkdev_open()
+ *       do_open()
+ *        idescsi_ide_open()
  */
 static int idescsi_ide_open(struct inode *inode, struct file *filp)
 {

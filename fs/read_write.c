@@ -193,6 +193,11 @@ bad:
  */
 #define MAX_RW_COUNT (INT_MAX & PAGE_CACHE_MASK)
 
+/*
+ * sys_read()
+ *  vfs_read()
+ *   rw_verify_area()
+ */
 int rw_verify_area(int read_write, struct file *file, loff_t *ppos, size_t count)
 {
 	struct inode *inode;
@@ -205,7 +210,9 @@ int rw_verify_area(int read_write, struct file *file, loff_t *ppos, size_t count
 	if (unlikely((pos < 0) || (loff_t) (pos + count) < 0))
 		goto Einval;
 
+    
 	if (unlikely(inode->i_flock && mandatory_lock(inode))) {
+		//锁检测
 		int retval = locks_mandatory_area(
 			read_write == READ ? FLOCK_VERIFY_READ : FLOCK_VERIFY_WRITE,
 			inode, file, pos, count);
@@ -290,7 +297,7 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 	if (unlikely(!access_ok(VERIFY_WRITE, buf, count)))
 		return -EFAULT;
 
-    /* 检查文件是否可读 */
+    /* 检查文件是否可读,锁检查 */
 	ret = rw_verify_area(READ, file, pos, count);
 	if (ret >= 0) {
 		count = ret;

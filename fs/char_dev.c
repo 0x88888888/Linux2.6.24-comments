@@ -54,6 +54,7 @@ static DEFINE_MUTEX(chrdevs_lock);
 
 /*
  *内核用于设备号分配与管理的核心元素
+ * 放到cdev_map[]中
  */
 static struct char_device_struct {
 	struct char_device_struct *next;

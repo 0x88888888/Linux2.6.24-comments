@@ -489,6 +489,16 @@ found:
  *   vfs_mkdir()
  *    ext2_mkdir()
  *     ext2_new_inode()
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *       ext2_create()
+ *        ext2_new_inode()
+ *
  * 在dir inode下分配一个inode
  */
 struct inode *ext2_new_inode(struct inode *dir, int mode)

@@ -860,7 +860,7 @@ static struct file *do_filp_open(int dfd, const char *filename, int flags,
     // 根据filename查找到相应的dentry
 	error = open_namei(dfd, filename, namei_flags, mode, &nd);
 	
-	if (!error)
+	if (!error) //设置 file->f_op= inode->i_fop
 		return nameidata_to_filp(&nd, flags); // //打开dentry,设置filp->f_mapping,filp->f_op相关
 		
 	return ERR_PTR(error);

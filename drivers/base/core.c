@@ -886,7 +886,10 @@ int device_add(struct device *dev)
  *	have a clearly defined need to use and refcount the device
  *	before it is added to the hierarchy.
  *
+ * device_create()
+ *  device_register()
  *
+ * 注册到sysfs
  */
 int device_register(struct device *dev)
 {

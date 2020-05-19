@@ -2202,6 +2202,10 @@ do_link:
  * if it doesn't exist.  Is SMP-safe.
  *
  * Returns with nd->dentry->d_inode->i_mutex locked.
+ *
+ * sys_mknod()
+ *  sys_mknodat()
+ *   lookup_create()
  */
 struct dentry *lookup_create(struct nameidata *nd, int is_dir)
 {
@@ -2244,6 +2248,11 @@ fail:
 }
 EXPORT_SYMBOL_GPL(lookup_create);
 
+/*
+ * sys_mknod()
+ *  sys_mknodat()
+ *   vfs_mknod()
+ */
 int vfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 {
 	int error = may_create(dir, dentry, NULL);
@@ -2262,6 +2271,7 @@ int vfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 		return error;
 
 	DQUOT_INIT(dir);
+	          //ext2_mknode
 	error = dir->i_op->mknod(dir, dentry, mode, dev);
 	if (!error)
 		fsnotify_create(dir, dentry);
@@ -2286,7 +2296,9 @@ asmlinkage long sys_mknodat(int dfd, const char __user *filename, int mode,
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
 
+    //查找设备文件的父目录
 	error = do_path_lookup(dfd, tmp, LOOKUP_PARENT, &nd);
+	
 	if (error)
 		goto out;
 	
@@ -2302,6 +2314,7 @@ asmlinkage long sys_mknodat(int dfd, const char __user *filename, int mode,
 			error = vfs_create(nd.dentry->d_inode,dentry,mode,&nd);
 			break;
 		case S_IFCHR: case S_IFBLK: //字符设备、块设备文件
+		           
 			error = vfs_mknod(nd.dentry->d_inode,dentry,mode,
 					new_decode_dev(dev));
 			break;
@@ -2324,6 +2337,9 @@ out:
 	return error;
 }
 
+/*
+ * 创建设备文件名
+ */
 asmlinkage long sys_mknod(const char __user *filename, int mode, unsigned dev)
 {
 	return sys_mknodat(AT_FDCWD, filename, mode, dev);
