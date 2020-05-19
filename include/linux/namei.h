@@ -68,17 +68,25 @@ enum {LAST_NORM, LAST_ROOT, LAST_DOT, LAST_DOTDOT, LAST_BIND};
  *  - locked when lookup done with dcache_lock held
  *  - dentry cache is untrusted; force a real lookup
  */
-#define LOOKUP_FOLLOW		 1
+/*  如果最后一个分量是符号链接，则解释它 */ 
+#define LOOKUP_FOLLOW		 1   
+/*  最后一个分量必须是目录 */
 #define LOOKUP_DIRECTORY	 2
+/* 在路径名中还有文件名要检查 */
 #define LOOKUP_CONTINUE		 4
+/* 查找最后一个分量名所在的目录 */
 #define LOOKUP_PARENT		16
+/* 不考虑模拟根目录,在x86中没有用到这个 */
 #define LOOKUP_NOALT		32
 #define LOOKUP_REVAL		64
 /*
  * Intent data
  */
+/* 试图打开一个文件 */ 
 #define LOOKUP_OPEN		(0x0100)
+/* 试图创建一个文件 */
 #define LOOKUP_CREATE		(0x0200)
+/* 试图为一个检查用户的权限 */
 #define LOOKUP_ACCESS		(0x0400)
 #define LOOKUP_CHDIR		(0x0800)
 

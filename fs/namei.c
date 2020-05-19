@@ -738,7 +738,7 @@ static __always_inline int __do_follow_link(struct path *path, struct nameidata 
 static inline int do_follow_link(struct path *path, struct nameidata *nd)
 {
 	int err = -ELOOP;
-	if (current->link_count >= MAX_NESTED_LINKS) //是否
+	if (current->link_count >= MAX_NESTED_LINKS /* 8 */) //是否
 		goto loop;
 	if (current->total_link_count >= 40)
 		goto loop;
@@ -1057,7 +1057,7 @@ static fastcall int __link_path_walk(const char * name, struct nameidata *nd)
 
 		/* 如果路径以/结尾，说明被定为的必须是一个目录，跳到last_with_slashes */
 		while (*++name == '/');	
-		if (!*name)
+		if (!*name) //路径中没有字符了，并且以 / 结尾
 			goto last_with_slashes;
 
 		/*
@@ -1124,16 +1124,20 @@ static fastcall int __link_path_walk(const char * name, struct nameidata *nd)
 		err = -ENOTDIR; 
 		if (!inode->i_op->lookup)
 			break;
-		continue; /* 继续for循环，处理下一项 */
+		
+		continue; /* 如果路径没有结束，就必然继续for循环，处理下一项 */
 		/* here ends the main loop */
 
 last_with_slashes:
+        // 最后的分量以 / 结束
 		lookup_flags |= LOOKUP_FOLLOW | LOOKUP_DIRECTORY;
 last_component:
+	    //解析到最后一个分量了
 		/* Clear LOOKUP_CONTINUE iff it was previously unset */
 		nd->flags &= lookup_flags | ~LOOKUP_CONTINUE;
 		if (lookup_flags & LOOKUP_PARENT)
 			goto lookup_parent;
+		
 		if (this.name[0] == '.') switch (this.len) {
 			default:
 				break;
