@@ -82,16 +82,22 @@ struct partition {
 } __attribute__((packed));
 
 /*
-  磁盘分区
-  每个分区都对应一个block_device,同一个磁盘中的所有分区(hd_struct)都指向同一个gendisk
+ * 磁盘分区
+ * 每个分区都对应一个block_device,同一个磁盘中的所有分区(hd_struct)都指向同一个gendisk
+ *
+ * 在alloc_disk_node() 中分配
 */
 struct hd_struct {
+    //磁盘中分区的起始扇区
 	sector_t start_sect;
+    //分区的长度
 	sector_t nr_sects;
 	struct kobject kobj;  /* 此处的kobj->parent指向gendisk->kobj */
 	struct kobject *holder_dir;
+	//对分区发出的读和写的次数，和读写的扇区数
 	unsigned ios[2], sectors[2];	/* READs and WRITEs */
-	int policy, partno;
+	//如果分区是只读的，则设置为1，否则设置为0
+	int policy, partno /* 磁盘中分区的相对索引 */;
 #ifdef CONFIG_FAIL_MAKE_REQUEST
 	int make_it_fail;
 #endif
@@ -119,12 +125,17 @@ struct disk_stats {
  *
  * 个分区都对应一个block_device,同一个磁盘中的所有分区(hd_struct)都指向同一个gendisk
  * 个系统的gendisk对象都链接到block_subsys中
+ *
+ * 在alloc_disk_node()分配
 */	
 struct gendisk {
 	int major;			/*  驱动程序的主设备号, major number of driver */
-	int first_minor;
+    // 与磁盘关联的第一个次设备号
+	int first_minor;    
+	//与磁盘关联的次设备号范围
 	int minors;                     /* maximum number of minors, =1 for
                                          * disks that can't be partitioned. */
+    //磁盘的标准名称
 	char disk_name[32];		/* name of major driver */
 	struct hd_struct **part;	/* 每个磁盘分区都对应一个数组项 [indexed by minor] */
 	int part_uevent_suppress;
@@ -133,19 +144,23 @@ struct gendisk {
 	void *private_data;
 	sector_t capacity;  /* 磁盘容量 */
 
-	int flags;
+    //磁盘类型的标志，GENHD_FL_UP, GENHD_FL_REMOVABLE
+	int flags;  
 	struct device *driverfs_dev; /* 标识该磁盘所属的硬件设备,指向驱动程序模型的一个对象  */
 	struct kobject kobj;        /*gendisk->kobj->entry链接到block_subsys->list,整个系统的磁盘设备都在block_subsys中 */
 	struct kobject *holder_dir;
 	struct kobject *slave_dir;
 
 	struct timer_rand_state *random;
+	//如果磁盘是只读的，则置为1，否则置为0
 	int policy;
 
+    //写入磁盘的的扇区数计数器，仅为RAID使用
 	atomic_t sync_io;		/* RAID */
 	unsigned long stamp;
 	int in_flight;
 #ifdef	CONFIG_SMP
+    //每个cpu使用磁盘的情况
 	struct disk_stats *dkstats;
 #else
 	struct disk_stats dkstats;

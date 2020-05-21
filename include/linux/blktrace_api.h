@@ -188,6 +188,25 @@ static inline void blk_add_trace_rq(struct request_queue *q, struct request *rq,
  * Description:
  *     Records an action against a bio. Will log the bio offset + size.
  *
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read() 
+ *      do_generic_mapping_read()
+ *       page_cache_sync_readahead()
+ *        ondemand_readahead()
+ *         __do_page_cache_readahead()
+ *          read_pages()
+ *           ext2_readpages()
+ *            mpage_readpages()
+ *             do_mpage_readpage()
+ *              mpage_bio_submit( bio->bi_end_io = mpage_end_io_write)
+ *               submit_bio()
+ *                generic_make_request()
+ *                 __generic_make_request()
+ *                  blk_add_trace_bio()
  **/
 static inline void blk_add_trace_bio(struct request_queue *q, struct bio *bio,
 				     u32 what)

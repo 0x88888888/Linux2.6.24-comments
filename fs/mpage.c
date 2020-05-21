@@ -146,6 +146,7 @@ mpage_alloc(struct block_device *bdev,
 			bio = bio_alloc(gfp_flags, nr_vecs);
 	}
 
+    //设置bio的指定传输的扇区起始号和block_device
 	if (bio) {
 		bio->bi_bdev = bdev;
 		bio->bi_sector = first_sector;

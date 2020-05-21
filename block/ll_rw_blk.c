@@ -3329,6 +3329,8 @@ end_io:
  *                generic_make_request()
  *                 __generic_make_request()
  *                  blk_partition_remap()
+ *
+ * 将扇区起始号相对与分区的bio 转成 相对于磁盘的扇区起始号
  */
 static inline void blk_partition_remap(struct bio *bio)
 {
@@ -3342,6 +3344,7 @@ static inline void blk_partition_remap(struct bio *bio)
 		p->sectors[rw] += bio_sectors(bio);
 		p->ios[rw]++;
 
+		//将相对分区的扇区起始号转为相对与磁盘的起始号
 		bio->bi_sector += p->start_sect;
 		bio->bi_bdev = bdev->bd_contains;
 
@@ -3476,7 +3479,7 @@ static inline int bio_check_eod(struct bio *bio, unsigned int nr_sectors)
  *           ext2_readpages()
  *            mpage_readpages()
  *             do_mpage_readpage()
- *              mpage_bio_submit()
+ *              mpage_bio_submit( bio->bi_end_io = mpage_end_io_write)
  *               submit_bio()
  *                generic_make_request()
  *                 __generic_make_request()
@@ -3549,6 +3552,8 @@ end_io:
 		 * 
 		 * If this device has partitions, remap block n
 		 * of partition p to block n+start(p) of the disk.
+		 *
+		 * 将扇区起始号相对与分区的bio 转成 相对于磁盘的扇区起始号
 		 */
 		blk_partition_remap(bio);
 
@@ -3608,7 +3613,7 @@ end_io:
  *           ext2_readpages()
  *            mpage_readpages()  这里会多次调用do_mpage_readpage，每一次都生产一个新的bio对象
  *             do_mpage_readpage()
- *              mpage_bio_submit()
+ *              mpage_bio_submit( bio->bi_end_io = mpage_end_io_write )
  *               submit_bio()
  *                generic_make_request()
  *
@@ -3714,7 +3719,7 @@ EXPORT_SYMBOL(generic_make_request);
  *           ext2_readpages()
  *            mpage_readpages()
  *             do_mpage_readpage()
- *              mpage_bio_submit()
+ *              mpage_bio_submit( bio->bi_end_io = mpage_end_io_write )
  *               submit_bio()
  */
 void submit_bio(int rw, struct bio *bio)

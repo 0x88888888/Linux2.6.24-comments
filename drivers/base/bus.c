@@ -373,6 +373,12 @@ static struct device_driver * next_driver(struct klist_iter * i)
  *	driver. If the caller needs to know that info, it must set it
  *	in the callback. It must also be sure to increment the refcount
  *	so it doesn't disappear before returning to the caller.
+ *
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
+ *    device_attach()
+ *     bus_for_each_drv(fn == __device_attach)
  */
 
 int bus_for_each_drv(struct bus_type * bus, struct device_driver * start,
@@ -388,7 +394,7 @@ int bus_for_each_drv(struct bus_type * bus, struct device_driver * start,
 	klist_iter_init_node(&bus->klist_drivers, &i,
 			     start ? &start->knode_bus : NULL);
 	while ((drv = next_driver(&i)) && !error)
-		error = fn(drv, data);
+		error = fn(drv, data); //__device_attach
 	klist_iter_exit(&i);
 	return error;
 }
@@ -490,6 +496,10 @@ out_put:
  *
  *	- Add device to bus's list of devices.
  *	- Try to attach to driver.
+ *
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
  */
 void bus_attach_device(struct device * dev)
 {

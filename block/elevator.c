@@ -787,8 +787,9 @@ struct request *elv_next_request(struct request_queue *q)
 
 		if ((rq->cmd_flags & REQ_DONTPREP) || !q->prep_rq_fn)
 			break;
-
+        //把这个request发送给硬件设备
 		ret = q->prep_rq_fn(q, rq);
+		
 		if (ret == BLKPREP_OK) {
 			break;
 		} else if (ret == BLKPREP_DEFER) {

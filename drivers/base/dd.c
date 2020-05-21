@@ -83,6 +83,12 @@ static void driver_sysfs_remove(struct device *dev)
  *	from a driver's probe() method.)
  *
  *	This function must be called with @dev->sem held.
+ *
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
+ *    device_attach()
+ *     device_bind_driver()
  */
 int device_bind_driver(struct device *dev)
 {
@@ -97,6 +103,16 @@ int device_bind_driver(struct device *dev)
 static atomic_t probe_count = ATOMIC_INIT(0);
 static DECLARE_WAIT_QUEUE_HEAD(probe_waitqueue);
 
+/*
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
+ *    device_attach()
+ *     bus_for_each_drv(fn == __device_attach)
+ *      __device_attach()
+ *       driver_probe_device()
+ *        really_probe()
+ */
 static int really_probe(struct device *dev, struct device_driver *drv)
 {
 	int ret = 0;
@@ -113,6 +129,7 @@ static int really_probe(struct device *dev, struct device_driver *drv)
 		goto probe_failed;
 	}
 
+    //ide_bus_type.probe = generic_ide_probe
 	if (dev->bus->probe) {
 		ret = dev->bus->probe(dev);
 		if (ret)
@@ -182,6 +199,14 @@ int driver_probe_done(void)
  *
  * This function must be called with @dev->sem held.  When called for a
  * USB interface, @dev->parent->sem must be held as well.
+ *
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
+ *    device_attach()
+ *     bus_for_each_drv(fn == __device_attach)
+ *      __device_attach()
+ *       driver_probe_device()
  */
 int driver_probe_device(struct device_driver * drv, struct device * dev)
 {
@@ -201,6 +226,14 @@ done:
 	return ret;
 }
 
+/*
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
+ *    device_attach()
+ *     bus_for_each_drv(fn == __device_attach)
+ *      __device_attach()
+ */
 static int __device_attach(struct device_driver * drv, void * data)
 {
 	struct device * dev = data;
@@ -220,6 +253,11 @@ static int __device_attach(struct device_driver * drv, void * data)
  *	-ENODEV if the device is not registered.
  *
  *	When called for a USB interface, @dev->parent->sem must be held.
+ *
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
+ *    device_attach()
  */
 int device_attach(struct device * dev)
 {

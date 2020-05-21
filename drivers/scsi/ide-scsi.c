@@ -1006,6 +1006,18 @@ static struct scsi_host_template idescsi_template = {
 	.proc_name		= "ide-scsi",
 };
 
+/*
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
+ *    device_attach()
+ *     bus_for_each_drv(fn == __device_attach)
+ *      __device_attach()
+ *       driver_probe_device()
+ *        really_probe()
+ *         generic_ide_probe()
+ *          ide_scsi_probe()
+ */
 static int ide_scsi_probe(ide_drive_t *drive)
 {
 	idescsi_scsi_t *idescsi;
@@ -1028,6 +1040,7 @@ static int ide_scsi_probe(ide_drive_t *drive)
 	    !(host = scsi_host_alloc(&idescsi_template,sizeof(idescsi_scsi_t))))
 		return -ENODEV;
 
+    //分配一个gendisk对象
 	g = alloc_disk(1 << PARTN_BITS);
 	if (!g)
 		goto out_host_put;

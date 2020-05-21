@@ -739,8 +739,12 @@ static void device_remove_class_symlinks(struct device *dev)
  *	to the global and sibling lists for the device, then
  *	adds it to the other relevant subsystems of the driver model.
  *
- * device_register()
- *  device_add()
+ *
+ * raw_init()
+ * chr_dev_init()
+ *  device_create() 
+ *   device_register()
+ *    device_add()
  */
 int device_add(struct device *dev)
 {
@@ -810,7 +814,11 @@ int device_add(struct device *dev)
 	if (error)
 		goto BusError;
 	kobject_uevent(&dev->kobj, KOBJ_ADD);
-	// 将dev添加到bus->klist_devices上去
+	/*
+	 * 将dev添加到bus->klist_devices上去
+	 *
+	 * 会导致分配gendisk,hd_struct对象
+	 */
 	bus_attach_device(dev);
 	
 	if (parent)
@@ -886,8 +894,10 @@ int device_add(struct device *dev)
  *	have a clearly defined need to use and refcount the device
  *	before it is added to the hierarchy.
  *
- * device_create()
- *  device_register()
+ * raw_init()
+ * chr_dev_init()
+ *  device_create()
+ *   device_register()
  *
  * 注册到sysfs
  */
@@ -1165,6 +1175,9 @@ static void device_create_release(struct device *dev)
  *
  * Note: the struct class passed to this function must have previously
  * been created with a call to class_create().
+ *
+ * chr_dev_init()
+ *  device_create()
  */
 struct device *device_create(struct class *class, struct device *parent,
 			     dev_t devt, const char *fmt, ...)

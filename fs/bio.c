@@ -148,6 +148,15 @@ void bio_init(struct bio *bio)
  *
  *   allocate bio and iovecs from the memory pools specified by the
  *   bio_set structure.
+ *
+ * submit_bh()
+ *  bio_alloc()
+ *   bio_alloc_bioset()
+ *
+ * mpage_alloc()
+ *  bio_alloc()
+ *   bio_alloc_bioset()
+ *
  **/
 struct bio *bio_alloc_bioset(gfp_t gfp_mask, int nr_iovecs, struct bio_set *bs)
 {
@@ -307,6 +316,7 @@ int bio_get_nr_vecs(struct block_device *bdev)
 	nr_pages = ((q->max_sectors << 9) + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	if (nr_pages > q->max_phys_segments)
 		nr_pages = q->max_phys_segments;
+	
 	if (nr_pages > q->max_hw_segments)
 		nr_pages = q->max_hw_segments;
 

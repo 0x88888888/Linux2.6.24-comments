@@ -723,11 +723,38 @@ void genhd_media_change_notify(struct gendisk *disk)
 }
 EXPORT_SYMBOL_GPL(genhd_media_change_notify);
 
+/*
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
+ *    device_attach()
+ *     bus_for_each_drv(fn == __device_attach)
+ *      __device_attach()
+ *       driver_probe_device()
+ *        really_probe()
+ *         generic_ide_probe()
+ *          ide_scsi_probe()
+ *           alloc_disk()
+ */
 struct gendisk *alloc_disk(int minors)
 {
 	return alloc_disk_node(minors, -1);
 }
 
+/*
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
+ *    device_attach()
+ *     bus_for_each_drv(fn == __device_attach)
+ *      __device_attach()
+ *       driver_probe_device()
+ *        really_probe()
+ *         generic_ide_probe()
+ *          ide_scsi_probe()
+ *           alloc_disk()
+ *            alloc_disk_node()
+ */
 struct gendisk *alloc_disk_node(int minors, int node_id)
 {
 	struct gendisk *disk;
@@ -740,6 +767,7 @@ struct gendisk *alloc_disk_node(int minors, int node_id)
 			return NULL;
 		}
 		if (minors > 1) {
+			//分配hd_struct分区对象
 			int size = (minors - 1) * sizeof(struct hd_struct *);
 			disk->part = kmalloc_node(size,
 				GFP_KERNEL | __GFP_ZERO, node_id);

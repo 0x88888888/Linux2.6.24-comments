@@ -499,7 +499,9 @@ static int metapage_readpage(struct file *fp, struct page *page)
 			if (bio)
 				submit_bio(READ, bio);
 
+            //分配一个bio对象，设置起始扇区号为1
 			bio = bio_alloc(GFP_NOFS, 1);
+			
 			bio->bi_bdev = inode->i_sb->s_bdev;
 			bio->bi_sector = pblock << (inode->i_blkbits - 9);
 			bio->bi_end_io = metapage_read_end_io;

@@ -1717,11 +1717,25 @@ static int ide_uevent(struct device *dev, struct kobj_uevent_env *env)
 	return 0;
 }
 
+/*
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
+ *    device_attach()
+ *     bus_for_each_drv(fn == __device_attach)
+ *      __device_attach()
+ *       driver_probe_device()
+ *        really_probe()
+ *         generic_ide_probe()
+ */
 static int generic_ide_probe(struct device *dev)
 {
 	ide_drive_t *drive = to_ide_device(dev);
 	ide_driver_t *drv = to_ide_driver(dev->driver);
 
+	/*
+	 * idescsi_driver.probe == ide_scsi_probe
+	 */
 	return drv->probe ? drv->probe(drive) : -ENODEV;
 }
 

@@ -371,6 +371,11 @@ struct request_queue
     //向request_queue中添加新的request的标准函数
 	request_fn_proc		*request_fn; /* do_ide_request或者scsi_request_fn,内核希望驱动程序执行某些工作，比如从磁盘读取或者写入数据时，会调用这个函数 */
 	make_request_fn		*make_request_fn; /* 创建新的request,内核对该函数的标准实现是向请求链接(queue_head?)添加request。如果链表中有足够多的请求，就会调用特定于驱动程序的request_fn函数  ,默认__make_request*/
+	/*
+	 * 把这个request发送给硬件设备
+	 *
+	 * 在scsi_alloc_queue()中设置为scsi_prep_fn
+	*/
 	prep_rq_fn		*prep_rq_fn; /* 这个函数通产不用，如果实现该函数，会产生所需的硬件命令 */
 	unplug_fn		*unplug_fn;  /* dm_unplug_all() ,linear_unplug() ,generic_unplug_device() ,loop_unplug() */
 	merge_bvec_fn		*merge_bvec_fn; /* 用于确定是否向请求队列添加更多的数据 */

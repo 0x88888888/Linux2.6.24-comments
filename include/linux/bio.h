@@ -55,6 +55,8 @@
 
 /*
  * was unsigned short, but we might as well be ready for > 64kB I/O pages
+ *
+ * bio中的每个段都是由bio_vec描述的
  */
 struct bio_vec {
 	struct page	*bv_page;
@@ -73,6 +75,7 @@ typedef void (bio_destructor_t) (struct bio *);
  * 一个request中可以有多个bio，一个bio中可以有多个page
  */
 struct bio {
+    //在blk_partition_remap()转成相对于磁盘的起始扇区号
 	sector_t		bi_sector;	/* 指定传输的扇区起始号, device address in 512 byte
 						   sectors */
 	struct bio		*bi_next;	/* request queue link */
@@ -83,7 +86,7 @@ struct bio {
 						 */
     // bi_io_vec 数组的长度
 	unsigned short		bi_vcnt;	/* how many bio_vec's */
-	unsigned short		bi_idx;		/* current index into bvl_vec */
+	unsigned short		bi_idx;		/* bio操作中 bio_vec[]数组中段的当前索引值.current index into bvl_vec */
 
 	/* Number of segments in this BIO after
 	 * physical address coalescing is performed.
@@ -91,25 +94,29 @@ struct bio {
 	 * 下面二者指定了传输中段的数目
 	 *
 	 */
+	 //合并之后bio中硬件段的数目
 	unsigned short		bi_phys_segments;
 
 	/* Number of segments after physical and DMA remapping
 	 * hardware coalescing is performed.
 	 */
+	 //合并之后硬件段的数目
 	unsigned short		bi_hw_segments;
 
-	unsigned int		bi_size;	/* 请求所涉及数据的长度,residual I/O count */
+    //需要传送的直接数量
+	unsigned int		bi_size;	/* residual I/O count */
 
 	/*
 	 * To keep track of the max hw size, we account for the
 	 * sizes of the first and last virtually mergeable segments
 	 * in this bio
 	 */
-	unsigned int		bi_hw_front_size;
-	unsigned int		bi_hw_back_size;
+ 	unsigned int		bi_hw_front_size;   // 硬件段合并算法使用
+	unsigned int		bi_hw_back_size;    // 硬件段合并算法使用
 
-	unsigned int		bi_max_vecs;	/* max bvl_vecs we can hold */
+	unsigned int		bi_max_vecs;	/* bi_io_vec数组中允许的最大段数, max bvl_vecs we can hold */
 
+    //bio中的每个段都是由bio_vec描述的
 	struct bio_vec		*bi_io_vec;	/* bio_vec数组, bio涉及到的page, 这里的page可以是高端内存页,这些page无法直接映射到内核中，因而无法直接通过内核虚拟地址访问,可以利用这个特点将I/O数据直接复制给用户空间应用程序,而应用程序可以使用页表访问高端内存页
 	                                    the actual vec list */
 
@@ -122,9 +129,9 @@ struct bio {
      * bounce_end_io_read_isa()
      */
 	bio_end_io_t		*bi_end_io;
-	atomic_t		bi_cnt;		/* pin count */
+	atomic_t		bi_cnt;		/* 引用计数 pin count */
 
-	void			*bi_private;
+	void			*bi_private; //通用块层和设备驱动程序的I/O完成方法使用的指针
 
 	bio_destructor_t	*bi_destructor;	/* destructor */
 };
