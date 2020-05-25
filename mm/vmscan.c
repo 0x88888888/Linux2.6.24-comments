@@ -76,7 +76,7 @@ struct scan_control {
 	 * 页数目的最小值。
 	 *
 	 */
-	int swap_cluster_max;
+	int swap_cluster_max;  //通常初始化为SWAP_CLUSTER_MAX
 
     /*
      * 控制内核换出页的积极程度,该值的范围在0-100内，默认情况下，
@@ -194,6 +194,9 @@ EXPORT_SYMBOL(unregister_shrinker);
  *   shrink_slab()
  *
  * balance_pgdat()
+ *  shrink_slab()
+ *
+ * try_to_free_pages()
  *  shrink_slab()
  */
 unsigned long shrink_slab(unsigned long scanned, gfp_t gfp_mask,
@@ -409,6 +412,7 @@ static pageout_t pageout(struct page *page, struct address_space *mapping,
 	 */
 	if (!is_page_cache_freeable(page))
 		return PAGE_KEEP;
+	
 	if (!mapping) {
 		/*
 		 * Some data journaling orphaned pages can have
@@ -448,6 +452,7 @@ static pageout_t pageout(struct page *page, struct address_space *mapping,
 		/* 写到磁盘上去
 		 *
 		 * swap_aops->writepage == swap_writepage
+		 * ext2_aops->writepage == ext2_writepage
 		 */
 		res = mapping->a_ops->writepage(page, &wbc);
 		/* 写入出错了 */
@@ -1018,7 +1023,9 @@ static unsigned long shrink_inactive_list(unsigned long max_scan,
 		spin_unlock_irq(&zone->lru_lock);
 
 		nr_scanned += nr_scan;
-		/* 回收page_list上的page,实际上就是zone->inactive_list上的page */
+		/* 回收page_list上的page,实际上就是zone->inactive_list上的page 
+		 * 归还到伙伴系统上去
+		 */
 		nr_freed = shrink_page_list(&page_list, sc, PAGEOUT_IO_ASYNC);
 
 		/*
@@ -1364,6 +1371,9 @@ force_reclaim_mapped:
  *  try_to_free_pages 直接回收
  *   shrink_zones
  *    shrink_zone 
+ *
+ * 这个函数的目标是从zone->inactive_list中回收32个page
+ *
  */
 static unsigned long shrink_zone(int priority, struct zone *zone,
 				struct scan_control *sc)
@@ -1383,6 +1393,7 @@ static unsigned long shrink_zone(int priority, struct zone *zone,
 		(zone_page_state(zone, NR_ACTIVE) >> priority) + 1;
 	
 	nr_active = zone->nr_scan_active;
+	
 	if (nr_active >= sc->swap_cluster_max)
 		zone->nr_scan_active = 0;
 	else
@@ -1516,7 +1527,7 @@ unsigned long try_to_free_pages(struct zone **zones, int order, gfp_t gfp_mask)
 	struct scan_control sc = {
 		.gfp_mask = gfp_mask,
 		.may_writepage = !laptop_mode,
-		.swap_cluster_max = SWAP_CLUSTER_MAX,
+		.swap_cluster_max = SWAP_CLUSTER_MAX, //32
 		.may_swap = 1, /* 肯能要写到swap area中去 */
 		.swappiness = vm_swappiness,
 		.order = order,
@@ -1535,7 +1546,7 @@ unsigned long try_to_free_pages(struct zone **zones, int order, gfp_t gfp_mask)
 				+ zone_page_state(zone, NR_INACTIVE);
 	}
 
-	for (priority = DEF_PRIORITY; priority >= 0; priority--) {
+	for (priority = DEF_PRIORITY /* 12 */; priority >= 0; priority--) {
 		
 		sc.nr_scanned = 0;
 		if (!priority)

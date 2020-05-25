@@ -387,6 +387,22 @@ void invalidate_bdev(struct block_device *bdev)
 
 /*
  * Kick pdflush then try to free up some ZONE_NORMAL memory.
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread() 
+ *          __getblk()
+ *           __getblk_slow()
+ *            grow_buffers()
+ *             grow_dev_page()
+ *              alloc_page_buffers()
+ *               free_more_memory()
  */
 static void free_more_memory(void)
 {
@@ -1039,6 +1055,8 @@ no_grow:
 	 * finishing IO.  Since this is an async request and
 	 * the reserve list is empty, we're sure there are 
 	 * async buffer heads in use.
+	 *
+	 * 空闲的物理内存不够了，唤醒pdflush线程
 	 */
 	free_more_memory();
 	goto try_again;
@@ -3056,8 +3074,6 @@ out:
 /*
  * The generic ->writepage function for buffer-backed address_spaces
  *
- * ext2_writepage()
- *  block_write_full_page(, get_block == ext2_get_block)
  *
  * sys_mkdir()
  *  sys_mkdirat()
@@ -3068,6 +3084,10 @@ out:
  *       write_one_page()
  *        ext2_writepage( , get_block == ext2_get_block)
  *
+ * shrink_page_list()
+ *  pageout()
+ *   ext2_writepage()
+ *     block_write_full_page( , get_block == ext2_get_block)
  */
 int block_write_full_page(struct page *page, get_block_t *get_block,
 			struct writeback_control *wbc)

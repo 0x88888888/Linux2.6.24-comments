@@ -867,6 +867,12 @@ extern int mprotect_fixup(struct vm_area_struct *vma,
  * querying the cache size, so a fastpath for that case is appropriate.
  */
 struct shrinker {
+    /*
+     * shrink_dcache_memory, shrink_icache_memory
+     * rpcauth_cache_shrinker, shrink_dqcache_memory
+     * mb_cache_shrink_fn, nfs_access_cache_shrinker
+     * xfsbufd_wakeup, xfs_qm_shake
+     */
 	int (*shrink)(int nr_to_scan, gfp_t gfp_mask);
 	int seeks;	/* seeks to recreate an obj */
 

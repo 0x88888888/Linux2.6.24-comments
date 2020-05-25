@@ -4974,6 +4974,7 @@ static void cache_reap(struct work_struct *w)
 		else {
 			int freed;
 
+		    //释放空闲的slab
 			freed = drain_freelist(searchp, l3, (l3->free_limit +
 				5 * searchp->num - 1) / (5 * searchp->num));
 			STATS_ADD_REAPED(searchp, freed);

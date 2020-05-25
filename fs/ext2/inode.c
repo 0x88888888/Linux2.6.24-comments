@@ -854,6 +854,10 @@ int ext2_get_block(struct inode *inode, sector_t iblock, struct buffer_head *bh_
  *      ext2_commit_chunk()
  *       write_one_page()
  *        ext2_writepage()
+ *
+ * shrink_page_list()
+ *  pageout()
+ *   ext2_writepage()
  */
 static int ext2_writepage(struct page *page, struct writeback_control *wbc)
 {

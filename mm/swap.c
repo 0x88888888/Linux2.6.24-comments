@@ -201,10 +201,12 @@ void fastcall activate_page(struct page *page)
  */
 void fastcall mark_page_accessed(struct page *page)
 {
+    //如果是inactive的，就标识为active就可以了，清空referenced
 	if (!PageActive(page) && PageReferenced(page) && PageLRU(page)) {
 		activate_page(page);
 		ClearPageReferenced(page);
-	} else if (!PageReferenced(page)) {
+	} else if (!PageReferenced(page)) { 
+		//如果是active的，还要标识referenced标识
 		SetPageReferenced(page);
 	}
 }

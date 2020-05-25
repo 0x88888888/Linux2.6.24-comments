@@ -389,6 +389,14 @@ restart:
  *
  * Called with dcache_lock, drops it and then regains.
  * Called with dentry->d_lock held, drops it.
+ *
+ * try_to_free_pages()
+ *  shrink_slab()
+ *   shrink_dcache_memory()
+ *    prune_dcache()
+ *     prune_one_dentry()
+ * 
+ * 归还dentry对象
  */
 static void prune_one_dentry(struct dentry * dentry)
 {
@@ -404,8 +412,10 @@ static void prune_one_dentry(struct dentry * dentry)
 		if (!atomic_dec_and_lock(&dentry->d_count, &dentry->d_lock))
 			return;
 
+        //ext2的dentry->d_op == NULL
 		if (dentry->d_op && dentry->d_op->d_delete)
 			dentry->d_op->d_delete(dentry);
+		
 		if (!list_empty(&dentry->d_lru)) {
 			list_del(&dentry->d_lru);
 			dentry_stat.nr_unused--;
@@ -429,12 +439,19 @@ static void prune_one_dentry(struct dentry * dentry)
  *
  * This function may fail to free any resources if
  * all the dentries are in use.
+ *
+ * try_to_free_pages()
+ *  shrink_slab()
+ *   shrink_dcache_memory()
+ *    prune_dcache()
+ *
  * 从dentry_unused中删除掉一些没有用的dentry
  */
  
 static void prune_dcache(int count, struct super_block *sb)
 {
 	spin_lock(&dcache_lock);
+	//删除count个dentry对象
 	for (; count ; count--) {
 		struct dentry *dentry;
 		struct list_head *tmp;
@@ -472,7 +489,9 @@ static void prune_dcache(int count, struct super_block *sb)
  			spin_unlock(&dentry->d_lock);
 			continue;
 		}
-		/* If the dentry was recently referenced, don't free it. */
+		/* If the dentry was recently referenced, don't free it.
+		 * 依旧放在dentry_unused缓存中
+		 */
 		if (dentry->d_flags & DCACHE_REFERENCED) {
 			dentry->d_flags &= ~DCACHE_REFERENCED;
  			list_add(&dentry->d_lru, &dentry_unused);
@@ -878,6 +897,9 @@ void shrink_dcache_parent(struct dentry * parent)
  *   shrink_slab()
  *    shrink_dcache_memory()
  *      
+ * try_to_free_pages()
+ *  shrink_slab()
+ *   shrink_dcache_memory()
  * 
  */
 static int shrink_dcache_memory(int nr, gfp_t gfp_mask)

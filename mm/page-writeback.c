@@ -599,6 +599,12 @@ static void background_writeout(unsigned long _min_pages)
  * Start writeback of `nr_pages' pages.  If `nr_pages' is zero, write back
  * the whole world.  Returns 0 if a pdflush thread was dispatched.  Returns
  * -1 if all pdflush threads were busy.
+ *
+ * free_more_memory() 唤醒pdflush线程
+ *  wakeup_pdflush()
+ *
+ * try_to_free_pages()
+ *  wakeup_pdflush()
  */
 int wakeup_pdflush(long nr_pages)
 {
