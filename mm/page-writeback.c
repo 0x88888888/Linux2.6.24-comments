@@ -554,6 +554,9 @@ void throttle_vm_writeout(gfp_t gfp_mask)
  *  2.不会回写super_block
  *  3.没有设置定时器的重启回写机制。
  *
+ * pdflush_operation()
+ *  ......
+ *   background_writeout()
  */
 static void background_writeout(unsigned long _min_pages)
 {
@@ -577,11 +580,13 @@ static void background_writeout(unsigned long _min_pages)
 				&& min_pages <= 0)
 			break;
 		wbc.encountered_congestion = 0;
-		wbc.nr_to_write = MAX_WRITEBACK_PAGES;
+		wbc.nr_to_write = MAX_WRITEBACK_PAGES; //1024
 		wbc.pages_skipped = 0;
+		
 		writeback_inodes(&wbc);
 		min_pages -= MAX_WRITEBACK_PAGES - wbc.nr_to_write;
-		if (wbc.nr_to_write > 0 || wbc.pages_skipped > 0) {
+		
+		if (wbc.nr_to_write > 0 || wbc.pages_skipped > 0) { //还没有写完，等待
 			/* Wrote less than expected */
 			congestion_wait(WRITE, HZ/10);
 			if (!wbc.encountered_congestion)
@@ -826,6 +831,18 @@ void __init page_writeback_init(void)
  * the call was made get new I/O started against them.  If wbc->sync_mode is
  * WB_SYNC_ALL then we were called for data integrity and we must wait for
  * existing IO to complete.
+ *
+ * sys_write()
+ *  vfs_write()
+ *   do_sync_write()
+ *    generic_file_aio_write()
+ *     sync_page_range()
+ *      filemap_fdatawrite_range()
+ *       __filemap_fdatawrite_range()
+ *        do_writepages()
+ *         ext2_writepages()
+ *          mpage_writepages()
+ *           write_cache_pages( writepage == __mpage_writepage)
  */
 int write_cache_pages(struct address_space *mapping,
 		      struct writeback_control *wbc, writepage_t writepage,
@@ -865,6 +882,7 @@ retry:
 		unsigned i;
 
 		scanned = 1;
+		//循环所有的dirty page
 		for (i = 0; i < nr_pages; i++) {
 			struct page *page = pvec.pages[i];
 
@@ -977,6 +995,23 @@ EXPORT_SYMBOL(generic_writepages);
  *    __writeback_single_inode()
  *     __sync_single_inode()
  *      do_writepages()
+ *
+ * pdflush_operation()
+ *  ......
+ *   background_writeout()
+ *    writeback_inodes()
+ *     sync_sb_inodes()
+ *      __writeback_single_inode()
+ *       do_writepages()
+ *
+ * sys_write()
+ *  vfs_write()
+ *   do_sync_write()
+ *    generic_file_aio_write()
+ *     sync_page_range()
+ *      filemap_fdatawrite_range()
+ *       __filemap_fdatawrite_range()
+ *        do_writepages()
  */
 int do_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {

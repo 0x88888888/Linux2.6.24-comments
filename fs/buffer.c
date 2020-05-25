@@ -422,8 +422,8 @@ static void end_buffer_async_read(struct buffer_head *bh, int uptodate)
 	BUG_ON(!buffer_async_read(bh));
 
 	page = bh->b_page;
-	if (uptodate) {
-		set_buffer_uptodate(bh);
+	if (uptodate) { 
+		set_buffer_uptodate(bh); //设置BH_Uptodate
 	} else {
 		clear_buffer_uptodate(bh);
 		if (printk_ratelimit())
@@ -964,6 +964,23 @@ int remove_inode_buffers(struct inode *inode)
  *
  * create_empty_buffers()
  *  alloc_page_buffers()
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread() 
+ *          __getblk()
+ *           __getblk_slow()
+ *            grow_buffers()
+ *             grow_dev_page()
+ *              alloc_page_buffers()
+ *
+ * 分配buffer_head对象
  */
 struct buffer_head *alloc_page_buffers(struct page *page, unsigned long size /* 一个buffer_head负责管理page中的数据的大小*/,
 		int retry)
@@ -975,6 +992,7 @@ try_again:
 	head = NULL;
 	offset = PAGE_SIZE;
 	while ((offset -= size) >= 0) {
+		// 为page中的每一个缓冲区(1024k)分配一个buffer对象
 		bh = alloc_buffer_head(GFP_NOFS);
 		if (!bh)
 			goto no_grow;
@@ -1070,6 +1088,20 @@ init_page_buffers(struct page *page, struct block_device *bdev,
  * Create the page-cache page that contains the requested block.
  *
  * This is user purely for blockdev mappings.
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread() 
+ *          __getblk()
+ *           __getblk_slow()
+ *            grow_buffers()
+ *             grow_dev_page()
  */
 static struct page *
 grow_dev_page(struct block_device *bdev, sector_t block,
@@ -1098,6 +1130,8 @@ grow_dev_page(struct block_device *bdev, sector_t block,
 
 	/*
 	 * Allocate some buffers for this page
+	 *
+	 * 分配buffer_head对象
 	 */
 	bh = alloc_page_buffers(page, size, 0);
 	if (!bh)
@@ -1124,6 +1158,19 @@ failed:
 /*
  * Create buffers for the specified block device block's page.  If
  * that page was dirty, the buffers are set dirty also.
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread() 
+ *          __getblk()
+ *           __getblk_slow()
+ *            grow_buffers()
  */
 static int
 grow_buffers(struct block_device *bdev, sector_t block, int size)
@@ -1472,7 +1519,7 @@ __find_get_block(struct block_device *bdev, sector_t block, unsigned size)
 {
 	struct buffer_head *bh = lookup_bh_lru(bdev, block, size);
 
-	if (bh == NULL) {
+	if (bh == NULL) { //没有在bh_lrus中找到
 		bh = __find_get_block_slow(bdev, block);
 		if (bh)
 			bh_lru_install(bh);
@@ -1506,7 +1553,6 @@ EXPORT_SYMBOL(__find_get_block);
  *         __bread() 
  *          __getblk()
  *
- * 这个函数和__bread功能相似，但是返回__bread会读磁盘
  */
 struct buffer_head *
 __getblk(struct block_device *bdev, sector_t block, unsigned size)
@@ -2236,8 +2282,6 @@ EXPORT_SYMBOL(generic_write_end);
  * set/clear_buffer_uptodate() functions propagate buffer state into the
  * page struct once IO has completed.
  * 
- * blkdev_readpage()
- *  block_read_full_page()
  *
  * do_page_fault()
  *  handle_mm_fault()
@@ -2248,7 +2292,26 @@ EXPORT_SYMBOL(generic_write_end);
  *       ext2_readpage()
  *        mpage_readpage(get_block == ext2_get_block)
  *         do_mpage_readpage(get_block == ext2_get_block)
- *          block_read_full_page(get_block== ext2_get_block)
+ *          block_read_full_page(get_block== ext2_get_block) //当ext2 类型的文件内容出现不连续块或者空洞时
+ *
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       blkdev_readpage( get_block== blkdev_get_block) 读块设备文件
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read( actor == file_read_actor ) 
+ *      do_generic_mapping_read( actor == file_read_actor)
+ *       blkdev_readpage()
+ *        block_read_full_page(get_block == blkdev_get_block)
+ * 
  */
 int block_read_full_page(struct page *page, get_block_t *get_block)
 {
@@ -2273,9 +2336,10 @@ int block_read_full_page(struct page *page, get_block_t *get_block)
 	i = 0;
 
 	do {
-		if (buffer_uptodate(bh))
+		if (buffer_uptodate(bh)) //设置了BH_Uptodate
 			continue; /* 本buffer_head负责的数据没有被修改过 */
 
+        //没有设置了BH_Mapped
 		if (!buffer_mapped(bh)) { /* 本buffer_head负责的数据没有读进来 */
 			int err = 0;
 
@@ -2286,6 +2350,8 @@ int block_read_full_page(struct page *page, get_block_t *get_block)
 				 * get_block一般是ext2_get_block或者ext3_get_block了 
 				 * get_block函数并没有真的从磁盘上读取数据，读数据在后面
 				 * get_block只是修改了buffer_head上的数据(如b_bdev,b_blocknr字段)
+				 *
+				 * 将iblock在分区或磁盘上的逻辑块号
 			     */
 				err = get_block(inode, iblock, bh, 0);
 				if (err)
@@ -2339,7 +2405,7 @@ int block_read_full_page(struct page *page, get_block_t *get_block)
 	 */
 	for (i = 0; i < nr; i++) {
 		bh = arr[i];
-		if (buffer_uptodate(bh))
+		if (buffer_uptodate(bh))//已经是最新的数据了，去设置BH_Upotdate
 			end_buffer_async_read(bh, 1);
 		else
 			submit_bh(READ, bh);
@@ -3159,6 +3225,9 @@ int submit_bh(int rw, struct buffer_head * bh)
  *      sync_mapping_buffers()
  *       fsync_buffers_list()
  *        ll_rw_block()
+ *
+ * 有些时候内核必须触发几个数据块的数据传输,这些数据块不一定物理上相邻，
+ * 会调用到这里
  */
 void ll_rw_block(int rw, int nr, struct buffer_head *bhs[])
 {
@@ -3245,6 +3314,11 @@ static inline int buffer_busy(struct buffer_head *bh)
 		(bh->b_state & ((1 << BH_Dirty) | (1 << BH_Lock)));
 }
 
+/*
+ * try_to_release_page()
+ *  try_to_free_buffers()
+ *   drop_buffers()
+ */
 static int
 drop_buffers(struct page *page, struct buffer_head **buffers_to_free)
 {
@@ -3267,6 +3341,7 @@ drop_buffers(struct page *page, struct buffer_head **buffers_to_free)
 			__remove_assoc_queue(bh);
 		bh = next;
 	} while (bh != head);
+	
 	*buffers_to_free = head;
 	__clear_page_buffers(page);
 	return 1;
@@ -3274,6 +3349,11 @@ failed:
 	return 0;
 }
 
+/*
+ * try_to_release_page()
+ *  try_to_free_buffers()
+ *
+ */
 int try_to_free_buffers(struct page *page)
 {
 	struct address_space * const mapping = page->mapping;
@@ -3312,7 +3392,7 @@ int try_to_free_buffers(struct page *page)
 out:
 	if (buffers_to_free) {
 		struct buffer_head *bh = buffers_to_free;
-
+ 
 		do {
 			struct buffer_head *next = bh->b_this_page;
 			free_buffer_head(bh);

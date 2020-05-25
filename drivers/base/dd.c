@@ -134,7 +134,8 @@ static int really_probe(struct device *dev, struct device_driver *drv)
 		ret = dev->bus->probe(dev);
 		if (ret)
 			goto probe_failed;
-	} else if (drv->probe) {
+	} else if (drv->probe) { 
+	    // sr_template.gendrv.probe = sr_probe
 		ret = drv->probe(dev);
 		if (ret)
 			goto probe_failed;

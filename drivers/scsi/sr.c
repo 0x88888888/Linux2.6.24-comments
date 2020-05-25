@@ -543,6 +543,17 @@ static void sr_release(struct cdrom_device_info *cdi)
 
 }
 
+/*
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
+ *    device_attach()
+ *     bus_for_each_drv(fn == __device_attach)
+ *      __device_attach()
+ *       driver_probe_device()
+ *        really_probe()
+ *         sr_probe()
+ */
 static int sr_probe(struct device *dev)
 {
 	struct scsi_device *sdev = to_scsi_device(dev);

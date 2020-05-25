@@ -136,7 +136,7 @@ static int populate_range(struct mm_struct *mm, struct vm_area_struct *vma,
  * and the vma's default protection is used. Arbitrary protections
  * might be implemented in the future.
  *
- * 允许重排映射中的page，是的内存与文件中的次序不在等价，该实现无须移动内存中的数据
+ * 允许重排 文件映射(VM_SHARED)中的page，是的内存与文件中的次序不在等价，该实现无须移动内存中的数据
  *
  * 在一般情况下，非线性映射做的基本上就是在原来的线性映射中修改页表，
  * 已达到移动页的目的，这样会节省很多开支
@@ -230,7 +230,7 @@ asmlinkage long sys_remap_file_pages(unsigned long start, unsigned long size,
 			unsigned long addr;
 
 			flags &= MAP_NONBLOCK;
-		    //这里会分配vma，并且插入到rb_tree
+		    //对原有的vma进行split，分配vma，并且插入到rb_tree
 			addr = mmap_region(vma->vm_file, start, size,
 					flags, vma->vm_flags, pgoff, 1);
 			if (IS_ERR_VALUE(addr)) {

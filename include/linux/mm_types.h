@@ -211,6 +211,7 @@ struct vm_area_struct {
      */
 	unsigned long vm_flags;		/* Flags, listed below. */
 
+    //链接到mm_struct->mm_rb
 	struct rb_node vm_rb;
 
 	/*
@@ -237,6 +238,7 @@ struct vm_area_struct {
 		struct {
 			/* vm_file不为空时(也就是有对应的磁盘文件时),  并且有vma有VM_NONLINEAR(非线性映射)属性时  ,这个成员链接到vma->vm_file->f_mapping->i_mapping_nonlinear链表
 			 *
+			 * 非线性map和线性map都会用到list
 			 * 在vma_nonlinear_insert()操作
 		     */
 			struct list_head list; 

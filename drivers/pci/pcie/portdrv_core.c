@@ -274,6 +274,10 @@ int pcie_port_device_probe(struct pci_dev *dev)
 	return -ENODEV;
 }
 
+/*
+ * pcie_portdrv_probe()
+ *  pcie_port_device_register()
+ */
 int pcie_port_device_register(struct pci_dev *dev)
 {
 	struct pcie_port_device_ext *p_ext;

@@ -474,19 +474,28 @@ int scsi_dispatch_cmd(struct scsi_cmnd *cmd)
 	unsigned long timeout;
 	int rtn = 0;
 
-	/* check if the device is still usable */
+   /* check if the device is still usable 
+	* 检测设备是否还可用。在此时，
+	* 可能别的地方已经将设备状态置为SDEV_DEL，如果这样，
+	* 我们将所有命令出错，将命令的结果标记为DID_NO_CONNECT，
+	* 调用scsi_done结束
+    */
 	if (unlikely(cmd->device->sdev_state == SDEV_DEL)) {
 		/* in SDEV_DEL we error all commands. DID_NO_CONNECT
 		 * returns an immediate error upwards, and signals
 		 * that the device is no longer present */
 		cmd->result = DID_NO_CONNECT << 16;
+		
+		// 递增SCSI设备的IO请求统计数 
 		atomic_inc(&cmd->device->iorequest_cnt);
 		__scsi_done(cmd);
 		/* return 0 (because the command has been processed) */
 		goto out;
 	}
 
-	/* Check to see if the scsi lld put this device into state SDEV_BLOCK. */
+	/* Check to see if the scsi lld put this device into state SDEV_BLOCK. 
+	 * 检查SCSI低层驱动是否已经阻塞了这个设备 
+	 */
 	if (unlikely(cmd->device->sdev_state == SDEV_BLOCK)) {
 		/* 
 		 * in SDEV_BLOCK, the command is just put back on the device
@@ -517,6 +526,10 @@ int scsi_dispatch_cmd(struct scsi_cmnd *cmd)
 	/*
 	 * We will wait MIN_RESET_DELAY clock ticks after the last reset so
 	 * we can avoid the drive not being ready.
+	 *
+	 * 如果主机适配器的resetting被设置为1，表示其last_Reset域有效。
+	 * 也就是说，后者记录了主机适配器上次复位的时间。
+	 * 在复位后必须有2秒钟的延时，才能向这个主机适配器发送命令。
 	 */
 	timeout = host->last_reset + MIN_RESET_DELAY;
 
@@ -543,6 +556,7 @@ int scsi_dispatch_cmd(struct scsi_cmnd *cmd)
 	 */
 	scsi_add_timer(cmd, cmd->timeout_per_command, scsi_times_out);
 
+    // 在提交SCSI命令之前输出信息
 	scsi_log_send(cmd);
 
 	/*
@@ -554,6 +568,9 @@ int scsi_dispatch_cmd(struct scsi_cmnd *cmd)
 	/*
 	 * Before we queue this command, check if the command
 	 * length exceeds what the host adapter can handle.
+	 *
+	 * 在将命令排入队列之前，检查命令长度是否超过了主机适配器可以处理的最大长度，
+	 * 如果这样，将命令结果标记为DID_ABORT并返回
 	 */
 	if (CDB_SIZE(cmd) > cmd->device->host->max_cmd_len) {
 		SCSI_LOG_MLQUEUE(3,
@@ -567,6 +584,10 @@ int scsi_dispatch_cmd(struct scsi_cmnd *cmd)
 	spin_lock_irqsave(host->host_lock, flags);
 	scsi_cmd_get_serial(host, cmd); 
 
+    /*
+     * 在获取锁的过程中，可能别的地方已经将主机适配器的状态设置为“删除”。
+     * 如果这样，标记为DID_NO_CONNECT并返回
+     */
 	if (unlikely(host->shost_state == SHOST_DEL)) {
 		cmd->result = (DID_NO_CONNECT << 16);
 		scsi_done(cmd);

@@ -118,10 +118,13 @@ struct request;
 typedef void (rq_end_io_fn)(struct request *, int);
 
 struct request_list {
+	//分别记录READ WRITE请求的
 	int count[2];
 	int starved[2];
 	int elvpriv;
+	//分配request对象的池，看blk_get_request()
 	mempool_t *rq_pool;
+	//存放为获得空闲的读和写请求描述符而睡眠的进程
 	wait_queue_head_t wait[2];
 };
 
@@ -232,13 +235,13 @@ struct request {
 	 * 有hard_前缀的成员和没有hard_前缀的成员语义相同，
 	 * 但是操作的物理设备，不是虚拟设备
 	 */
-	sector_t sector;		/* 指定数据传输的起始扇区,next sector to submit */
+	sector_t sector;		/*要传送的下一个扇区号,next sector to submit */
 	
 	sector_t hard_sector;		/*,next sector to complete */
 	unsigned long nr_sectors;	/* 指定了当前request还需要传输的扇区数目，no. of sectors left to submit */
 	unsigned long hard_nr_sectors;	/* no. of sectors left to complete */
 	/* no. of sectors left to submit in the current segment */
-	unsigned int current_nr_sectors; /* 当前请求在当前段中还需要传输的扇区数目 */
+	unsigned int current_nr_sectors; /* 当前bio在当前段中还需要传输的扇区数目 */
 
 	/* no. of sectors left to complete in the current segment */
 	unsigned int hard_cur_sectors; /* 有hard前缀的变量与没有没有hard前缀的变量涉及的是物理设备而非虚拟设备 */
@@ -265,11 +268,13 @@ struct request {
 	void *elevator_private2;
 
 	struct gendisk *rq_disk;
+	//请求的起始时间
 	unsigned long start_time;
 
 	/* Number of scatter-gather DMA addr+len pairs after
 	 * physical address coalescing is performed.
 	 */
+	//  请求的物理段数目
 	unsigned short nr_phys_segments;
 
 	/* Number of scatter-gather addr+len pairs after
@@ -277,13 +282,21 @@ struct request {
 	 * This is the number of scatter-gather entries the driver
 	 * will actually have to deal with after DMA mapping is done.
 	 */
+	//请求的硬件段数 
 	unsigned short nr_hw_segments;
 
 	unsigned short ioprio;
 
 	void *special;
+	/*
+	 * 指向当前数据传送的内存缓冲区的指针
+	 */
 	char *buffer;
 
+	/*
+	 * 与请求相关的标记
+	 * (只适合支持多次数据传送的硬件设备)
+	 */
 	int tag;
 	int errors;
 
@@ -294,11 +307,14 @@ struct request {
 	 * 当request作为传输命令的载体时，会用到下面两个成员
 	 */
 	unsigned int cmd_len;
+	//用于prep_rq_fn() 方法的预先准备的预先内置命令所在的缓冲区
 	unsigned char cmd[BLK_MAX_CDB];
 
+    //设备驱动程序为了跟踪所传送的数据而使用的指针
 	unsigned int data_len;
 	unsigned int sense_len;
 	void *data;
+	//指向输出sense命令的缓冲区的指针
 	void *sense;
 
 	unsigned int timeout;
@@ -365,18 +381,25 @@ struct request_queue
 
 	/*
 	 * the queue request freelist, one for reads and one for writes
+	 *
+	 * 空闲的request对象池
 	 */
- 	struct request_list	rq;   /* request实例的缓存, */
-
+ 	struct request_list	rq;   
     //向request_queue中添加新的request的标准函数
 	request_fn_proc		*request_fn; /* do_ide_request或者scsi_request_fn,内核希望驱动程序执行某些工作，比如从磁盘读取或者写入数据时，会调用这个函数 */
 	make_request_fn		*make_request_fn; /* 创建新的request,内核对该函数的标准实现是向请求链接(queue_head?)添加request。如果链表中有足够多的请求，就会调用特定于驱动程序的request_fn函数  ,默认__make_request*/
 	/*
 	 * 把这个request发送给硬件设备
 	 *
-	 * 在scsi_alloc_queue()中设置为scsi_prep_fn
+	 * 在scsi_alloc_queue()中设置为scsi_prep_fn,处理来自SCSI公共层的命令
+	 *
+	 * 从request结构中的信息构造SCSI（读或写）命令，
+	 * 将结果保存在request的special域，sd_prep_fn只能处理来自上层的请求（REQ_TYPE_FS），
+	 * 以及来自SCSI层的（REQ_TYPE_BLOCK_PC）请求。有一种请求比较特殊，
+	 * 即所谓的DISCARD请求。这个请求来自上层，但需要被转换成SCSI请求来处理
 	*/
-	prep_rq_fn		*prep_rq_fn; /* 这个函数通产不用，如果实现该函数，会产生所需的硬件命令 */
+	prep_rq_fn		*prep_rq_fn; 
+	*/
 	unplug_fn		*unplug_fn;  /* dm_unplug_all() ,linear_unplug() ,generic_unplug_device() ,loop_unplug() */
 	merge_bvec_fn		*merge_bvec_fn; /* 用于确定是否向请求队列添加更多的数据 */
 	prepare_flush_fn	*prepare_flush_fn;

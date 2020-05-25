@@ -1850,7 +1850,7 @@ gotten:
 	/* 两个pte指向同一个物理page */
 	if (likely(pte_same(*page_table, orig_pte))) {
 		if (old_page) {
-			/*  */
+			/* 减少old_page->_map_count */
 			page_remove_rmap(old_page, vma);
 			if (!PageAnon(old_page)) {
 				dec_mm_counter(mm, file_rss);
@@ -2828,7 +2828,8 @@ static inline int handle_pte_fault(struct mm_struct *mm,
 	spinlock_t *ptl;
 
 	entry = *pte;
-	
+
+	//当文件被多个进程共享时，并且有一个进程是用VM_PRIVATE来mmap的
 	if (!pte_present(entry)) { /* pte对应的数据不在内存中，需要从磁盘上读过来 */
 		if (pte_none(entry) /*即entry==0,需要重新从文件中读取或者分配物理内存 */ ) {
 			/*

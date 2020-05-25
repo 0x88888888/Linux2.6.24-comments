@@ -1103,6 +1103,13 @@ void scsi_io_completion(struct scsi_cmnd *cmd, unsigned int good_bytes)
  * Returns:     0 on success
  *		BLKPREP_DEFER if the failure is retryable
  *		BLKPREP_KILL if the failure is fatal
+ *
+ * sd_prep_fn()
+ *  scsi_setup_fs_cmnd()
+ *   scsi_init_io()
+ *
+ * 来自上层的请求信息都在bio里，和SCSI公共层请求不一样，
+ * 我们需要重新为它构造SCSI规范定义的SCSI命令
  */
 static int scsi_init_io(struct scsi_cmnd *cmd)
 {
@@ -1119,6 +1126,7 @@ static int scsi_init_io(struct scsi_cmnd *cmd)
 	/*
 	 * If sg table allocation fails, requeue request later.
 	 */
+	 // 分配、初始化sg列表
 	cmd->request_buffer = scsi_alloc_sgtable(cmd, GFP_ATOMIC);
 	if (unlikely(!cmd->request_buffer)) {
 		scsi_unprep_request(req);
@@ -1170,6 +1178,12 @@ static struct scsi_cmnd *scsi_get_cmd_from_req(struct scsi_device *sdev,
 	return cmd;
 }
 
+/*
+ * scsi_prep_fn()
+ *  scsi_setup_blk_pc_cmnd()
+ *
+ * 根据请求的标志位以及SCSI设备的状态进行初步检查
+ */
 int scsi_setup_blk_pc_cmnd(struct scsi_device *sdev, struct request *req)
 {
 	struct scsi_cmnd *cmd;
@@ -1178,6 +1192,9 @@ int scsi_setup_blk_pc_cmnd(struct scsi_device *sdev, struct request *req)
 	if (ret != BLKPREP_OK)
 		return ret;
 
+    /*
+     * 分配一个新的scsi_cmnd描述符，将它记录在special域；如果这里已经指向了一个现有的scsi_cmnd描述符，直接使用它
+     */ 
 	cmd = scsi_get_cmd_from_req(sdev, req);
 	if (unlikely(!cmd))
 		return BLKPREP_DEFER;
@@ -1187,6 +1204,10 @@ int scsi_setup_blk_pc_cmnd(struct scsi_device *sdev, struct request *req)
 	 * a bio attached to them.  Or they might contain a SCSI command
 	 * that does not transfer data, in which case they may optionally
 	 * submit a request without an attached bio.
+	 *
+	 * 尽管请求来自SCSI公共服务层，但是这些请求也可以涉及数据传输，
+	 * 在bio中保存的数据最终需要复制到SCSI命令描述符的数据缓冲区中,
+	 * 具体的工作由scsi_init_io完成,如果不涉及数据传输，就将SCSI命令缓冲区清零
 	 */
 	if (req->bio) {
 		int ret;
@@ -1227,6 +1248,10 @@ EXPORT_SYMBOL(scsi_setup_blk_pc_cmnd);
  * Setup a REQ_TYPE_FS command.  These are simple read/write request
  * from filesystems that still need to be translated to SCSI CDBs from
  * the ULD.
+ *
+ * sd_prep_fn()
+ *  scsi_setup_fs_cmnd()
+ *
  */
 int scsi_setup_fs_cmnd(struct scsi_device *sdev, struct request *req)
 {
@@ -1244,6 +1269,7 @@ int scsi_setup_fs_cmnd(struct scsi_device *sdev, struct request *req)
 	if (unlikely(!cmd))
 		return BLKPREP_DEFER;
 
+    //来自上层的请求信息都在bio里，和SCSI公共层请求不一样，我们需要重新为它构造SCSI规范定义的SCSI命令
 	return scsi_init_io(cmd);
 }
 EXPORT_SYMBOL(scsi_setup_fs_cmnd);
@@ -1339,6 +1365,7 @@ int scsi_prep_fn(struct request_queue *q, struct request *req)
 
 	if (req->cmd_type == REQ_TYPE_BLOCK_PC)
 		ret = scsi_setup_blk_pc_cmnd(sdev, req);
+	
 	return scsi_prep_return(q, req, ret);
 }
 
@@ -1498,6 +1525,8 @@ static void scsi_softirq_done(struct request *rq)
  *  generic_unplug_device()
  *   __generic_unplug_device()
  *    scsi_request_fn()
+ *
+ *
  */
 static void scsi_request_fn(struct request_queue *q)
 {
@@ -1541,6 +1570,8 @@ static void scsi_request_fn(struct request_queue *q)
 		if (unlikely(!scsi_device_online(sdev))) { //掉线了
 			sdev_printk(KERN_ERR, sdev,
 				    "rejecting I/O to offline device\n");
+
+            //释放请求，并以此方式处理后面所有的请求 
 			scsi_kill_request(req, q);
 			continue;
 		}
@@ -1548,12 +1579,19 @@ static void scsi_request_fn(struct request_queue *q)
 
 		/*
 		 * Remove the request from the request list.
+		 *
+		 * 如果队列不是使用generic tag queueing，
+		 * 并且没有为请求启动tagged操作，调用blk_start_request开始由驱动处理请求，
+		 * 这个函数将请求从队列中取出，为它启动超时定时器
 		 */
 		if (!(blk_queue_tagged(q) && !blk_queue_start_tag(q, req)))
 			blkdev_dequeue_request(req);
 		sdev->device_busy++;
 
 		spin_unlock(q->queue_lock);
+		/* 从块设备驱动层请求描述符的special域获得SCSI命令描述符，
+		 * 这是在之前的blk_peek_request函数中调用请求队列的prep_rq_fn回调函数准备的 
+		 */	
 		cmd = req->special;
 		if (unlikely(cmd == NULL)) {
 			printk(KERN_CRIT "impossible request in %s.\n"
@@ -1586,11 +1624,14 @@ static void scsi_request_fn(struct request_queue *q)
 		/*
 		 * Finally, initialize any error handling parameters, and set up
 		 * the timers for timeouts.
+		 * 初始化错误处理参数， 设置超时定时器
 		 */
 		scsi_init_cmd_errh(cmd);
 
 		/*
 		 * Dispatch the command to the low-level driver.
+		 *
+         * 将命令派发到底层驱动
 		 */
 		rtn = scsi_dispatch_cmd(cmd);
 		spin_lock_irq(q->queue_lock);

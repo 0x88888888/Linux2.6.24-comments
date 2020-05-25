@@ -87,14 +87,22 @@ struct kioctx;
  * AIO控制块
  */
 struct kiocb {
+    //以后要重新操作的I/O链表指针
 	struct list_head	ki_run_list;
+	//kiocb的标志
 	unsigned long		ki_flags;
+	//kiocb描述符的引用计数器
 	int			ki_users;
+	//异步I/O操作符标识，同步I/O操纵标识符为KIOCB_SYNC_KEY
 	unsigned		ki_key;		/* id of this request */
 
+    //正在进行的I/O操作相关的文件对象指针
 	struct file		*ki_filp;
+	//异步I/O环境描述符指针
 	struct kioctx		*ki_ctx;	/* may be NULL for sync ops, 如果是同步的则为NULL */
+	//当取消异步I/O操作时所调用的方法
 	int			(*ki_cancel)(struct kiocb *, struct io_event *);
+	//当重试异步I/O操作时所调用的方法
 	ssize_t			(*ki_retry)(struct kiocb *);
 	void			(*ki_dtor)(struct kiocb *);
 
@@ -104,23 +112,31 @@ struct kiocb {
 		struct task_struct	*tsk;
 	} ki_obj;
 
+   //给用户态进程返回的值
 	__u64			ki_user_data;	/* user's data for completion */
+   //异步I/O操作等待队列
 	wait_queue_t		ki_wait;
+   //正在进行I/O操作的当前文件位置
 	loff_t			ki_pos;
 
 	atomic_t		ki_bio_count;	/* num bio used for this iocb */
 	// 指向sock_iocb
 	void			*private;
 	/* State that we remember to be able to restart/retry  */
-	unsigned short		ki_opcode;
+	//操纵类型,read,write或者sync
+	unsigned short		ki_opcode
+	//被传输的字节数量;
 	size_t			ki_nbytes; 	/* copy of iocb->aio_nbytes */
+	//用户态缓冲区的当前位置
 	char 			__user *ki_buf;	/* remaining iocb->aio_buf */
+	//待传输的字节数
 	size_t			ki_left; 	/* remaining bytes */
 	struct iovec		ki_inline_vec;	/* inline vector */
  	struct iovec		*ki_iovec;
  	unsigned long		ki_nr_segs;
  	unsigned long		ki_cur_seg;
 
+    //异步环境下，当前进行的I/O操作链表的指针
 	struct list_head	ki_list;	/* the aio core uses this
 						 * for cancellation */
 

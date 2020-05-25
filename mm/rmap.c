@@ -628,6 +628,13 @@ EXPORT_SYMBOL_GPL(page_mkclean);
  *   page_add_new_anon_rmap() 新匿名页加入 
  *    __page_set_anon_rmap()
  *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_wp_page()
+ *     page_add_new_anon_rmap()
+ *      __page_set_anon_rmap()
+ *
  * 进行反向映射
  * 设置page->mapping最低位为1
  * page->mapping指向此vma->anon_vma
@@ -732,6 +739,12 @@ void page_add_anon_rmap(struct page *page,
  * handle_pte_fault()
  *  do_anonymous_page()
  *   page_add_new_anon_rmap
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_wp_page()
+ *     page_add_new_anon_rmap()
  */
 void page_add_new_anon_rmap(struct page *page,
 	struct vm_area_struct *vma, unsigned long address)
@@ -816,6 +829,12 @@ void page_dup_rmap(struct page *page, struct vm_area_struct *vma, unsigned long 
  *		 zap_pmd_range()
  *        zap_pte_range()
  *         page_remove_rmap()
+ *
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_wp_page()
+ *     page_remove_rmap()
  */
 void page_remove_rmap(struct page *page, struct vm_area_struct *vma)
 {
@@ -1183,6 +1202,7 @@ static int try_to_unmap_file(struct page *page, int migration)
 		max_nl_cursor = CLUSTER_SIZE;
 
 	do {
+		//处理文件的非线性映射
 		list_for_each_entry(vma, &mapping->i_mmap_nonlinear,
 						shared.vm_set.list) {
 			if ((vma->vm_flags & VM_LOCKED) && !migration)

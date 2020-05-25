@@ -200,6 +200,10 @@ fail:
 	SetPageError(page);
 }
 
+/*
+ * ext2_readdir()
+ *  ext2_get_page()
+ */
 static struct page * ext2_get_page(struct inode *dir, unsigned long n)
 {
 	struct address_space *mapping = dir->i_mapping;

@@ -29,6 +29,8 @@
  * applications.
  *
  * msync系统调用
+ * 
+ * 多个进程共享的文件映射刷到磁盘上去
  *
  */
 asmlinkage long sys_msync(unsigned long start, size_t len, int flags)
@@ -79,6 +81,7 @@ asmlinkage long sys_msync(unsigned long start, size_t len, int flags)
 			error = -EBUSY;
 			goto out_unlock;
 		}
+		//对应的文件
 		file = vma->vm_file;
 		start = vma->vm_end;
 		if ((flags & MS_SYNC) && file &&

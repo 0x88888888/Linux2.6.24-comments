@@ -257,7 +257,7 @@ int pdflush_operation(void (*fn)(unsigned long), unsigned long arg0)
 			last_empty_jifs = jiffies; /* 如果没有可用的pdflush了，设置last_empty_jifs,以备创建新的pdflush线程 */
 
 		/* 回调函数设置 */
-		pdf->fn = fn;
+		pdf->fn = fn; //background_writeout
 		pdf->arg0 = arg0;
 		/* 唤醒 */
 		wake_up_process(pdf->who);

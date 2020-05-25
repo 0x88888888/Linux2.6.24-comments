@@ -1611,7 +1611,8 @@ static int ll_merge_requests_fn(struct request_queue *q, struct request *req,
  * This is called with interrupts off and no requests on the queue and
  * with the queue lock held.
  *
- * 函数接收一个请求队列描述符的地址q作为其参数。它设置q->queue_flags字段中的QUEUE_FLAG_PLUGGED位；然后，重新启动q->unplug_timer字段中的内嵌动态定时器
+ * 函数接收一个请求队列描述符的地址q作为其参数。
+ * 它设置q->queue_flags字段中的QUEUE_FLAG_PLUGGED位；然后，重新启动q->unplug_timer字段中的内嵌动态定时器
  *
  * blkdev_readpage()
  *  block_read_full_page()
@@ -1677,6 +1678,26 @@ EXPORT_SYMBOL(blk_remove_plug);
  * blk_unplug_work()
  *  generic_unplug_device()
  *   __generic_unplug_device()
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read() 
+ *      do_generic_mapping_read()
+ *       page_cache_sync_readahead()
+ *        ondemand_readahead()
+ *         __do_page_cache_readahead()
+ *          read_pages()
+ *           ext2_readpages()
+ *            mpage_readpages()
+ *             do_mpage_readpage()
+ *              mpage_bio_submit()
+ *               submit_bio()
+ *                generic_make_request()
+ *                 __generic_make_request()
+ *                  __make_request()
+ *                   __generic_unplug_device()
  */
 void __generic_unplug_device(struct request_queue *q)
 {
@@ -1720,6 +1741,16 @@ static void blk_backing_dev_unplug(struct backing_dev_info *bdi,
 	blk_unplug(q);
 }
 
+/*
+ * generic_make_request()
+ *  __generic_make_request()
+ *   __make_request()
+ *    blk_plug_device() 
+ *     ......
+ *      blk_unplug_timeout()
+ *       ......
+ *        blk_unplug_work()
+ */
 static void blk_unplug_work(struct work_struct *work)
 {
 	struct request_queue *q =
@@ -1733,6 +1764,14 @@ static void blk_unplug_work(struct work_struct *work)
 
 /*
  * 处理磁盘IO
+ *
+ * generic_make_request()
+ *  __generic_make_request()
+ *   __make_request()
+ *    blk_plug_device() 
+ *     ......
+ *      blk_unplug_timeout()
+ *    
  */
 static void blk_unplug_timeout(unsigned long data)
 {
@@ -1835,6 +1874,7 @@ EXPORT_SYMBOL(blk_sync_queue);
  * @q:	The queue to run
  *
  * 同步unplug即当即通过调用blk_run_queue对下发请求队列中的情况。
+ *
  *
  * scsi_run_queue()
  *  blk_run_queue()
@@ -2078,6 +2118,7 @@ blk_init_queue_node(request_fn_proc *rfn, spinlock_t *lock, int node_id)
 
 	blk_queue_segment_boundary(q, 0xffffffff);
 
+    //使用blk_init_queue会默认绑定blk_queue_bio来处理IO
 	blk_queue_make_request(q, __make_request);
 	blk_queue_max_segment_size(q, MAX_SEGMENT_SIZE);
 
@@ -2089,7 +2130,8 @@ blk_init_queue_node(request_fn_proc *rfn, spinlock_t *lock, int node_id)
 	/*
 	 * all done
 	 */
-	if (!elevator_init(q, NULL)) {
+	if (!elevator_init(q, NULL)) {  // 初始化IO调度
+	
 		blk_queue_congestion_threshold(q);
 		return q;
 	}
@@ -2230,6 +2272,10 @@ static void freed_request(struct request_queue *q, int rw, int priv)
  * Get a free request, queue_lock must be held.
  * Returns NULL on failure, with queue_lock held.
  * Returns !NULL on success, with queue_lock *not held*.
+ *
+ * sg_scsi_ioctl()
+ *  blk_get_request()
+ *   get_request()
  */
 static struct request *get_request(struct request_queue *q, int rw_flags,
 				   struct bio *bio, gfp_t gfp_mask)
@@ -2378,6 +2424,10 @@ static struct request *get_request_wait(struct request_queue *q, int rw_flags,
 	return rq;
 }
 
+/*
+ * sg_scsi_ioctl()
+ *  blk_get_request()
+ */
 struct request *blk_get_request(struct request_queue *q, int rw, gfp_t gfp_mask)
 {
 	struct request *rq;
@@ -3187,6 +3237,7 @@ static int __make_request(struct request_queue *q, struct bio *bio)
 	 * certain limit bounced to low memory (ie for highmem, or even
 	 * ISA dma in theory)
 	 *
+	 * 如果需要，创建反弹缓冲区
 	 */
 	blk_queue_bounce(q, &bio);
 
@@ -3256,6 +3307,8 @@ static int __make_request(struct request_queue *q, struct bio *bio)
 			;
 	}
 
+
+// 如果bio不能合并就要根据bio 新建request对象了
 get_rq:
 	/*
 	 * This sync check and mask will be re-done in init_request_from_bio(),
@@ -3279,7 +3332,7 @@ get_rq:
 	 * We don't worry about that case for efficiency. It won't happen
 	 * often, and the elevators are able to handle it.
 	 *
-	 * 将bio中的数据填充到req实例中
+	 * 根据bio构造一个request，并添加到IO调度器队列
 	 */
 	init_request_from_bio(req, bio);
 
@@ -3701,7 +3754,7 @@ EXPORT_SYMBOL(generic_make_request);
  * plug基本代码流程如下，从submit_bio开始，到
  * submit_bio->
  *  generic_make_request->
- *   make_request->
+ *   __make_request->
  *    blk_queue_bio->
  *     list_add_tail(&req->queuelist, &plug->list);//将请求加入plug队列
  *

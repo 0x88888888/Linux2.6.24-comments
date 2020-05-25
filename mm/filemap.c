@@ -221,6 +221,14 @@ static int sync_page(void *word)
  *	 filemap_fdatawrite()
  *    __filemap_fdatawrite()
  *     __filemap_fdatawrite_range()
+ *
+ * sys_write()
+ *  vfs_write()
+ *   do_sync_write()
+ *    generic_file_aio_write()
+ *     sync_page_range()
+ *      filemap_fdatawrite_range()
+ *       __filemap_fdatawrite_range()
  */
 int __filemap_fdatawrite_range(struct address_space *mapping, loff_t start,
 				loff_t end, int sync_mode)
@@ -265,6 +273,21 @@ int filemap_fdatawrite(struct address_space *mapping)
 }
 EXPORT_SYMBOL(filemap_fdatawrite);
 
+/*
+ * sys_write()
+ *  vfs_write()
+ *   do_sync_write()
+ *    generic_file_aio_write()
+ *     sync_page_range()
+ *      filemap_fdatawrite_range()
+ *
+ * sys_write()
+ *  vfs_write()
+ *   do_sync_write()
+ *    generic_file_aio_write()
+ *     sync_page_range()
+ *      filemap_fdatawrite_range()
+ */
 static int filemap_fdatawrite_range(struct address_space *mapping, loff_t start,
 				loff_t end)
 {
@@ -349,6 +372,14 @@ int wait_on_page_writeback_range(struct address_space *mapping,
  *
  * We need to re-take i_mutex during the generic_osync_inode list walk because
  * it is otherwise livelockable.
+ *
+ * sys_write()
+ *  vfs_write()
+ *   do_sync_write()
+ *    generic_file_aio_write()
+ *     sync_page_range()
+ *
+ *强制所有的page被刷新到磁盘上去
  */
 int sync_page_range(struct inode *inode, struct address_space *mapping,
 			loff_t pos, loff_t count)
@@ -359,6 +390,7 @@ int sync_page_range(struct inode *inode, struct address_space *mapping,
 
 	if (!mapping_cap_writeback_dirty(mapping) || !count)
 		return 0;
+	
 	ret = filemap_fdatawrite_range(mapping, pos, pos + count - 1);
 	if (ret == 0) {
 		mutex_lock(&inode->i_mutex);
@@ -511,11 +543,13 @@ int filemap_write_and_wait_range(struct address_space *mapping,
  * move_from_swap_cache()
  *  add_to_page_cache()
  * 
+ * 把一个page插入到address_space中去
  *
  */
 int add_to_page_cache(struct page *page, struct address_space *mapping,
 		pgoff_t offset, gfp_t gfp_mask)
 {
+    //预分配一些radix_tree_node对象
 	int error = radix_tree_preload(gfp_mask & ~__GFP_HIGHMEM);
 
 	if (error == 0) {
@@ -524,6 +558,7 @@ int add_to_page_cache(struct page *page, struct address_space *mapping,
 		if (!error) {
 			page_cache_get(page);
 			SetPageLocked(page);
+		    //设置mapping和index对象
 			page->mapping = mapping;
 			page->index = offset;
 			mapping->nrpages++;
@@ -660,6 +695,7 @@ void fastcall unlock_page(struct page *page)
 	if (!TestClearPageLocked(page))
 		BUG();
 	smp_mb__after_clear_bit(); 
+	//唤醒等待在page 所属的zone->wait_table[hash(page)]上的进程
 	wake_up_page(page, PG_locked);
 }
 EXPORT_SYMBOL(unlock_page);
@@ -808,6 +844,22 @@ EXPORT_SYMBOL(find_lock_page);
  *
  * find_or_create_page() returns the desired page's address, or zero on
  * memory exhaustion.
+ *
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread() 
+ *          __getblk()
+ *           __getblk_slow()
+ *            grow_buffers()
+ *             grow_dev_page()
+ *              find_or_create_page()
  */
 struct page *find_or_create_page(struct address_space *mapping,
 		pgoff_t index, gfp_t gfp_mask)
@@ -1035,9 +1087,10 @@ void do_generic_mapping_read(struct address_space *mapping,
 	unsigned int prev_offset;
 	int error;
 
-	index = *ppos >> PAGE_CACHE_SHIFT; /* 本次read 的 第几个page  */
+	index = *ppos >> PAGE_CACHE_SHIFT; /* 本次read 的 是文件的第几个page  */
 	/*上次读取的是第几个page*/ 
 	prev_index = ra->prev_pos >> PAGE_CACHE_SHIFT;
+	//上次read时，内存中的偏移
 	prev_offset = ra->prev_pos & (PAGE_CACHE_SIZE-1);
 	/*要读取的最后一个page*/ 
 	last_index = (*ppos + desc->count + PAGE_CACHE_SIZE-1) >> PAGE_CACHE_SHIFT;
@@ -1179,7 +1232,10 @@ page_not_up_to_date:
 
 readpage:
 		/* Start the actual read. The read will unlock the page. */
-		/*实际的读取数据*/ 
+		/* 当前的for循环中不断readpage， 实际的读取数据
+		 * ext2_readpage
+		 * 块设备文件 blkdev_readpage
+		 */ 
 		error = mapping->a_ops->readpage(filp, page);
 
 		if (unlikely(error)) {
@@ -1204,6 +1260,7 @@ readpage:
 				}
 				unlock_page(page);
 				error = -EIO;
+				//减少readahead 的page数量
 				shrink_readahead_size_eio(filp, ra);
 				goto readpage_error;
 			}
@@ -1234,6 +1291,8 @@ no_cached_page: /*  读磁盘去 */
 			desc->error = -ENOMEM;
 			goto out;
 		}
+		//添加page到address_space中去，也添加到lru_add_pvec[]中去
+		//也添加到zone->inactive_list中去
 		error = add_to_page_cache_lru(page, mapping,
 						index, GFP_KERNEL);
 		if (error) {
@@ -1413,6 +1472,7 @@ generic_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
 	retval = 0;
 	if (count) {
 		for (seg = 0; seg < nr_segs; seg++) {
+			//存放当个与用户态相关的文件读操作的当前状态
 			read_descriptor_t desc;
 
 			desc.written = 0;
@@ -1610,6 +1670,7 @@ retry_find:
 
 			if (vmf->pgoff > ra_pages / 2)
 				start = vmf->pgoff - ra_pages / 2;
+			//预读
 			do_page_cache_readahead(mapping, file, start, ra_pages);
 		}
 		page = find_lock_page(mapping, vmf->pgoff);
@@ -1648,6 +1709,7 @@ no_cached_page:
 	 * We're only likely to ever get here if MADV_RANDOM is in
 	 * effect.
 	 *
+	 * 分配page并且从磁盘上读进来
 	 */
 	error = page_cache_read(file, vmf->pgoff);
 
@@ -1704,6 +1766,7 @@ page_not_uptodate:
 		goto retry_find;
 
 	/* Things didn't work out. Return zero to tell the mm layer so. */
+	//减小readahead 的page数量
 	shrink_readahead_size_eio(file, ra);
 	return VM_FAULT_SIGBUS;
 }
@@ -1763,6 +1826,14 @@ int generic_file_readonly_mmap(struct file * file, struct vm_area_struct * vma)
 EXPORT_SYMBOL(generic_file_mmap);
 EXPORT_SYMBOL(generic_file_readonly_mmap);
 
+/*
+ * ext2_readdir()
+ *  ext2_get_page()
+ *   read_mapping_page()
+ *	  read_cache_page(, filler== address_space_operations->readpage)
+ *	   read_cache_page_async(filler== address_space_operations->readpage)
+ *      __read_cache_page(filler== address_space_operations->readpage)
+ */
 static struct page *__read_cache_page(struct address_space *mapping,
 				pgoff_t index,
 				int (*filler)(void *,struct page*),
@@ -1796,6 +1867,12 @@ repeat:
 /*
  * Same as read_cache_page, but don't wait for page to become unlocked
  * after submitting it to the filler.
+ *
+ * ext2_readdir()
+ *  ext2_get_page()
+ *   read_mapping_page()
+ *    read_cache_page(, filler== address_space_operations->readpage)
+ *     read_cache_page_async(filler== address_space_operations->readpage)
  */
 struct page *read_cache_page_async(struct address_space *mapping,
 				pgoff_t index,
@@ -1809,7 +1886,7 @@ retry:
 	page = __read_cache_page(mapping, index, filler, data);
 	if (IS_ERR(page))
 		return page;
-	if (PageUptodate(page))
+	if (PageUptodate(page)) //最新的数据
 		goto out;
 
 	lock_page(page);
@@ -1822,6 +1899,7 @@ retry:
 		unlock_page(page);
 		goto out;
 	}
+	//去磁盘上读取数据到page里来
 	err = filler(data, page);
 	if (err < 0) {
 		page_cache_release(page);
@@ -1844,6 +1922,11 @@ EXPORT_SYMBOL(read_cache_page_async);
  * not set, try to fill the page then wait for it to become unlocked.
  *
  * If the page does not get brought uptodate, return -EIO.
+ *
+ * ext2_readdir()
+ *  ext2_get_page()
+ *   read_mapping_page()
+ *    read_cache_page(, filler== address_space_operations->readpage)
  */
 struct page *read_cache_page(struct address_space *mapping,
 				pgoff_t index,
@@ -2460,6 +2543,16 @@ fs_write_aop_error:
 	return written ? written : status;
 }
 
+
+/*
+ * sys_write()
+ *	vfs_write()
+ *	 do_sync_write()
+ *	  generic_file_aio_write()
+ *	   __generic_file_aio_write_nolock()
+ *		generic_file_buffered_write()
+ *       generic_perform_write()
+ */
 static ssize_t generic_perform_write(struct file *file,
 				struct iov_iter *i, loff_t pos)
 {
@@ -2505,14 +2598,17 @@ again:
 			break;
 		}
 
+        //ext3文件系统用，记录日志
 		status = a_ops->write_begin(file, mapping, pos, bytes, flags,
 						&page, &fsdata);
 		if (unlikely(status))
 			break;
 
 		pagefault_disable();
+		//数据拷贝到内核态来
 		copied = iov_iter_copy_from_user_atomic(page, i, offset, bytes);
 		pagefault_enable();
+		//刷到磁盘上去
 		flush_dcache_page(page);
 
 		status = a_ops->write_end(file, mapping, pos, bytes, copied,
@@ -2547,6 +2643,14 @@ again:
 	return written ? written : status;
 }
 
+/*
+ * sys_write()
+ *	vfs_write()
+ *	 do_sync_write()
+ *	  generic_file_aio_write()
+ *	   __generic_file_aio_write_nolock()
+ *      generic_file_buffered_write()
+ */
 ssize_t
 generic_file_buffered_write(struct kiocb *iocb, const struct iovec *iov,
 		unsigned long nr_segs, loff_t pos, loff_t *ppos,
@@ -2592,6 +2696,13 @@ generic_file_buffered_write(struct kiocb *iocb, const struct iovec *iov,
 }
 EXPORT_SYMBOL(generic_file_buffered_write);
 
+/*
+ * sys_write()
+ *  vfs_write()
+ *   do_sync_write()
+ *    generic_file_aio_write()
+ *     __generic_file_aio_write_nolock()
+ */
 static ssize_t
 __generic_file_aio_write_nolock(struct kiocb *iocb, const struct iovec *iov,
 				unsigned long nr_segs, loff_t *ppos)
@@ -2626,13 +2737,17 @@ __generic_file_aio_write_nolock(struct kiocb *iocb, const struct iovec *iov,
 	if (count == 0)
 		goto out;
 
+    //清空suid
 	err = remove_suid(file->f_path.dentry);
 	if (err)
 		goto out;
 
+    //修改inode->mtime
 	file_update_time(file);
 
-	/* coalesce the iovecs and go direct-to-BIO for O_DIRECT */
+	/* coalesce the iovecs and go direct-to-BIO for O_DIRECT 
+	 * 直接写入到磁盘
+	 */
 	if (unlikely(file->f_flags & O_DIRECT)) {
 		loff_t endbyte;
 		ssize_t written_buffered;
@@ -2716,6 +2831,12 @@ ssize_t generic_file_aio_write_nolock(struct kiocb *iocb,
 }
 EXPORT_SYMBOL(generic_file_aio_write_nolock);
 
+/*
+ * sys_write()
+ *  vfs_write()
+ *   do_sync_write()
+ *    generic_file_aio_write()
+ */
 ssize_t generic_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
 		unsigned long nr_segs, loff_t pos)
 {
@@ -2734,6 +2855,7 @@ ssize_t generic_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
 	if (ret > 0 && ((file->f_flags & O_SYNC) || IS_SYNC(inode))) {
 		ssize_t err;
 
+        //强制所有的page被刷新到磁盘上去
 		err = sync_page_range(inode, mapping, pos, ret);
 		if (err < 0)
 			ret = err;
@@ -2791,6 +2913,7 @@ generic_file_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
 			goto out;
 	}
 
+    //ext2_direct_IO
 	retval = mapping->a_ops->direct_IO(rw, iocb, iov, offset, nr_segs);
 
 	/*

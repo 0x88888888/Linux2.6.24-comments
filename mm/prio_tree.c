@@ -212,26 +212,29 @@ struct vm_area_struct *vma_prio_tree_next(struct vm_area_struct *vma,
 	struct vm_area_struct *next;
 
 	if (!vma) {
-		/*
+		/* 如果vma为空，说明是第一次调用，
+		 * 或者之前到达vma->shared.vm_set.list.next的最后一个了
 		 * First call is with NULL vma
+		 * 
 		 */
-		ptr = prio_tree_next(iter);
+		ptr = prio_tree_next(iter); //从vma->shared->prio_tree_node树中获取
 		if (ptr) {
 			next = prio_tree_entry(ptr, struct vm_area_struct,
 						shared.prio_tree_node);
 			prefetch(next->shared.vm_set.head);
 			return next;
-		} else
+		} else //到达vma->shared.vm_set.list.next
 			return NULL;
 	}
 
-	if (vma->shared.vm_set.parent) {
+	if (vma->shared.vm_set.parent) { //有parent,说明是vma->shared->prio_tree_node节点
 		if (vma->shared.vm_set.head) {
-			next = vma->shared.vm_set.head;
+			next = vma->shared.vm_set.head; //取出head作为下个vma
 			prefetch(next->shared.vm_set.list.next);
 			return next;
 		}
-	} else {
+	} else {//没有parent，说明是vma->shared.vm_set.head链表
+	    
 		next = list_entry(vma->shared.vm_set.list.next,
 				struct vm_area_struct, shared.vm_set.list);
 		if (!next->shared.vm_set.head) {
@@ -240,6 +243,7 @@ struct vm_area_struct *vma_prio_tree_next(struct vm_area_struct *vma,
 		}
 	}
 
+    //遍历vma->shared->prio_tree_node
 	ptr = prio_tree_next(iter);
 	if (ptr) {
 		next = prio_tree_entry(ptr, struct vm_area_struct,

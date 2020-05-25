@@ -177,14 +177,17 @@ static int exact_lock(dev_t dev, void *data)
  *
  * This function registers the partitioning information in @disk
  * with the kernel.
+ *
+ * sr_probe()
+ *  add_disk()
  */
 void add_disk(struct gendisk *disk)
 {
 	disk->flags |= GENHD_FL_UP;
-	/* 确认所要求的设备号尚未分配 */
+	/*将gendisk添加到kobj_map中 */
 	blk_register_region(MKDEV(disk->major, disk->first_minor),
 			    disk->minors, NULL, exact_match, exact_lock, disk);
-	/*  */
+	/* 注册gendisk到通用块层  */
 	register_disk(disk);
 	/*  */
 	blk_register_queue(disk);

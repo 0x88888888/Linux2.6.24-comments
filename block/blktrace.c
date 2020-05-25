@@ -134,6 +134,18 @@ static u32 bio_act[9] __read_mostly = { 0, BLK_TC_ACT(BLK_TC_BARRIER), BLK_TC_AC
  *                 __generic_make_request()
  *                  blk_add_trace_bio()
  *                   __blk_add_trace()
+ *
+ * blkdev_readpage()
+ *  block_read_full_page()
+ *   submit_bh()
+ *    submit_bio()
+ *     generic_make_request()
+ *      __generic_make_request()
+ *       __make_request()
+ *        blk_plug_device()
+ *         blk_add_trace_generic()
+ *          blk_add_trace_bio()
+ *           __blk_add_trace()
  */
 void __blk_add_trace(struct blk_trace *bt, sector_t sector, int bytes,
 		     int rw, u32 what, int error, int pdu_len, void *pdu_data)

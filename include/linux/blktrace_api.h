@@ -207,6 +207,18 @@ static inline void blk_add_trace_rq(struct request_queue *q, struct request *rq,
  *                generic_make_request()
  *                 __generic_make_request()
  *                  blk_add_trace_bio()
+ *
+ *
+ * blkdev_readpage()
+ *  block_read_full_page()
+ *   submit_bh()
+ *    submit_bio()
+ *     generic_make_request()
+ *      __generic_make_request()
+ *       __make_request()
+ *        blk_plug_device()
+ *         blk_add_trace_generic()
+ *          blk_add_trace_bio()
  **/
 static inline void blk_add_trace_bio(struct request_queue *q, struct bio *bio,
 				     u32 what)
@@ -229,6 +241,16 @@ static inline void blk_add_trace_bio(struct request_queue *q, struct bio *bio,
  * Description:
  *     Records a simple trace
  *
+ *
+ * blkdev_readpage()
+ *  block_read_full_page()
+ *   submit_bh()
+ *    submit_bio()
+ *     generic_make_request()
+ *      __generic_make_request()
+ *       __make_request()
+ *        blk_plug_device()
+ *         blk_add_trace_generic()
  **/
 static inline void blk_add_trace_generic(struct request_queue *q,
 					 struct bio *bio, int rw, u32 what)

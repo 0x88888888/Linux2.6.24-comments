@@ -376,6 +376,12 @@ static int sd_prep_fn(struct request_queue *q, struct request *rq)
 					(unsigned long long)block,
 					this_count));
 
+    /*
+     * 以下几种情况直接结束命令：
+     * 1.SCSI不在线
+     * 2.请求数据超出了设备容量
+     * 3.磁盘介质发生了变化
+     */
 	if (!sdp || !scsi_device_online(sdp) ||
  	    block + rq->nr_sectors > get_capacity(disk)) {
 		SCSI_LOG_HLQUEUE(2, scmd_printk(KERN_INFO, SCpnt,
@@ -408,6 +414,8 @@ static int sd_prep_fn(struct request_queue *q, struct request *rq)
 	 * reasons, the filesystems should be able to handle this
 	 * and not force the scsi disk driver to use bounce buffers
 	 * for this.
+	 *
+	 * 磁盘的硬件扇区长度可能不是512，而是1024/2048或4096
 	 */
 	if (sdp->sector_size == 1024) {
 		if ((block & 1) || (rq->nr_sectors & 1)) {

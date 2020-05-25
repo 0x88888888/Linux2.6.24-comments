@@ -451,7 +451,27 @@ void elv_dispatch_add_tail(struct request_queue *q, struct request *rq)
 
 EXPORT_SYMBOL(elv_dispatch_add_tail);
 
-/*
+/* 
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read() 
+ *      do_generic_mapping_read()
+ *       page_cache_sync_readahead()
+ *        ondemand_readahead()
+ *         __do_page_cache_readahead()
+ *          read_pages()
+ *           ext2_readpages()
+ *            mpage_readpages()
+ *             do_mpage_readpage()
+ *              mpage_bio_submit()
+ *               submit_bio()
+ *                generic_make_request()
+ *                 __generic_make_request()
+ *                  __make_request()
+ *                   elv_merge()
+ *
  * 确定bio可以在哪个方向上合并
  */
 int elv_merge(struct request_queue *q, struct request **req, struct bio *bio)
@@ -473,6 +493,10 @@ int elv_merge(struct request_queue *q, struct request **req, struct bio *bio)
 
 	/*
 	 * See if our hash lookup can find a potential backmerge.
+     * 
+     * 后面的代码就是所谓的“扩展”合并尝试，它包含两方面的内容：
+     * 第一部分是各种IO调度算法全都适用的，而第二部分则是各种IO调度算法特定的 
+	 *
 	 */
 	__rq = elv_rqhash_find(q, bio->bi_sector);
 	if (__rq && elv_rq_merge_ok(__rq, bio)) {

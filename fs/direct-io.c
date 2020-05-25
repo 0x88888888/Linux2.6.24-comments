@@ -1112,6 +1112,16 @@ direct_io_worker(int rw, struct kiocb *iocb, struct inode *inode,
  * though it may be internally dropped.
  *
  * Additional i_alloc_sem locking requirements described inline below.
+ *
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     generic_file_direct_IO()
+ *      ext2_direct_IO()
+ *       blockdev_direct_IO()
+ *        __blockdev_direct_IO()
  */
 ssize_t
 __blockdev_direct_IO(int rw, struct kiocb *iocb, struct inode *inode,

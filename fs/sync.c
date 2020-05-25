@@ -94,6 +94,9 @@ int file_fsync(struct file *filp, struct dentry *dentry, int datasync)
  *   __do_fsync()
  *    do_fsync()
  *
+ * sys_msync()
+ *  do_fsync()
+ *
  * 刷某个文件的元数据和数据到磁盘上去
  */
 long do_fsync(struct file *file, int datasync)

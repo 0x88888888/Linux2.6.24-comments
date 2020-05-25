@@ -36,8 +36,7 @@ enum bdi_stat_item {
 #define BDI_STAT_BATCH (8*(1+ilog2(nr_cpu_ids)))
 
 /*
- * 用于address_space相关的后备存储器信息
- * address_space中的数据来源于backing_dev_info
+ * 存放关于基本硬件块设备I/O数据流量的信息
  */
 struct backing_dev_info {
 

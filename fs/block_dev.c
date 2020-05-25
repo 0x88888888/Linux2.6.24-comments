@@ -110,7 +110,16 @@ int sb_min_blocksize(struct super_block *sb, int size)
 }
 
 EXPORT_SYMBOL(sb_min_blocksize);
-
+/*
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       blkdev_readpage( get_block== blkdev_get_block) 读块设备文件
+ *        blkdev_get_block()
+ */
 static int
 blkdev_get_block(struct inode *inode, sector_t iblock,
 		struct buffer_head *bh, int create)
@@ -374,6 +383,23 @@ static int blkdev_writepage(struct page *page, struct writeback_control *wbc)
 	return block_write_full_page(page, blkdev_get_block, wbc);
 }
 
+/*
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   handle_pte_fault()
+ *    do_linear_fault()
+ *     __do_fault()
+ *      filemap_fault()
+ *       blkdev_readpage()
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read( actor == file_read_actor ) 
+ *      do_generic_mapping_read( actor == file_read_actor)
+ *       blkdev_readpage()
+ */
 static int blkdev_readpage(struct file * file, struct page * page)
 {
 	return block_read_full_page(page, blkdev_get_block);
@@ -584,7 +610,10 @@ static int bdev_set(struct inode *inode, void *data)
 	return 0;
 }
 
-/* 链接block_device->bd_list成员 */
+/*
+ * 系统中所有的block_device都链接到all_bdevs
+ * 链接block_device->bd_list成员
+ */
 static LIST_HEAD(all_bdevs);
 
 /*
@@ -620,6 +649,7 @@ struct block_device *bdget(dev_t dev)
 		mapping_set_gfp_mask(&inode->i_data, GFP_USER);
 		inode->i_data.backing_dev_info = &default_backing_dev_info;
 		spin_lock(&bdev_lock);
+		//插入到全局链表中去
 		list_add(&bdev->bd_list, &all_bdevs);
 		spin_unlock(&bdev_lock);
 		unlock_new_inode(inode);

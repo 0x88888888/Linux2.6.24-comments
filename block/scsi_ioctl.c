@@ -408,6 +408,7 @@ out:
  *      bytes in one int) where the lowest byte is the SCSI status.
  */
 #define OMAX_SB_LEN 16          /* For backward compatibility */
+
 int sg_scsi_ioctl(struct file *file, struct request_queue *q,
 		  struct gendisk *disk, struct scsi_ioctl_command __user *sic)
 {
@@ -439,6 +440,7 @@ int sg_scsi_ioctl(struct file *file, struct request_queue *q,
 
 	}
 
+    //分配一个request对象
 	rq = blk_get_request(q, in_len ? WRITE : READ, __GFP_WAIT);
 
 	cmdlen = COMMAND_SIZE(opcode);

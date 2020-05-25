@@ -58,6 +58,10 @@ typedef void (bh_end_io_t)(struct buffer_head *bh, int uptodate);
  * for backward compatibility reasons (e.g. submit_bh).
  *
  * buffer_head的关系看create_empty_buffers, link_dev_buffers
+ *
+ * buffer_head同样是用在address_space中的，
+ * 对设备文件进行读写时，需要用buffer_head来管理address_space 的page中的数据，
+ * 对ext2 这类文件系统中的文件，是要在文件有空洞(hole)时，才用buffer_head来管理page中的数据
  */
 struct buffer_head {
     /*
@@ -76,7 +80,7 @@ struct buffer_head {
 	                                如果块缓存是独立于页缓存的，则b_page为NULL
 	                                 the page this bh is mapped to */
 
-	sector_t b_blocknr;		/* 起始块号, start block number */
+	sector_t b_blocknr;		/* 与块设备相关的块号, start block number */
 	size_t b_size;			/* 映射长度, size of mapping */
 	char *b_data;			/* 指向页内数据的指针. pointer to data within the page */
 

@@ -519,14 +519,16 @@ struct backing_dev_info;
  */
 struct address_space {
 	struct inode		*host;		/* owner: inode, block_device */
-	struct radix_tree_root	page_tree;	/* radix tree of all pages */
+	struct radix_tree_root	page_tree;	/* 这里存放的是page对象 radix tree of all pages */
 	rwlock_t		tree_lock;	/* and rwlock protecting it */ 
 	unsigned int		i_mmap_writable;/* count VM_SHARED mappings */
 
 	/* 与i_mmap,i_mmap_nonlinear相关的系统看mm/fremap.c中的系统调用sys_remap_file_pages
        非线性映射看文章:https://blog.csdn.net/cq062364/article/details/38499937
 	*/
-	struct prio_tree_root	i_mmap;		/* 链接到vma->shared.prio_tree_node
+	struct prio_tree_root	i_mmap;		/* 这里存放的是vm_area_struct对象.
+	
+	                                       链接到vma->shared.prio_tree_node
 	                                       对文件的私有或者共享映射的      链表  
 	                                       包含了所有相关的vm_area_struct实例，
 	                                       描述了与inode关联的文件区间到一些虚拟地址空间的映射，
@@ -545,20 +547,22 @@ struct address_space {
 	struct address_space	*assoc_mapping;	/* ditto */
 } __attribute__((aligned(sizeof(long))));
 
-	/*
-	 * On most architectures that alignment is already the case; but
-	 * must be enforced here for CRIS, to let the least signficant bit
-	 * of struct page's "mapping" pointer be used for PAGE_MAPPING_ANON.
-	 * 
-	 * 裸块设备
-	 * block_device作为bdev_inode的成员出现
-	 *
-	 * 每个分区被打开的分区都对应一个block_device,同一个磁盘中的所有分区(hd_struct)都指向同一个gendisk
-	 */
+/*
+ * On most architectures that alignment is already the case; but
+ * must be enforced here for CRIS, to let the least signficant bit
+ * of struct page's "mapping" pointer be used for PAGE_MAPPING_ANON.
+ * 
+ * 系统中所有的block_device都链接到all_bdevs
+ *
+ * 裸块设备
+ * block_device作为bdev_inode的成员出现
+ *
+ * 每个分区被打开的分区都对应一个block_device,同一个磁盘中的所有分区(hd_struct)都指向同一个gendisk
+ */
 
 struct block_device {
 	dev_t			bd_dev;  /* 指向伪文件系统的表示块设备的inode,  not a kdev_t - it's a search key */
-	struct inode *		bd_inode;	/*  will die */
+	struct inode *		bd_inode;	/* 各个磁盘分区的主分区文件的索引节点 will die */
 	int			bd_openers;         /* 统计用do_open打开该块设备的次数 */
 	struct mutex		bd_mutex;	/* open/close mutex */
 	struct semaphore	bd_mount_sem;
@@ -578,7 +582,7 @@ struct block_device {
 	/* number of times partitions within this device have been opened. */
 	unsigned		bd_part_count;  /* rescan_partitions重新扫描分区时,如果这个计数>0，则禁止重新扫描,因为旧分区依旧在使用中 */
 	int			bd_invalidated;     /* =1时，表示该分区在内核中无效 */
-	struct gendisk *	bd_disk;
+	struct gendisk *	bd_disk;    //块设备的基本磁盘
 	struct list_head	bd_list;    /* 跟踪记录系统中所有可用的block_device实例,表头为all_bdevs */
 	struct backing_dev_info *bd_inode_backing_dev_info;
 	/*
@@ -831,12 +835,12 @@ struct fown_struct {
  */
 struct file_ra_state {
 	pgoff_t start;			/* 文件中开始预读的位置。 where readahead started */
-	unsigned int size;		/* 预读几个page # of readahead pages */
+	unsigned int size;		/* 预读几个page,-1表示禁止预读 # of readahead pages */
 	unsigned int async_size /* 后台进行page_cache_async_readahead的page数量。 do asynchronous readahead when
 					   there are only # of pages ahead */
 
 	unsigned int ra_pages;		/*预读窗口的最大page数量。 Maximum readahead window */
-	int mmap_miss;			/* Cache miss stat for mmap accesses */
+	int mmap_miss;			/* 预读命中次数，用于内存映射文件 Cache miss stat for mmap accesses */
 	loff_t prev_pos;		/*  缓存上一次read的位置。 Cache last read() position */
 };
 
@@ -2084,6 +2088,16 @@ enum {
 	DIO_OWN_LOCKING, /* filesystem locks buffered and direct internally */
 };
 
+
+/*
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     generic_file_direct_IO()
+ *      ext2_direct_IO()
+ *       blockdev_direct_IO()
+ */
 static inline ssize_t blockdev_direct_IO(int rw, struct kiocb *iocb,
 	struct inode *inode, struct block_device *bdev, const struct iovec *iov,
 	loff_t offset, unsigned long nr_segs, get_block_t get_block,

@@ -327,6 +327,11 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 
 EXPORT_SYMBOL(vfs_read);
 
+/*
+ * sys_write()
+ *  vfs_write()
+ *   do_sync_write()
+ */
 ssize_t do_sync_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
 {
 	struct iovec iov = { .iov_base = (void __user *)buf, .iov_len = len };
@@ -338,6 +343,7 @@ ssize_t do_sync_write(struct file *filp, const char __user *buf, size_t len, lof
 	kiocb.ki_left = len;
 
 	for (;;) {
+		//ext2_file_operations->aio_write == generic_file_aio_write
 		ret = filp->f_op->aio_write(&kiocb, &iov, 1, kiocb.ki_pos);
 		if (ret != -EIOCBRETRY)
 			break;
@@ -375,7 +381,8 @@ ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_
 			/*
 			 * ext2: do_sync_write()
 			 * proc: proc_file_write()
-			 * sysfs; sysfs_write_file
+			 * sysfs: sysfs_write_file
+			 * 
 			 */
 			if (file->f_op->write)
 				ret = file->f_op->write(file, buf, count, pos);

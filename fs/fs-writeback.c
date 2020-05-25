@@ -191,6 +191,13 @@ static void redirty_tail(struct inode *inode)
 
 /*
  * requeue inode for re-scanning after sb->s_io list is exhausted.
+ *
+ * pdflush_operation()
+ *  ......
+ *   background_writeout()
+ *    writeback_inodes()
+ *     sync_sb_inodes()
+ *      requeue_io()
  */
 static void requeue_io(struct inode *inode)
 {
@@ -381,6 +388,13 @@ __sync_single_inode(struct inode *inode, struct writeback_control *wbc)
  *   sync_sb_inodes()
  *    __writeback_single_inode()
  *
+ *
+ * pdflush_operation()
+ *  ......
+ *   background_writeout()
+ *    writeback_inodes()
+ *     sync_sb_inodes()
+ *      __writeback_single_inode()
  */
 static int
 __writeback_single_inode(struct inode *inode, struct writeback_control *wbc)
@@ -486,6 +500,11 @@ __writeback_single_inode(struct inode *inode, struct writeback_control *wbc)
  *  writeback_inodes()
  *   sync_sb_inodes()
  *
+ * pdflush_operation()
+ *  ......
+ *   background_writeout()
+ *    writeback_inodes()
+ *     sync_sb_inodes()
  */
 static void
 sync_sb_inodes(struct super_block *sb, struct writeback_control *wbc)
@@ -610,6 +629,10 @@ sync_sb_inodes(struct super_block *sb, struct writeback_control *wbc)
  * wb_kupdate() pdflush内核线程
  *  writeback_inodes()
  *
+ * pdflush_operation()
+ *  ......
+ *   background_writeout()
+ *    writeback_inodes()
  */
 void
 writeback_inodes(struct writeback_control *wbc)

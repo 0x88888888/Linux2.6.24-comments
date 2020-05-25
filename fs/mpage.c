@@ -463,9 +463,10 @@ out:
 confused:
 	if (bio)
 		bio = mpage_bio_submit(READ, bio);
-	/*page 中的物理块不相连，没有办法一个一个buffer去读取出来 
+	/*page 中的物理块不相连，没有办法只能一个一个buffer去读取出来 
+	 * 用buffer_head来管理
     */ 
-	if (!PageUptodate(page))
+	if (!PageUptodate(page)) 
 	        block_read_full_page(page, get_block);
 	else
 		unlock_page(page);
@@ -606,6 +607,15 @@ EXPORT_SYMBOL(mpage_readpages);
  *      filemap_fault()
  *       ext2_readpage()
  *        mpage_readpage(get_block == ext2_get_block)
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read( actor == file_read_actor ) 
+ *      do_generic_mapping_read( actor == file_read_actor)
+ *       ext2_readpage()
+ *        mpage_readpage(get_block == ext2_get_block)
  */
 int mpage_readpage(struct page *page, get_block_t get_block)
 {
@@ -616,7 +626,8 @@ int mpage_readpage(struct page *page, get_block_t get_block)
 
 	clear_buffer_mapped(&map_bh);
 	/*
-	 * 创建了一个 bio 请求，该请求指明了要读取的数据块所在磁盘的位置、
+	 * 创建了 bio 请求,bio是一个链表，磁盘上连续的block对应一个bio，
+	 * 该请求指明了要读取的数据块所在磁盘的位置、
 	 * 数据块的数量以及拷贝该数据的目标位置——缓存区中 page 的信息
 	 */
 	bio = do_mpage_readpage(bio, page, 1, &last_block_in_bio,
@@ -651,6 +662,20 @@ struct mpage_data {
 	unsigned use_writepage;
 };
 
+/*
+ * sys_write()
+ *  vfs_write()
+ *   do_sync_write()
+ *    generic_file_aio_write()
+ *     sync_page_range()
+ *      filemap_fdatawrite_range()
+ *       __filemap_fdatawrite_range()
+ *        do_writepages()
+ *         ext2_writepages()
+ *          mpage_writepages()
+ *           write_cache_pages( writepage == __mpage_writepage)
+ *            __mpage_writepage()
+ */
 static int __mpage_writepage(struct page *page, struct writeback_control *wbc,
 			     void *data)
 {
@@ -882,6 +907,18 @@ out:
  * the call was made get new I/O started against them.  If wbc->sync_mode is
  * WB_SYNC_ALL then we were called for data integrity and we must wait for
  * existing IO to complete.
+ *
+ *
+ * sys_write()
+ *  vfs_write()
+ *   do_sync_write()
+ *    generic_file_aio_write()
+ *     sync_page_range()
+ *      filemap_fdatawrite_range()
+ *       __filemap_fdatawrite_range()
+ *        do_writepages()
+ *         ext2_writepages()
+ *          mpage_writepages()
  */
 int
 mpage_writepages(struct address_space *mapping,
@@ -899,8 +936,9 @@ mpage_writepages(struct address_space *mapping,
 			.use_writepage = 1,
 		};
 
+        //查找dirty的page
 		ret = write_cache_pages(mapping, wbc, __mpage_writepage, &mpd);
-		if (mpd.bio)
+		if (mpd.bio) //提交io
 			mpage_bio_submit(WRITE, mpd.bio);
 	}
 	return ret;

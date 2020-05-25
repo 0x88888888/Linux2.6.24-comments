@@ -130,6 +130,11 @@ static inline struct page *read_mapping_page_async(
 	return read_cache_page_async(mapping, index, filler, data);
 }
 
+/*
+ * ext2_readdir()
+ *  ext2_get_page()
+ *   read_mapping_page()
+ */
 static inline struct page *read_mapping_page(struct address_space *mapping,
 					     pgoff_t index, void *data)
 {

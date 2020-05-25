@@ -868,6 +868,14 @@ static int ext2_writepage(struct page *page, struct writeback_control *wbc)
  *     __do_fault()
  *      filemap_fault()
  *       ext2_readpage()
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read( actor == file_read_actor ) 
+ *      do_generic_mapping_read( actor == file_read_actor)
+ *       ext2_readpage()
  */
 static int ext2_readpage(struct file *file, struct page *page)
 {
@@ -950,6 +958,14 @@ static sector_t ext2_bmap(struct address_space *mapping, sector_t block)
 	return generic_block_bmap(mapping,block,ext2_get_block);
 }
 
+/*
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     generic_file_direct_IO()
+ *      ext2_direct_IO()
+ */
 static ssize_t
 ext2_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
 			loff_t offset, unsigned long nr_segs)
@@ -960,6 +976,18 @@ ext2_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
 	return blockdev_direct_IO(rw, iocb, inode, inode->i_sb->s_bdev, iov,
 				offset, nr_segs, ext2_get_block, NULL);
 }
+
+/*
+ * sys_write()
+ *  vfs_write()
+ *   do_sync_write()
+ *    generic_file_aio_write()
+ *     sync_page_range()
+ *      filemap_fdatawrite_range()
+ *       __filemap_fdatawrite_range()
+ *        do_writepages()
+ *         ext2_writepages()
+ */
 
 static int
 ext2_writepages(struct address_space *mapping, struct writeback_control *wbc)

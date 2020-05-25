@@ -899,6 +899,9 @@ int device_add(struct device *dev)
  *  device_create()
  *   device_register()
  *
+ * pcie_port_device_register()
+ *  device_register()
+ *
  * 注册到sysfs
  */
 int device_register(struct device *dev)

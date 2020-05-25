@@ -285,6 +285,20 @@ static void __blk_queue_bounce(struct request_queue *q, struct bio **bio_orig,
  *        __generic_make_request()
  *         __make_request()
  *          blk_queue_bounce()
+ *
+ * blk_queue_bounce创建一个反弹缓冲区。
+ * 通常是在驱动尝试在外围设备不可达到的地址。
+ * 例如高端内存上执行DMA等。创建反弹缓冲区后，
+ * 数据要在原缓冲区和反弹缓冲区之间进行与读写方向对应的复制。
+ * 毫无疑问，使用反弹缓冲区会降低性能，但也没有其他办法
+ *
+ * 所谓反弹，实际上是分配一个新的bio描述符，它和原始bio的segment一一对应。
+ * 如果原始bio的segment使用的页面在DMA内存范围外，
+ * 则分配一个在DMA范围内的页面，赋给新的bio对应的segment。
+ * 对于写操作，需要将旧bio页面的内容复制到新的bio中。
+ * 如果原始的bio的segment使用的页面在DMA范围内，则将新的bio指向同一地方。
+ *
+ * 最后将原始bio保存在新的bio的bi_private域中，并设置新bio的完成回调函数。
  */
 void blk_queue_bounce(struct request_queue *q, struct bio **bio_orig)
 {
