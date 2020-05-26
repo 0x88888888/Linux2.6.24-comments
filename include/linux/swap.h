@@ -184,7 +184,7 @@ struct swap_info_struct {
 	unsigned short * swap_map;
 	/*
 	 * lowest_bit和highest_bit分别表示有空闲page槽位的最小索引值和最大索引值。cluster_next表示分配下一个page槽位的索引值。 
-	 * 在lowest_bi之下t和higheest_bit之上是没有空闲的slot的.
+	 * 在lowest_bi之下t和higheest_bit之上都被认为是没有空闲的slot的.
 	 */
 	
 	unsigned int lowest_bit; /* 搜索一个空闲页槽时要扫描的第一个页槽 */

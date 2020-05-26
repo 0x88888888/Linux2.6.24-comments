@@ -155,6 +155,7 @@ static inline void SetPageUptodate(struct page *page)
 #define ClearPageLRU(page)	clear_bit(PG_lru, &(page)->flags)
 #define __ClearPageLRU(page)	__clear_bit(PG_lru, &(page)->flags)
 
+//是否属于zone->active_list
 #define PageActive(page)	test_bit(PG_active, &(page)->flags)
 #define SetPageActive(page)	set_bit(PG_active, &(page)->flags)
 #define ClearPageActive(page)	clear_bit(PG_active, &(page)->flags)
@@ -193,12 +194,14 @@ static inline void SetPageUptodate(struct page *page)
  * Only test-and-set exist for PG_writeback.  The unconditional operators are
  * risky: they bypass page accounting.
  */
+//page是否正在被writeback
 #define PageWriteback(page)	test_bit(PG_writeback, &(page)->flags)
 #define TestSetPageWriteback(page) test_and_set_bit(PG_writeback,	\
 							&(page)->flags)
 #define TestClearPageWriteback(page) test_and_clear_bit(PG_writeback,	\
 							&(page)->flags)
-
+							
+//page是否属于buddy system
 #define PageBuddy(page)		test_bit(PG_buddy, &(page)->flags)
 #define __SetPageBuddy(page)	__set_bit(PG_buddy, &(page)->flags)
 #define __ClearPageBuddy(page)	__clear_bit(PG_buddy, &(page)->flags)
@@ -211,6 +214,7 @@ static inline void SetPageUptodate(struct page *page)
 #define SetPageReadahead(page)	set_bit(PG_readahead, &(page)->flags)
 #define ClearPageReadahead(page) clear_bit(PG_readahead, &(page)->flags)
 
+//page 是否可以被reclaimed
 #define PageReclaim(page)	test_bit(PG_reclaim, &(page)->flags)
 #define SetPageReclaim(page)	set_bit(PG_reclaim, &(page)->flags)
 #define ClearPageReclaim(page)	clear_bit(PG_reclaim, &(page)->flags)
@@ -250,6 +254,7 @@ static inline void __ClearPageTail(struct page *page)
 
 #ifdef CONFIG_SWAP
 #define PageSwapCache(page)	test_bit(PG_swapcache, &(page)->flags)
+//在__add_to_swap_cache中调用,将page加入到swapper_space中去
 #define SetPageSwapCache(page)	set_bit(PG_swapcache, &(page)->flags)
 #define ClearPageSwapCache(page) clear_bit(PG_swapcache, &(page)->flags)
 #else

@@ -880,6 +880,10 @@ found:
 
 /*
  * shmem_unuse() search for an eventually swapped out shmem page.
+ *
+ * sys_swapoff()
+ *  try_to_unuse()
+ *   shmem_unuse()
  */
 int shmem_unuse(swp_entry_t entry, struct page *page)
 {

@@ -326,7 +326,10 @@ struct kmem_list3 {
 	unsigned long next_reap;	/* 内核在两次shrink缓存之间，必须经过的时间间隔。其想法是防止有频繁的
 	                               shrink缓存和增长操作而降低系统性能，这种操作可能在某些系统负荷下发生。
 	                               该技术只有在NUMA系统中使用。
-	                               updated without locking */
+
+	                               这个值在cache_reap中设置
+	                               updated without locking
+	                             */
 	int free_touched;		/* 表示缓存是否活动的，在从缓存获取一个对象时，内核将该变量的值设置为1.
 	                           在缓存收缩时，该值重置为0。但内核只有在free_touched预先设置为0时，才会shrink  缓存。
 	                           因为1表示内核的另一部分刚从该缓存获取对象，此时shrink是不合适的。
@@ -3677,7 +3680,10 @@ retry:
 		entry = l3->slabs_partial.next;
 		/* 判断是否为空 */
 		if (entry == &l3->slabs_partial) {
-			/* 标示刚访问了空链表 */
+			/* 标示刚访问了空链表 
+			 *
+			 * kmem_list2->free_touched ==1表示刚刚从slab中获取对象
+		     */
 			l3->free_touched = 1;
 			entry = l3->slabs_free.next;
             /* 如果空链表为空，则必须新增slab */
@@ -4944,6 +4950,7 @@ static void cache_reap(struct work_struct *w)
 		/* Give up. Setup the next iteration. */
 		goto out;
 
+    //扫描系统中所有的kmem_cache_t对象
 	list_for_each_entry(searchp, &cache_chain, next) {
 		check_irq_on();
 
@@ -4980,7 +4987,7 @@ static void cache_reap(struct work_struct *w)
 			STATS_ADD_REAPED(searchp, freed);
 		}
 next:
-		cond_resched();
+		cond_resched(); //调度
 	}
 	check_irq_on();
 	mutex_unlock(&cache_chain_mutex);

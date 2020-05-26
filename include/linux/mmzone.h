@@ -31,6 +31,8 @@
  * costly to service.  That is between allocation orders which should
  * coelesce naturally under reasonable reclaim pressure and those which
  * will not.
+ *
+ * 分配内存时，大于PAGE_ALLOC_COSTLY_ORDER 介的就算是比较costly了
  */
 #define PAGE_ALLOC_COSTLY_ORDER 3
 

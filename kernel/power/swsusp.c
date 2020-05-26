@@ -85,6 +85,14 @@ struct swsusp_extent {
 
 static struct rb_root swsusp_extents = RB_ROOT;
 
+/*
+ * sys_reboot()
+ *  hibernate()
+ *   swsusp_write()
+ *    swap_write_page()
+ *     alloc_swapdev_block()
+ *      swsusp_extents_insert()
+ */
 static int swsusp_extents_insert(unsigned long swap_offset)
 {
 	struct rb_node **new = &(swsusp_extents.rb_node);
@@ -129,8 +137,13 @@ static int swsusp_extents_insert(unsigned long swap_offset)
 /**
  *	alloc_swapdev_block - allocate a swap page and register that it has
  *	been allocated, so that it can be freed in case of an error.
+ *
+ * sys_reboot()
+ *  hibernate()
+ *   swsusp_write()
+ *    swap_write_page()
+ *     alloc_swapdev_block()
  */
-
 sector_t alloc_swapdev_block(int swap)
 {
 	unsigned long offset;

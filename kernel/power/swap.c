@@ -268,6 +268,12 @@ static int get_swap_writer(struct swap_map_handle *handle)
 	return 0;
 }
 
+/*
+ * sys_reboot()
+ *  hibernate()
+ *   swsusp_write()
+ *    swap_write_page()
+ */
 static int swap_write_page(struct swap_map_handle *handle, void *buf,
 				struct bio **bio_chain)
 {
@@ -377,6 +383,10 @@ static int enough_swap(unsigned int nr_pages)
  *	them synced (in case something goes wrong) but we DO not want to mark
  *	filesystem clean: it is not. (And it does not matter, if we resume
  *	correctly, we'll mark system clean, anyway.)
+ *
+ * sys_reboot()
+ *  hibernate()
+ *   swsusp_write()
  */
 
 int swsusp_write(unsigned int flags)

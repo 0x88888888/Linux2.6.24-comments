@@ -376,8 +376,10 @@ static int prepare_processes(void)
 
 /**
  *	hibernate - The granpappy of the built-in hibernation management
+ *
+ * sys_reboot()
+ *  hibernate()
  */
-
 int hibernate(void)
 {
 	int error;

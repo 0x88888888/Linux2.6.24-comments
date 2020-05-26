@@ -113,6 +113,13 @@ prepare_to_wait_exclusive(wait_queue_head_t *q, wait_queue_t *wait, int state)
 }
 EXPORT_SYMBOL(prepare_to_wait_exclusive);
 
+/*
+ * kswapd_init()
+ *  kswapd_run()
+ *	 kswapd()
+ *    finish_wait()
+ * 从等待队列中删除进程
+ */
 void fastcall finish_wait(wait_queue_head_t *q, wait_queue_t *wait)
 {
 	unsigned long flags;

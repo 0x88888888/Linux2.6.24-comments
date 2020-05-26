@@ -107,6 +107,10 @@ void swap_unplug_io_fn(struct backing_dev_info *unused_bdi, struct page *page)
  * shrink_page_list()
  *  add_to_swap()
  *   get_swap_page() 
+ *
+ * alloc_swapdev_block()
+ *  get_swap_page_of_type()
+ *   scan_swap_map()
  */
 static inline unsigned long scan_swap_map(struct swap_info_struct *si)
 {
@@ -124,7 +128,7 @@ static inline unsigned long scan_swap_map(struct swap_info_struct *si)
 	 */
 
 	si->flags += SWP_SCANNING; /*正在被scan状态*/
-	if (unlikely(!si->cluster_nr)) { /* 查找新的cluster区域 */
+	if (unlikely(!si->cluster_nr)) { /* 从si->lowest_bit开始查找新的cluster区域 */
 		
 		si->cluster_nr = SWAPFILE_CLUSTER - 1;
 		if (si->pages - si->inuse_pages < SWAPFILE_CLUSTER)
@@ -250,9 +254,9 @@ swp_entry_t get_swap_page(void)
 	
 		if (next < 0 ||
 		    (!wrapped && si->prio != swap_info[next].prio)) {
-		    /* 从头开始 */
+		    /* 优先级不同了,从头开始 */
 			next = swap_list.head;
-			wrapped++;
+			wrapped++; //不会在第二次进入这个if判断了
 		}
 
 		if (!si->highest_bit)
@@ -301,6 +305,7 @@ swp_entry_t get_swap_page_of_type(int type)
 			spin_unlock(&swap_lock);
 			return swp_entry(type, offset);
 		}
+		//查找失败
 		nr_swap_pages++;
 	}
 	spin_unlock(&swap_lock);
@@ -403,6 +408,16 @@ static int swap_entry_free(struct swap_info_struct *p, unsigned long offset)
  * read_swap_cache_async()
  *  add_to_swap_cache()
  *   swap_free()
+ *
+ * sys_swapoff()
+ *	try_to_unuse()
+ *	 unuse_mm()
+ *	  unuse_vma()
+ *	   unuse_pud_range()
+ *		unuse_pmd_range()
+ *       unuse_pte_range()
+ *        unuse_pte()
+ *         swap_free()
  *
  * 根据swap_info_struct->swap_map[offset]的计数来确定是否要释放对应的slot
  */
@@ -671,6 +686,15 @@ unsigned int count_swap_pages(int type, int free)
  * No need to decide whether this PTE shares the swap entry with others,
  * just let do_wp_page work it out if a write is requested later - to
  * force COW, vm_page_prot omits write permission from any private vma.
+ *
+ * sys_swapoff()
+ *	try_to_unuse()
+ *	 unuse_mm()
+ *	  unuse_vma()
+ *	   unuse_pud_range()
+ *		unuse_pmd_range()
+ *       unuse_pte_range()
+ *        unuse_pte()
  */
 static void unuse_pte(struct vm_area_struct *vma, pte_t *pte,
 		unsigned long addr, swp_entry_t entry, struct page *page)
@@ -690,6 +714,15 @@ static void unuse_pte(struct vm_area_struct *vma, pte_t *pte,
 	activate_page(page);
 }
 
+/*
+ * sys_swapoff()
+ *	try_to_unuse()
+ *	 unuse_mm()
+ *	  unuse_vma()
+ *	   unuse_pud_range()
+ *		unuse_pmd_range()
+ *       unuse_pte_range()
+ */
 static int unuse_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 				unsigned long addr, unsigned long end,
 				swp_entry_t entry, struct page *page)
@@ -716,6 +749,14 @@ static int unuse_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 	return found;
 }
 
+/*
+ * sys_swapoff()
+ *	try_to_unuse()
+ *	 unuse_mm()
+ *	  unuse_vma()
+ *	   unuse_pud_range()
+ *      unuse_pmd_range()
+ */
 static inline int unuse_pmd_range(struct vm_area_struct *vma, pud_t *pud,
 				unsigned long addr, unsigned long end,
 				swp_entry_t entry, struct page *page)
@@ -736,6 +777,13 @@ static inline int unuse_pmd_range(struct vm_area_struct *vma, pud_t *pud,
 	return 0;
 }
 
+/*
+ * sys_swapoff()
+ *	try_to_unuse()
+ *	 unuse_mm()
+ *	  unuse_vma()
+ *     unuse_pud_range()
+ */
 static inline int unuse_pud_range(struct vm_area_struct *vma, pgd_t *pgd,
 				unsigned long addr, unsigned long end,
 				swp_entry_t entry, struct page *page)
@@ -754,6 +802,12 @@ static inline int unuse_pud_range(struct vm_area_struct *vma, pgd_t *pgd,
 	return 0;
 }
 
+/*
+ * sys_swapoff()
+ *	try_to_unuse()
+ *	 unuse_mm()
+ *    unuse_vma()
+ */
 static int unuse_vma(struct vm_area_struct *vma,
 				swp_entry_t entry, struct page *page)
 {
@@ -782,6 +836,11 @@ static int unuse_vma(struct vm_area_struct *vma,
 	return 0;
 }
 
+/*
+ * sys_swapoff()
+ *  try_to_unuse()
+ *   unuse_mm()
+ */
 static int unuse_mm(struct mm_struct *mm,
 				swp_entry_t entry, struct page *page)
 {
@@ -816,6 +875,8 @@ static int unuse_mm(struct mm_struct *mm,
  * sys_swapoff()
  *  try_to_unuse()
  *   find_next_to_unuse()
+ *
+ * 查找下一个要被unuse的slot的索引
  */
 static unsigned int find_next_to_unuse(struct swap_info_struct *si,
 					unsigned int prev)
@@ -857,8 +918,9 @@ static unsigned int find_next_to_unuse(struct swap_info_struct *si,
  * page table adjustments can then be made atomically.
  *
  * 将此区中所有的page换入RAM，这就需要从init_mm内存描述符开始，
- * 访问所有内核线程和进程的地址空间。这是一个相当耗时的操作，
- * 因此如果在try_to_unuse（）执行期间，si_swapinfo()函数进行采集swap信息，
+ * 访问所有内核线程和进程的地址空间,找到使用这些page的pte，并且设置它们。
+ *　这是一个相当耗时的操作，
+ * 因此如果在try_to_unuse()执行期间，si_swapinfo()函数进行采集swap信息，
  * 那么次swap的状态必然为SWP_USED
  *
  * sys_swapoff()
@@ -901,6 +963,9 @@ static int try_to_unuse(unsigned int type)
 	 * Keep on scanning until all entries have gone.  Usually,
 	 * one pass through swap_map is enough, but not necessarily:
 	 * there are races when an instance of an entry might be missed.
+	 *
+	 * i为下一个slot索引
+	 * 查找下一个要被unuse的slot的索引
 	 */
 	while ((i = find_next_to_unuse(si, i)) != 0) {
 		
@@ -915,8 +980,11 @@ static int try_to_unuse(unsigned int type)
 		 * page and read the swap into it. 
 		 */
 		swap_map = &si->swap_map[i]; 
+
+		//这个entry为天下页表中的pte了
 		entry = swp_entry(type, i);
-		
+
+		//从swap上读进来
 		page = read_swap_cache_async(entry, NULL, 0);
 		if (!page) {
 			/*
@@ -947,6 +1015,8 @@ static int try_to_unuse(unsigned int type)
 		 * apparently redundant "wait_on_page_locked" lets try_to_unuse
 		 * defer to do_swap_page in such a case - in some tests,
 		 * do_swap_page and try_to_unuse repeatedly compete.
+		 *
+		 * do_swap_page()也可能会将这个page读入进来，所以会有竞争出现
 		 */
 		wait_on_page_locked(page);
 		wait_on_page_writeback(page);
@@ -963,10 +1033,11 @@ static int try_to_unuse(unsigned int type)
 		if (swcount > 1) {
 			if (start_mm == &init_mm)
 				shmem = shmem_unuse(entry, page);
-			else
+			else //这个很重要
 				retval = unuse_mm(start_mm, entry, page);
 		}
-		if (*swap_map > 1) {
+		
+		if (*swap_map > 1) { //有多个pte引用这个page
 			int set_start_mm = (*swap_map >= swcount);
 			struct list_head *p = &start_mm->mmlist;
 			struct mm_struct *new_start_mm = start_mm;
@@ -976,17 +1047,25 @@ static int try_to_unuse(unsigned int type)
 			atomic_inc(&new_start_mm->mm_users);
 			atomic_inc(&prev_mm->mm_users);
 			spin_lock(&mmlist_lock);
+
+			/*
+			 * p为下一个mm_struct对象
+			 *
+			 * 逐个遍历mm_struct,重新设置上面使用这个page的pte
+			 */
 			while (*swap_map > 1 && !retval &&
 					(p = p->next) != &start_mm->mmlist) {
-					
+
+				//从p中得到mm_struct对象
 				mm = list_entry(p, struct mm_struct, mmlist);
 				if (!atomic_inc_not_zero(&mm->mm_users))
 					continue;
+				
 				spin_unlock(&mmlist_lock);
 				mmput(prev_mm);
 				prev_mm = mm;
 
-				cond_resched();
+				cond_resched();//调度
 
 				swcount = *swap_map;
 				if (swcount <= 1)
@@ -1000,14 +1079,16 @@ static int try_to_unuse(unsigned int type)
 				if (set_start_mm && *swap_map < swcount) {
 					mmput(new_start_mm);
 					atomic_inc(&mm->mm_users);
-					new_start_mm = mm;
+					new_start_mm = mm;//下一个mm_struct
 					set_start_mm = 0;
 				}
 				spin_lock(&mmlist_lock);
 			}
+					
 			spin_unlock(&mmlist_lock);
 			mmput(prev_mm);
 			mmput(start_mm);
+			//设置当前要处理的mm_struct
 			start_mm = new_start_mm;
 		}
 		if (retval) {
@@ -1475,7 +1556,7 @@ asmlinkage long sys_swapoff(const char __user * specialfile)
 	for (type = swap_list.head; type >= 0; type = swap_info[type].next) {
 		p = swap_info + type;
 		if ((p->flags & SWP_ACTIVE) == SWP_ACTIVE) {
-			if (p->swap_file->f_mapping == mapping)
+			if (p->swap_file->f_mapping == mapping) //找到
 				break;
 		}
 		prev = type;
@@ -1492,7 +1573,8 @@ asmlinkage long sys_swapoff(const char __user * specialfile)
 		spin_unlock(&swap_lock);
 		goto out_dput;
 	}
-	if (!security_vm_enough_memory(p->pages))
+	
+	if (!security_vm_enough_memory(p->pages)) //是否有足够的内存存放p->pages个page
 		vm_unacct_memory(p->pages);
 	else {
 		err = -ENOMEM;
@@ -1524,7 +1606,7 @@ asmlinkage long sys_swapoff(const char __user * specialfile)
 
 	current->flags |= PF_SWAPOFF;
 	/*
-	 * 下面这个函数的作用就是强制将交换区中剩余的所有页都转移到ram中，
+	 * 下面这个函数的作用就是强制将交换区中所有页都转移到ram中，
 	 * 并相应地修改使用这些页的进程的页表。当执行该函数时，当前进程的PF_SWAPOFF标志置位，
 	 * 该标志位置位的只有一个结果，页框严重不足，select_bad_process()函数就会被强制选择并删除该进程。
 	 * 并且一直等到交换区所在的块设备驱动器被卸载。在交换区禁用之前，这个函数发出的读请求会被驱动器处理。
@@ -1750,7 +1832,7 @@ asmlinkage long sys_swapon(const char __user * specialfile, int swap_flags)
 			break;
 		
 	error = -EPERM;
-	if (type >= MAX_SWAPFILES) {
+	if (type >= MAX_SWAPFILES) { //过头了
 		spin_unlock(&swap_lock);
 		goto out;
 	}
@@ -1760,6 +1842,7 @@ asmlinkage long sys_swapon(const char __user * specialfile, int swap_flags)
 
 	/* 初始化交换区描述符 */
 	INIT_LIST_HEAD(&p->extent_list);
+	//标识swap_info_struct信息
 	p->flags = SWP_USED;
 	p->swap_file = NULL;
 	p->old_block_size = 0; /* 存放交换区的磁盘分区自然块大小 */
@@ -1817,12 +1900,13 @@ asmlinkage long sys_swapon(const char __user * specialfile, int swap_flags)
 		if (i == type || !q->swap_file) /*swap_info[type]对应的对象没有对应打开的文件  */
 			continue;
 		
-		if (mapping == q->swap_file->f_mapping)
+		if (mapping == q->swap_file->f_mapping) //之前选中的swap_info_struct对象标识的交换区已经被激活，出现错误了。
 			goto bad_swap;
 	}
 
 	error = -EINVAL;
-	
+
+	//inode为交换区的inode，为设备文件或者普通的ext2,ext3,ext4之类的文件
 	if (S_ISBLK(inode->i_mode)) { /* swap area是否是块设备 */
 
 	    /* 下面两句把交换子系统设置成块设备的占有者 */
@@ -1834,6 +1918,7 @@ asmlinkage long sys_swapon(const char __user * specialfile, int swap_flags)
 			error = -EINVAL;
 			goto bad_swap;
 		}
+		//返回bdev->bd_block_size的值
 		p->old_block_size = block_size(bdev);
 		error = set_blocksize(bdev, PAGE_SIZE);
 		if (error < 0)
@@ -1948,6 +2033,7 @@ asmlinkage long sys_swapon(const char __user * specialfile, int swap_flags)
 		
 		if (swap_header->info.nr_badpages && S_ISREG(inode->i_mode))
 			goto bad_swap;
+		
 		if (swap_header->info.nr_badpages > MAX_SWAP_BADPAGES)
 			goto bad_swap;
 
@@ -2122,6 +2208,11 @@ void si_swapinfo(struct sysinfo *val)
  *     copy_pte_range()
  *      copy_one_pte() 
  *       swap_duplicate()
+ *
+ * try_to_unmap()
+ *  try_to_unmap_file()
+ *   try_to_unmap_one()
+ *    swap_duplicate()
  *
  * 主要是swap_info_struct->swap_map[offset]++，表明entry对应的page被换出多次了
  */

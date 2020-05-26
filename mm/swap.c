@@ -167,6 +167,18 @@ int rotate_reclaimable_page(struct page *page)
 
 /*
  * FIXME: speed this up?
+ *
+ * sys_swapoff()
+ *	try_to_unuse()
+ *	 unuse_mm()
+ *	  unuse_vma()
+ *	   unuse_pud_range()
+ *		unuse_pmd_range()
+ *       unuse_pte_range()
+ *        unuse_pte()
+ *         activate_page()
+ *
+ * 设置page到zone->active_list
  */
 void fastcall activate_page(struct page *page)
 {

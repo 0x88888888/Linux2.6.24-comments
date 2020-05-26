@@ -1661,6 +1661,7 @@ loop_again:
 	sc.may_writepage = !laptop_mode;
 	count_vm_event(PAGEOUTRUN);
 
+    //每个zone的priority
 	for (i = 0; i < pgdat->nr_zones; i++)
 		temp_priority[i] = DEF_PRIORITY;
 
@@ -1689,6 +1690,7 @@ loop_again:
 			    priority != DEF_PRIORITY)
 				continue;
 
+            // 找到不能满足watermark的zone的索引
 			if (!zone_watermark_ok(zone, order, zone->pages_high,
 					       0, 0)) {
 				end_zone = i;
@@ -1714,6 +1716,8 @@ loop_again:
 		 * direction.  This prevents the page allocator from allocating
 		 * pages behind kswapd's direction of progress, which would
 		 * cause too much scanning of the lower zones.
+		 *
+		 * 从zones[0] 一直扫描到end_zone(watermark低于安全线的那个zone)
 		 */
 		for (i = 0; i <= end_zone; i++) {
 			
@@ -1726,7 +1730,7 @@ loop_again:
 
 			if (zone_is_all_unreclaimable(zone) &&
 					priority != DEF_PRIORITY)
-				continue;
+				continue;//跳过
 
 			if (!zone_watermark_ok(zone, order, zone->pages_high,
 					       end_zone, 0))
@@ -1830,6 +1834,9 @@ out:
  * (most normal use), this basically shouldn't matter.
  *
  *
+ *  kswapd_init()
+ *   kswapd_run()
+ *    kswapd()
  */
 static int kswapd(void *p)
 {
@@ -1846,6 +1853,7 @@ static int kswapd(void *p)
 	
 	if (!cpus_empty(cpumask))
 		set_cpus_allowed(tsk, cpumask);
+	
 	current->reclaim_state = &reclaim_state;
 
 	/*
@@ -1867,29 +1875,32 @@ static int kswapd(void *p)
 	for ( ; ; ) {
 		unsigned long new_order;
 
+        //进入等待队列
 		prepare_to_wait(&pgdat->kswapd_wait, &wait, TASK_INTERRUPTIBLE);
 	
 		new_order = pgdat->kswapd_max_order;
 		pgdat->kswapd_max_order = 0; /* 咦 */
 		
 		if (order < new_order) {
-			/*
+			/* 无需睡眠
 			 * Don't sleep if someone wants a larger 'order'
 			 * allocation
 			 */
 			order = new_order;
 		} else {
 			if (!freezing(current))
-				schedule();
+ 				schedule(); //放弃cpu
 
 			order = pgdat->kswapd_max_order;
 		}
+		// 从等待队列中删除kswap进程
 		finish_wait(&pgdat->kswapd_wait, &wait);
 
 		if (!try_to_freeze()) {
 			/* We can speed up thawing tasks if we don't call
 			 * balance_pgdat after returning from the refrigerator
 			 */
+			 //回收内存
 			balance_pgdat(pgdat, order);
 		}
 	}
@@ -1912,6 +1923,7 @@ void wakeup_kswapd(struct zone *zone, int order)
 		return;
 
 	pgdat = zone->zone_pgdat;
+	//空闲内存的数量没有超过警戒线
 	if (zone_watermark_ok(zone, order, zone->pages_low, 0, 0))
 		return;
 	
@@ -1923,6 +1935,7 @@ void wakeup_kswapd(struct zone *zone, int order)
 	
 	if (!waitqueue_active(&pgdat->kswapd_wait))
 		return;
+	
 	wake_up_interruptible(&pgdat->kswapd_wait);
 }
 
@@ -2102,6 +2115,9 @@ static int __devinit cpu_callback(struct notifier_block *nfb,
 /*
  * This kswapd start function will be called by init and node-hot-add.
  * On node-hot-add, kswapd will moved to proper cpus if cpus are hot-added.
+ *
+ *  kswapd_init()
+ *   kswapd_run()
  */
 int kswapd_run(int nid)
 {
@@ -2111,6 +2127,7 @@ int kswapd_run(int nid)
 	if (pgdat->kswapd)
 		return 0;
 
+    // 创建一个kswapd内核线程
 	pgdat->kswapd = kthread_run(kswapd, pgdat, "kswapd%d", nid);
 	if (IS_ERR(pgdat->kswapd)) {
 		/* failure at boot is fatal */

@@ -72,7 +72,9 @@ void show_swap_cache_info(void)
  * __add_to_swap_cache resembles add_to_page_cache on swapper_space,
  * but sets SwapCache flag and private instead of mapping and index.
  *
- * 添加page到swapper_space.page_tree中
+ * 添加page到swapper_space.page_tree中，
+ * 并且在调用这个函数之前page已经被写入到swap磁盘分区中去了
+ * 或者已经存在于swap磁盘分区中，但是读进来了
  *
  * read_swap_cache_async()
  *  add_to_swap_cache()
@@ -80,6 +82,8 @@ void show_swap_cache_info(void)
  *
  * move_to_swap_cache()
  *  __add_to_swap_cache()
+ *
+ * 
  */
 static int __add_to_swap_cache(struct page *page, swp_entry_t entry,
 			       gfp_t gfp_mask)

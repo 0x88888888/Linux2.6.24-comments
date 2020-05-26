@@ -24,7 +24,9 @@
 
 static DEFINE_SPINLOCK(swap_token_lock);
 
-/* 拥有这个swap token的进程，不允许进程的内存被swap 出去 */
+/* 拥有这个swap token的进程，不允许进程的内存被swap 出去 
+ * 看grab_swap_token()
+ */
 struct mm_struct *swap_token_mm;
 
 /* 统计do_swap_page的调用次数 */
@@ -65,12 +67,16 @@ void grab_swap_token(void)
 				current->mm->token_priority--;
 		}
 		
-		/* Check if we deserve the token */
+		/* Check if we deserve the token 
+		 * 表示拥有swap_token的优先级超越swap_token_mm->token_priority
+		 * 就去拥有swap_token
+		 */
 		if (current->mm->token_priority >
 				swap_token_mm->token_priority) {
 			current->mm->token_priority += 2;
 			swap_token_mm = current->mm;
-		}
+        }
+
 	} else {
 	    /* 当前进程已经拥有swap_token_mm了,那就意味着需要换入大量的page了 */
 		/* Token holder came in again! */

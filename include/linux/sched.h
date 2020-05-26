@@ -1022,6 +1022,7 @@ struct task_struct {
 	struct list_head ptrace_children;
 	struct list_head ptrace_list;
 
+    //mm == swap_token_mm时，说明拥有swap_token,该进程的内存不能被回收
 	struct mm_struct *mm, *active_mm;
 
     /* task state */
@@ -1498,18 +1499,18 @@ static inline void put_task_struct(struct task_struct *t)
  可能会耗尽内存管理子系统的保留内存。
 
  */
-#define PF_MEMALLOC	0x00000800	/* Allocating memory */
+#define PF_MEMALLOC	0x00000800	/* kswapd进程有这个标记 Allocating memory */
 #define PF_FLUSHER	0x00001000	/* responsible for disk writeback */
 #define PF_USED_MATH	0x00002000	/* if unset the fpu must be initialized before use */
 #define PF_NOFREEZE	0x00008000	/* this thread should not be frozen */
 #define PF_FROZEN	0x00010000	/* frozen for system suspend */
 #define PF_FSTRANS	0x00020000	/* inside a filesystem transaction */
-#define PF_KSWAPD	0x00040000	/* I am kswapd */
+#define PF_KSWAPD	0x00040000	/* kswapd进程有这个标记,I am kswapd */
 #define PF_SWAPOFF	0x00080000	/* I am in swapoff */
 #define PF_LESS_THROTTLE 0x00100000	/* Throttle me less: I clean memory */
 #define PF_BORROWED_MM	0x00200000	/* I am a kthread doing use_mm */
 #define PF_RANDOMIZE	0x00400000	/* randomize virtual address space */
-#define PF_SWAPWRITE	0x00800000	/* Allowed to write to swap */
+#define PF_SWAPWRITE	0x00800000	/* kswapd进程有这个标记，Allowed to write to swap */
 #define PF_SPREAD_PAGE	0x01000000	/* Spread page cache over cpuset */
 #define PF_SPREAD_SLAB	0x02000000	/* Spread some slab caches over cpuset */
 #define PF_MEMPOLICY	0x10000000	/* Non-default NUMA mempolicy */
