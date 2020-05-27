@@ -104,6 +104,7 @@ struct ext2_sb_info {
 	spinlock_t s_next_gen_lock;
 	u32 s_next_generation;
 	unsigned long s_dir_count;  /* 表示目录的总数 */
+	/* 每当一个新目录加入,s_debts加1，每当其他类型的文件加入，s_debts减1 */
 	u8 *s_debts;  /* 数组,每个数组项对应于一个块组,Orlov分配器使用该数组在一个块组中的文件和目录inode之间保存平衡 */
 	struct percpu_counter s_freeblocks_counter;
 	struct percpu_counter s_freeinodes_counter;

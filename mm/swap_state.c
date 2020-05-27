@@ -38,6 +38,11 @@ static struct backing_dev_info swap_backing_dev_info = {
 
 /*
  * swapper_space在选择交换换出页和实际执行页交换的机制之间，充当协调者
+ *
+ * 在swapper_space中的page都有如些特征:
+ *  1.page->mapping == NULL
+ *  2.page->flag标记中一定是设置了PG_swapcache
+ *  3.private字段存放与该page有关的换出页标识符
  */
 struct address_space swapper_space = {
 	.page_tree	= RADIX_TREE_INIT(GFP_ATOMIC|__GFP_NOWARN),
@@ -149,7 +154,6 @@ static int add_to_swap_cache(struct page *page, swp_entry_t entry)
  * This must be called only on pages that have
  * been verified to be in the swap cache.
  *
- * 从swapper_space.page_tree中删除page,
  * 清空page->private,清空page->flags上的PG_swapcache标记
  *
  * remove_exclusive_swap_page()
@@ -171,6 +175,7 @@ static int add_to_swap_cache(struct page *page, swp_entry_t entry)
  *  delete_from_swap_cache() 
  *   __delete_from_swap_cache()
  *
+ * 从swapper_space.page_tree中删除page
  */
 void __delete_from_swap_cache(struct page *page)
 {

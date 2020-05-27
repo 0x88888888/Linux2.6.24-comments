@@ -102,6 +102,12 @@ static void ext2_release_inode(struct super_block *sb, int group, int dir)
  * the same inode number (not actually the same pointer
  * though), and then we'd have two inodes sharing the
  * same inode number and space on the harddisk.
+ *
+ * iput()
+ *  iput_final()
+ *   generic_delete_inode()
+ *    ext2_delete_inode()
+ *     ext2_free_inode()
  */
 void ext2_free_inode (struct inode * inode)
 {
@@ -171,6 +177,17 @@ error_return:
  *   stalling the writes while we read the inode block.
  *
  * FIXME: ext2_get_group_desc() needs to be simplified.
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *       ext2_create()
+ *        ext2_new_inode()
+ *         ext2_preread_inode()
+ *
  */
 static void ext2_preread_inode(struct inode *inode)
 {
@@ -659,7 +676,7 @@ got:
 		err = -EDQUOT;
 		goto fail_drop;
 	}
-
+ 
 	err = ext2_init_acl(inode, dir);
 	if (err)
 		goto fail_free_drop;
@@ -670,6 +687,7 @@ got:
 
 	mark_inode_dirty(inode);
 	ext2_debug("allocating inode %lu\n", inode->i_ino);
+	//预读包括该inode的block
 	ext2_preread_inode(inode);
 	return inode;
 

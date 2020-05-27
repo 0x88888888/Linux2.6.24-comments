@@ -386,8 +386,10 @@ typedef enum {
  * pageout is called by shrink_page_list() for each dirty page.
  * Calls ->writepage().
  *
- * shrink_page_list()
- *  pageout()
+ * shrink_zone()
+ *  shrink_inactive_list()
+ *   shrink_page_list()
+ *    pageout()
  * 
  */
 static pageout_t pageout(struct page *page, struct address_space *mapping,

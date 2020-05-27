@@ -222,6 +222,8 @@ struct ext2_inode {
 	__le16	i_mode;		/* File mode */
 	/* 文件拥有者的用户id，可以通过chown命令修改 */
 	__le16	i_uid;		/* Low 16 bits of Owner Uid */
+	//以字节为单位的文件的有效长度，32位就把文件限制在4GB大小了
+	//但是使用i_dir_acl来扩展技巧也可以使用64GB的文件大小
 	__le32	i_size;		/* Size in bytes */
 	__le32	i_atime;	/* Access time */
 	__le32	i_ctime;	/* Creation time */

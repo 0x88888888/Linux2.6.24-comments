@@ -2307,6 +2307,7 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	pte_t pte;
 	int ret = 0;
 
+    //释放在内核的映射
 	if (!pte_unmap_same(mm, pmd, page_table, orig_pte))
 		goto out;
 
@@ -2329,10 +2330,15 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	    /* 对swap区域发起预读 */
  		swapin_readahead(entry, address, vma);
 
-		/* 对entry对应的page发起读 */
+		/* 上一步的swapin_readahead可能失败， 对entry对应的page又发起读 */
  		page = read_swap_cache_async(entry, vma, address);
 		
-		if (!page) {
+		if (!page) { 
+		/*
+		 * 如果还是没有找打对应的这个page，可能是因为内核另外的路径代码代表这个进程的一个子进程换入了所请求的page
+		 * 这种情况通过比较page_table所指向的表项与orig_pte来比较判断是否被被动代码路径换入了。
+		 * 如果二者有差异，说明被别的代码换入了
+		 */
 			/*
 			 * Back out if somebody else faulted in this pte
 			 * while we released the pte lock.
@@ -2349,7 +2355,8 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 		count_vm_event(PGMAJFAULT);
 	}
 
-    //找到了page
+    //到此，说明找到了page
+    
 	mark_page_accessed(page);
 	lock_page(page); /* 等待page被读成功 */
 	delayacct_clear_flag(DELAYACCT_PF_SWAPIN);
@@ -2383,7 +2390,7 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	/* 添加到匿名映射机制中，即设置page->mapping=vma->anon_vma */
 	page_add_anon_rmap(page, vma, address);
 
-    /* 根据swap_info_struct->swap_map[offset]的计数来确定是否要释放对应的slot */
+    /* 减少swap_info_struct->swap_map[offset]的值,根据swap_info_struct->swap_map[offset]的计数来确定是否要释放对应的slot */
 	swap_free(entry);
 	
 	if (vm_swap_full())

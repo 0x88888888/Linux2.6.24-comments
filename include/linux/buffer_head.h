@@ -310,6 +310,18 @@ sb_bread(struct super_block *sb, sector_t block)
 	return __bread(sb->s_bdev, block, sb->s_blocksize);
 }
 
+/*
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *       ext2_create()
+ *        ext2_new_inode()
+ *         ext2_preread_inode()
+ *          sb_breadahead()
+ */
 static inline void
 sb_breadahead(struct super_block *sb, sector_t block)
 {

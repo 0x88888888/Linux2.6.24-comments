@@ -304,6 +304,16 @@ ext2_permission(struct inode *inode, int mask, struct nameidata *nd)
  *
  * dir->i_mutex: down
  * inode->i_mutex: up (access to inode is still exclusive)
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *       ext2_create()
+ *        ext2_new_inode() 
+ *         ext2_init_acl()
  */
 int
 ext2_init_acl(struct inode *inode, struct inode *dir)

@@ -1152,7 +1152,7 @@ static int try_to_unuse(unsigned int type)
 			if (shmem)
 				swap_duplicate(entry);
 			else
-				delete_from_swap_cache(page);
+				delete_from_swap_cache(page); //从swapper_space中删除page
 		}
 
 		/*

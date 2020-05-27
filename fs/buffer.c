@@ -131,6 +131,21 @@ static void __end_buffer_read_notouch(struct buffer_head *bh, int uptodate)
 /*
  * Default synchronous end-of-IO handler..  Just mark it up-to-date and
  * unlock the buffer. This is what ll_rw_block uses too.
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *       ext2_create()
+ *        ext2_new_inode()
+ *         ext2_preread_inode()
+ *          sb_breadahead()
+ *           __breadahead()
+ *            ll_rw_block()
+ *            ......
+ *             end_buffer_read_sync()
  */
 void end_buffer_read_sync(struct buffer_head *bh, int uptodate)
 {
@@ -138,6 +153,22 @@ void end_buffer_read_sync(struct buffer_head *bh, int uptodate)
 	put_bh(bh);
 }
 
+/*
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *       ext2_create()
+ *        ext2_new_inode()
+ *         ext2_preread_inode()
+ *          sb_breadahead()
+ *           __breadahead()
+ *            ll_rw_block()
+ *            ......
+ *             end_buffer_write_sync()
+ */
 void end_buffer_write_sync(struct buffer_head *bh, int uptodate)
 {
 	char b[BDEVNAME_SIZE];
@@ -1586,6 +1617,18 @@ EXPORT_SYMBOL(__getblk);
 
 /*
  * Do async read-ahead on a buffer..
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *       ext2_create()
+ *        ext2_new_inode()
+ *         ext2_preread_inode()
+ *          sb_breadahead()
+ *           __breadahead()
  */
 void __breadahead(struct block_device *bdev, sector_t block, unsigned size)
 {
@@ -3245,6 +3288,19 @@ int submit_bh(int rw, struct buffer_head * bh)
  *      sync_mapping_buffers()
  *       fsync_buffers_list()
  *        ll_rw_block()
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *       ext2_create()
+ *        ext2_new_inode()
+ *         ext2_preread_inode()
+ *          sb_breadahead()
+ *           __breadahead()
+ *            ll_rw_block()
  *
  * 有些时候内核必须触发几个数据块的数据传输,这些数据块不一定物理上相邻，
  * 会调用到这里

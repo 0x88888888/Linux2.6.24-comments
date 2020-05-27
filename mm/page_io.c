@@ -60,6 +60,8 @@ static struct bio *get_swap_bio(gfp_t gfp_flags, pgoff_t index,
  *  submit_bio()
  *   ....
  *    end_swap_bio_write()
+ *
+ * 唤醒等待在page上的进程
  */
 static void end_swap_bio_write(struct bio *bio, int err)
 {
@@ -115,6 +117,12 @@ void end_swap_bio_read(struct bio *bio, int err)
  * sys_swapoff()
  *  try_to_unuse()
  *   swap_writepage()
+ *
+ * shrink_zone()
+ *  shrink_inactive_list()
+ *   shrink_page_list()
+ *    pageout()
+ *     swap_writepage()
  *
  * 写入swap area
  */

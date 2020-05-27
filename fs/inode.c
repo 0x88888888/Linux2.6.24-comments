@@ -146,6 +146,7 @@ static struct inode *alloc_inode(struct super_block *sb)
 
     // sockfs_ops->alloc_inode == sock_alloc_inode
     // bdev_sops->alloc_inode == bdev_alloc_inode
+    // ext2_sops->alloc_inode == ext2_alloc_inode
 	if (sb->s_op->alloc_inode)
 		inode = sb->s_op->alloc_inode(sb);
 	else
@@ -1121,6 +1122,10 @@ EXPORT_SYMBOL(remove_inode_hash);
  * 
  * generic_drop_inode()
  *  generic_delete_inode()
+ *
+ * iput()
+ *  iput_final()
+ *   generic_delete_inode()
  */
 void generic_delete_inode(struct inode *inode)
 {
@@ -1217,6 +1222,9 @@ EXPORT_SYMBOL_GPL(generic_drop_inode);
  * NOTE! NOTE! NOTE! We're called with the inode lock
  * held, and the drop function is supposed to release
  * the lock!
+ *
+ * iput()
+ *  iput_final()
  */
 static inline void iput_final(struct inode *inode)
 {

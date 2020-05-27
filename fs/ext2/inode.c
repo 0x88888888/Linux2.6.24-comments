@@ -59,6 +59,11 @@ static inline int ext2_inode_is_fast_symlink(struct inode *inode)
  * generic_drop_inode()
  *  generic_delete_inode()
  *   ext2_delete_inode()
+ *
+ * iput()
+ *  iput_final()
+ *   generic_delete_inode()
+ *    ext2_delete_inode()
  */
 void ext2_delete_inode (struct inode * inode)
 {

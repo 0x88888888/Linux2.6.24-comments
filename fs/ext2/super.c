@@ -139,6 +139,19 @@ static void ext2_put_super (struct super_block * sb)
 
 static struct kmem_cache * ext2_inode_cachep;
 
+/*
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    open_namei()
+ *     open_namei_create()
+ *      vfs_create()
+ *       ext2_create()
+ *        ext2_new_inode()
+ *         new_inode()
+ *          alloc_inode()
+ *           ext2_alloc_inode()
+ */
 static struct inode *ext2_alloc_inode(struct super_block *sb)
 {
 	struct ext2_inode_info *ei;
