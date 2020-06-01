@@ -168,6 +168,9 @@ static void unlink(struct kobject * kobj)
  *
  *	kobject_add - add an object to the hierarchy.
  *	@kobj:	object.
+ *
+ * kobject_register()
+ *  kobject_add()
  */
 
 int kobject_add(struct kobject * kobj)
@@ -244,7 +247,7 @@ int kobject_register(struct kobject * kobj)
 {
 	int error = -EINVAL;
 	if (kobj) {
-		kobject_init(kobj);
+		kobject_init(kobj); //初始化kobject
 		error = kobject_add(kobj);
 		if (!error)
 			kobject_uevent(kobj, KOBJ_ADD);

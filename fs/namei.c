@@ -2252,6 +2252,8 @@ EXPORT_SYMBOL_GPL(lookup_create);
  * sys_mknod()
  *  sys_mknodat()
  *   vfs_mknod()
+ *
+ *  创建设备文件
  */
 int vfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 {
@@ -2271,7 +2273,7 @@ int vfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 		return error;
 
 	DQUOT_INIT(dir);
-	          //ext2_mknode
+	          //ext2_mknod
 	error = dir->i_op->mknod(dir, dentry, mode, dev);
 	if (!error)
 		fsnotify_create(dir, dentry);

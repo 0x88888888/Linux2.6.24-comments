@@ -201,13 +201,15 @@ int driver_probe_done(void)
  * This function must be called with @dev->sem held.  When called for a
  * USB interface, @dev->parent->sem must be held as well.
  *
- * device_register()
- *  device_add()
- *   bus_attach_device()
- *    device_attach()
- *     bus_for_each_drv(fn == __device_attach)
- *      __device_attach()
- *       driver_probe_device()
+ * vortex_init()
+ *  pci_register_driver()
+ *   __pci_register_driver()
+ *    driver_register()
+ *     bus_add_driver()
+ *      driver_attach(fn == __driver_attach)
+ *       bus_for_each_dev()
+ *        __driver_attach()
+ *         driver_probe_device()
  */
 int driver_probe_device(struct device_driver * drv, struct device * dev)
 {
@@ -215,6 +217,10 @@ int driver_probe_device(struct device_driver * drv, struct device * dev)
 
 	if (!device_is_registered(dev))
 		return -ENODEV;
+	/* 
+	 * 从pci_register_driver()进来的调用的match都是pci_bus_type
+	 * pci_bus_type.match == pci_bus_match
+	 */
 	if (drv->bus->match && !drv->bus->match(dev, drv))
 		goto done;
 
@@ -281,11 +287,14 @@ int device_attach(struct device * dev)
 }
 
 /*
- * driver_register()
- *  bus_add_driver()
- *   driver_attach( fn == __driver_attach)
- *    bus_for_each_dev()
- *     __driver_attach()
+ * vortex_init()  
+ *  pci_register_driver()
+ *   __pci_register_driver()
+ *    driver_register()
+ *     bus_add_driver()
+ *      driver_attach(fn == __driver_attach)
+ *       bus_for_each_dev()
+ *        __driver_attach()
  */
 static int __driver_attach(struct device * dev, void * data)
 {
@@ -322,9 +331,12 @@ static int __driver_attach(struct device * dev, void * data)
  *	returns 0 and the @dev->driver is set, we've found a
  *	compatible pair.
  *
- * driver_register()
- *  bus_add_driver()
- *   driver_attach()
+ * vortex_init()
+ *  pci_register_driver()
+ *   __pci_register_driver()
+ *    driver_register()
+ *     bus_add_driver()
+ *      driver_attach()
  */
 int driver_attach(struct device_driver * drv)
 {

@@ -51,7 +51,7 @@ extern void bus_remove_file(struct bus_type *, struct bus_attribute *);
 
 /*
  * 内核通过struct bus_type结构来抽象系统总线(bus)
- *
+ * 内核所支持的每一种总线都由一个bus_type对象来表示
  *
  */
 struct bus_type {
@@ -163,6 +163,9 @@ extern int bus_unregister_notifier(struct bus_type *bus,
  * 此时就会触发Driver的执行。这就是即插即用的概念。
  *
  * 通用设备结构为device
+ *
+ * 通常device_driver作为一个嵌入对象，嵌入到别的对象中，比如
+ * pci_driver
  */
 struct device_driver {
     /* 该driver的名称 
@@ -232,6 +235,8 @@ struct device * driver_find_device(struct device_driver *drv,
 
 /*
  * device classes
+ *
+ * 
  */
 struct class {
     /* class的名称，会在“/sys/class/”目录下体现 */
@@ -468,13 +473,22 @@ extern void devm_kfree(struct device *dev, void *p);
 /*
  * 设备驱动模型的通用设备结构，这个device结构通常用来嵌入到其他具体的设备对象中的
  * 通用驱动结构为device_driver
+ *
+ * 通常device结构会被嵌入到一个更大的数据结构里面去,比如
+ * pci_dev, net_device, scsi_device
  * 
  */
 struct device {
-	
-	struct klist		klist_children;     //子设备
-	struct klist_node	knode_parent;		/* node in sibling list */
-	struct klist_node	knode_driver;   /* 一个驱动程序可能会服务多个设备，knode_driver用于链接被同一驱动程序所管理的设备 */
+	//子设备
+	struct klist		klist_children;     
+	/* node in sibling list */
+	struct klist_node	knode_parent;		
+	/*
+	 * 一个驱动程序可能会服务多个设备，
+	 * knode_driver用于链接被同一驱动程序所管理的设备 
+	 */
+	struct klist_node	knode_driver;   
+	/*  链接到同一bus上的所有设备 */
 	struct klist_node	knode_bus;
 	struct device		*parent;
 
@@ -496,9 +510,14 @@ struct device {
 	/* 该device属于哪个总线 */
 	struct bus_type	* bus;		/* type of bus device is on */
 	/* 该device对应的device driver */
-	struct device_driver *driver;	/* which driver has allocated this
-					   device */
-	void		*driver_data;	/* data private to the driver */
+	/* which driver has allocated this device */
+	struct device_driver *driver;	
+					   
+	/* data private to the driver 
+	 * 指向驱动程序私有数据的指针
+	 */				   	
+	void		*driver_data;	
+	//指向遗留设备驱动程序的私有数据的指针
 	void		*platform_data;	/* Platform specific data, device
 					   core doesn't touch it */
 	struct dev_pm_info	power;
@@ -527,8 +546,11 @@ struct device {
 	struct list_head	node;
 	/* 该设备属于哪个class */
 	struct class		*class;
-	dev_t			devt;		/* dev_t, creates the sysfs "dev" */
-	/* 该设备的默认attribute集合。将会在设备注册时自动在sysfs中创建对应的文件 */
+	/* dev_t, creates the sysfs "dev" */
+	dev_t			devt;		
+	/* 该设备的默认attribute集合。
+	 * 将会在设备注册时自动在sysfs中创建对应的文件 
+	 */
 	struct attribute_group	**groups;	/* optional groups */
 
 	void	(*release)(struct device * dev);

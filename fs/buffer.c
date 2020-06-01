@@ -3039,6 +3039,16 @@ out:
 }
 EXPORT_SYMBOL(nobh_truncate_page);
 
+/*
+ * iput()
+ *  iput_final()
+ *   generic_delete_inode()
+ *    ext2_delete_inode()
+ *     ext2_truncate()
+ *      block_truncate_page()
+ *
+ * 释放磁盘空间
+ */
 int block_truncate_page(struct address_space *mapping,
 			loff_t from, get_block_t *get_block)
 {

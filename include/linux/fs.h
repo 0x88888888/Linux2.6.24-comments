@@ -1958,7 +1958,23 @@ extern struct inode * iget5_locked(struct super_block *, unsigned long, int (*te
 extern struct inode * iget_locked(struct super_block *, unsigned long);
 extern void unlock_new_inode(struct inode *);
 
-/* 从磁盘上读取对应文件系统的ext2_inode信息，然后转化成vfs层inode  对象*/
+/* 从磁盘上读取对应文件系统的ext2_inode信息，然后转化成vfs层inode  对象
+ *
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk()  这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             do_lookup()
+ *              real_lookup()
+ *               ext2_lookup()
+ *                iget()
+ */
 static inline struct inode *iget(struct super_block *sb, unsigned long ino)
 {
 	struct inode *inode = iget_locked(sb, ino);

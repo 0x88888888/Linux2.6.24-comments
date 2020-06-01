@@ -150,8 +150,11 @@ void put_driver(struct device_driver * drv)
  *	since most of the things we have to do deal with the bus
  *	structures.
  *
- * __pci_register_driver()
- *  driver_register()
+ * vortex_init()  
+ *  pci_register_driver()
+ *   __pci_register_driver()
+ *    driver_register()
+ *
  */
 int driver_register(struct device_driver * drv)
 {

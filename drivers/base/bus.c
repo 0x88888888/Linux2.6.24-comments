@@ -289,10 +289,13 @@ static struct device * next_device(struct klist_iter * i)
  *	to retain this data, it should do, and increment the reference
  *	count in the supplied callback.
  *
- * driver_register()
- *  bus_add_driver()
- *   driver_attach( fn == __driver_attach)
- *    bus_for_each_dev()
+ * vortex_init()
+ *  pci_register_driver()
+ *   __pci_register_driver()
+ *    driver_register()
+ *     bus_add_driver()
+ *      driver_attach(fn == __driver_attach)
+ *       bus_for_each_dev()
  */
 int bus_for_each_dev(struct bus_type * bus, struct device * start,
 		     void * data, int (*fn)(struct device *, void *))
@@ -645,14 +648,17 @@ static DRIVER_ATTR(uevent, S_IWUSR, NULL, driver_uevent_store);
  *	bus_add_driver - Add a driver to the bus.
  *	@drv:	driver.
  *
- * __pci_register_driver()
- *  driver_register()
- *   bus_add_driver()
+ * vortex_init()
+ *  pci_register_driver()
+ *   __pci_register_driver()
+ *    driver_register()
+ *     bus_add_driver()
  *
  * 将device_driver加入到bus上
  */
 int bus_add_driver(struct device_driver *drv)
 {
+    //device_driver对应的总线对象
 	struct bus_type * bus = bus_get(drv->bus);
 	int error = 0;
 

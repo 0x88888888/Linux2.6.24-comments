@@ -77,7 +77,7 @@ void ext2_delete_inode (struct inode * inode)
 
 	inode->i_size = 0;
 	if (inode->i_blocks)
-		ext2_truncate (inode);
+		ext2_truncate (inode);//释放磁盘空间
 	ext2_free_inode (inode);
 
 	return;
@@ -1216,6 +1216,16 @@ static void ext2_free_branches(struct inode *inode, __le32 *p, __le32 *q, int de
 		ext2_free_data(inode, p, q);
 }
 
+
+/*
+ * iput()
+ *  iput_final()
+ *   generic_delete_inode()
+ *    ext2_delete_inode()
+ *     ext2_truncate()
+ *
+ * 释放磁盘数据块
+ */
 void ext2_truncate(struct inode *inode)
 {
 	__le32 *i_data = EXT2_I(inode)->i_data;
@@ -1243,7 +1253,7 @@ void ext2_truncate(struct inode *inode)
 
 	if (mapping_is_xip(inode->i_mapping))
 		xip_truncate_page(inode->i_mapping, inode->i_size);
-	else if (test_opt(inode->i_sb, NOBH))
+	else if (test_opt(inode->i_sb, NOBH))//buffer_head
 		nobh_truncate_page(inode->i_mapping,
 				inode->i_size, ext2_get_block);
 	else
@@ -1412,8 +1422,22 @@ void ext2_get_inode_flags(struct ext2_inode_info *ei)
 
 /*
  * 读取ext2_inode_info并且设置inode->i_op,inode->i_mapping,inode->i_fop
- * iget() [include/linux/fs.h]
- *  ext2_read_inode()
+ *
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk()  这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             do_lookup()
+ *              real_lookup()
+ *               ext2_lookup()
+ *                iget() [include/linux/fs.h]
+ *                 ext2_read_inode()
  */
 void ext2_read_inode (struct inode * inode)
 {

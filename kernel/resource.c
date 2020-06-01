@@ -145,7 +145,20 @@ __initcall(ioresources_init);
 
 #endif /* CONFIG_PROC_FS */
 
-/* Return the conflict entry if you can't request it */
+/* Return the conflict entry if you can't request it 
+ *
+ * e820_reserve_resources()
+ *  request_resource()
+ *   __request_resource()
+ *
+ * pci_alloc_consistent()
+ *  allocate_resource()
+ *   __request_resource()
+ *
+ * request_region()
+ *  __request_region()
+ *   __request_resource()
+ */
 static struct resource * __request_resource(struct resource *root, struct resource *new)
 {
 	resource_size_t start = new->start;
@@ -199,6 +212,10 @@ static int __release_resource(struct resource *old)
  * @new: resource descriptor desired by caller
  *
  * Returns 0 for success, negative error code on error.
+ *
+ * e820_reserve_resources()
+ *  request_resource()
+ *
  */
 int request_resource(struct resource *root, struct resource *new)
 {
@@ -348,6 +365,9 @@ static int find_resource(struct resource *root, struct resource *new,
  * @align: alignment requested, in bytes
  * @alignf: alignment function, optional, called if not NULL
  * @alignf_data: arbitrary data to pass to the @alignf function
+ *
+ * pci_alloc_consistent()
+ *  allocate_resource()
  */
 int allocate_resource(struct resource *root, struct resource *new,
 		      resource_size_t size, resource_size_t min,
@@ -505,6 +525,9 @@ EXPORT_SYMBOL(adjust_resource);
  * @start: resource start address
  * @n: resource region size
  * @name: reserving caller's ID string
+ *
+ * request_region()
+ *  __request_region()
  */
 struct resource * __request_region(struct resource *parent,
 				   resource_size_t start, resource_size_t n,

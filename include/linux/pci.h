@@ -645,6 +645,10 @@ void pci_enable_bridges(struct pci_bus *bus);
 int __must_check __pci_register_driver(struct pci_driver *, struct module *,
 				       const char *mod_name);
 
+/*
+ * vortex_init()
+ *  pci_register_driver()
+ */
 static inline int __must_check pci_register_driver(struct pci_driver *driver)
 {
 	return __pci_register_driver(driver, THIS_MODULE, KBUILD_MODNAME);

@@ -159,6 +159,8 @@ static int ext2_create (struct inode * dir, struct dentry * dentry, int mode, st
  *  sys_mknodat()
  *   vfs_mknod()
  *    ext2_mknod()
+ *
+ * 创建inode，设置inode->i_fop和inode->i_rdev
  */
 static int ext2_mknod (struct inode * dir, struct dentry *dentry, int mode, dev_t rdev)
 {

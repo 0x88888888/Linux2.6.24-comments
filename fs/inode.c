@@ -1539,6 +1539,22 @@ void __init inode_init(void)
  * ext4_mknod()
  *  init_special_inode()
  *
+ * sys_open()
+ *  do_sys_open()
+ *	 do_filp_open()
+ *	  open_namei()
+ *		path_lookup_open()
+ *		  __path_lookup_intent_open()
+ *		   do_path_lookup()
+ *          path_walk()  这里设置 current->total_link_count = 0;
+ *           link_path_walk() 
+ *            __link_path_walk()
+ *             do_lookup()
+ *              real_lookup()
+ *               ext2_lookup()
+ *                iget() [include/linux/fs.h]
+ *                 ext2_read_inode()
+ *                  init_special_inode()
  */
 void init_special_inode(struct inode *inode, umode_t mode, dev_t rdev)
 {

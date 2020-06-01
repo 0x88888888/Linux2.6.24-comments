@@ -120,6 +120,19 @@ static inline int pci_create_newid_file(struct pci_driver *drv)
  *
  * Deprecated, don't use this as it will not catch any dynamic ids
  * that a driver might want to check for.
+ *
+ * vortex_init()
+ *  pci_register_driver()
+ *   __pci_register_driver()
+ *    driver_register()
+ *     bus_add_driver()
+ *      driver_attach(fn == __driver_attach)
+ *       bus_for_each_dev()
+ *        __driver_attach()
+ *         driver_probe_device()
+ *          pci_bus_match()
+ *           pci_match_device()
+ *            pci_match_id()
  */
 const struct pci_device_id *pci_match_id(const struct pci_device_id *ids,
 					 struct pci_dev *dev)
@@ -142,6 +155,18 @@ const struct pci_device_id *pci_match_id(const struct pci_device_id *ids,
  * Used by a driver to check whether a PCI device present in the
  * system is in its list of supported devices.  Returns the matching
  * pci_device_id structure or %NULL if there is no match.
+ *
+ * vortex_init()
+ *  pci_register_driver()
+ *   __pci_register_driver()
+ *    driver_register()
+ *     bus_add_driver()
+ *      driver_attach(fn == __driver_attach)
+ *       bus_for_each_dev()
+ *        __driver_attach()
+ *         driver_probe_device()
+ *          pci_bus_match()
+ *           pci_match_device()
  */
 static const struct pci_device_id *pci_match_device(struct pci_driver *drv,
 						    struct pci_dev *dev)
@@ -407,8 +432,9 @@ static struct kobj_type pci_driver_kobj_type = {
  * If no error occurred, the driver remains registered even if 
  * no device was claimed during registration.
  *
- * pci_register_driver()
- *  __pci_register_driver()
+ * vortex_init() 
+ *  pci_register_driver()
+ *   __pci_register_driver()
  *
  */
 int __pci_register_driver(struct pci_driver *drv, struct module *owner,
@@ -488,6 +514,17 @@ pci_dev_driver(const struct pci_dev *dev)
  * Used by a driver to check whether a PCI device present in the
  * system is in its list of supported devices. Returns the matching
  * pci_device_id structure or %NULL if there is no match.
+ *
+ * vortex_init()
+ *  pci_register_driver()
+ *   __pci_register_driver()
+ *    driver_register()
+ *     bus_add_driver()
+ *      driver_attach(fn == __driver_attach)
+ *       bus_for_each_dev()
+ *        __driver_attach()
+ *         driver_probe_device()
+ *          pci_bus_match()
  */
 static int pci_bus_match(struct device *dev, struct device_driver *drv)
 {
