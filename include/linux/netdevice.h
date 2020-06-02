@@ -937,7 +937,7 @@ struct packet_type {
 	__be16			type;	/* 协议类型 This is really htons(ether_type). */
 	struct net_device	*dev;	/* NULL is wildcarded here	     */
 	 //协议相应的处理函数,比如ip_rcv处理ipv4协议
-	/* 函数指针可以指向 arp_rcv , ip_rcv, pppoe_rcv */
+	/* 函数指针可以指向 arp_rcv , ip_rcv, pppoe_rcv,packet_rcv,packet_rcv_spkt */
 	int			(*func) (struct sk_buff *,
 					 struct net_device *, /* 当前处理该设备的net_device对象 */
 					 struct packet_type *,

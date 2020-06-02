@@ -75,16 +75,21 @@ typedef void (bio_destructor_t) (struct bio *);
  * 一个request中可以有多个bio，一个bio中可以有多个page
  */
 struct bio {
-    //在blk_partition_remap()转成相对于磁盘的起始扇区号
+    //在初始阶段为相对于磁盘分区的起始扇区号, 在blk_partition_remap()转成相对于磁盘的起始扇区号
 	sector_t		bi_sector;	/* 指定传输的扇区起始号, device address in 512 byte
 						   sectors */
 	struct bio		*bi_next;	/* request queue link */
+	/*
+	 * 如果bio->bi_bdev == bio->bi_bdev->bd_contains
+	 * 说明已经将bi_sector从相对于分区的扇区号转成相对于磁盘的扇区号了。
+	 *
+	 */
 	struct block_device	*bi_bdev; //指向请求所属设备的block_device
 	unsigned long		bi_flags;	/* status, command, etc */
 	unsigned long		bi_rw;		/* 区分是读还是写操作 bottom bits READ/WRITE,
 						 * top bits priority
 						 */
-    // bi_io_vec 数组的长度
+    // bi_io_vec 数组的长度,就是数组中段的数目.
 	unsigned short		bi_vcnt;	/* how many bio_vec's */
 	unsigned short		bi_idx;		/* bio操作中 bio_vec[]数组中段的当前索引值.current index into bvl_vec */
 

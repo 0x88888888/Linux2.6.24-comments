@@ -2128,7 +2128,7 @@ static inline int deliver_skb(struct sk_buff *skb,
 			      struct net_device *orig_dev)
 {
 	atomic_inc(&skb->users);
-	/* ip_rcv(), arp_rcv()函数 */
+	/* ip_rcv(), arp_rcv()函数, packet_rcv或者packet_rcv_spkt */
 	return pt_prev->func(skb, skb->dev, pt_prev, orig_dev);
 }
 
