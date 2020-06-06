@@ -567,7 +567,9 @@ struct block_device {
 	struct mutex		bd_mutex;	/* open/close mutex */
 	struct semaphore	bd_mount_sem;
 	struct list_head	bd_inodes;  /* 链接表本快设备的所有inode,在bd_acquire上设置 */
+	/* block_device 对象的ownerd的线性地址 */
 	void *			bd_holder;
+	//调用bdget()的次数
 	int			bd_holders;
 #ifdef CONFIG_SYSFS
 	struct list_head	bd_holder_list;
@@ -590,6 +592,8 @@ struct block_device {
 	 * to use this.  NOTE:  bd_claim allows an owner to claim
 	 * the same device multiple times, the owner must take special
 	 * care to not mess up bd_private for that case.
+	 *
+	 *
 	 */
 	unsigned long		bd_private;
 };
@@ -840,7 +844,10 @@ struct file_ra_state {
 					   there are only # of pages ahead */
 
 	unsigned int ra_pages;		/*预读窗口的最大page数量。 Maximum readahead window */
-	int mmap_miss;			/* 预读命中次数，用于内存映射文件 Cache miss stat for mmap accesses */
+	/*
+	 * filemap_fault() 中操作这个值
+	 */
+	int mmap_miss;			/* 预读没有命中的次数，用于内存映射文件 Cache miss stat for mmap accesses */
 	loff_t prev_pos;		/*  缓存上一次read的位置。 Cache last read() position */
 };
 
@@ -1279,7 +1286,7 @@ struct block_device_operations {
  * mode.
  */
 typedef struct {
-	size_t written;
+	size_t written; //内核在读磁盘数据的时候，已经复制到用户态的数据数量
 	size_t count;
 	union {
 		char __user * buf;

@@ -395,6 +395,16 @@ __sync_single_inode(struct inode *inode, struct writeback_control *wbc)
  *    writeback_inodes()
  *     sync_sb_inodes()
  *      __writeback_single_inode()
+ *
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      background_writeout()
+ *       writeback_inodes() 
+ *        sync_sb_inodes()
+ *         __writeback_single_inode()
  */
 static int
 __writeback_single_inode(struct inode *inode, struct writeback_control *wbc)
@@ -505,6 +515,15 @@ __writeback_single_inode(struct inode *inode, struct writeback_control *wbc)
  *   background_writeout()
  *    writeback_inodes()
  *     sync_sb_inodes()
+ *
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      background_writeout()
+ *       writeback_inodes() 
+ *        sync_sb_inodes()
  */
 static void
 sync_sb_inodes(struct super_block *sb, struct writeback_control *wbc)
@@ -542,6 +561,7 @@ sync_sb_inodes(struct super_block *sb, struct writeback_control *wbc)
 			break;
 		}
 
+        
 		if (wbc->nonblocking && bdi_write_congested(bdi)) {
 			/* 出现拥塞了 */
 			wbc->encountered_congestion = 1; /* 向调用者报告出现拥塞状况了 */
@@ -599,6 +619,7 @@ sync_sb_inodes(struct super_block *sb, struct writeback_control *wbc)
 		}
 		spin_unlock(&inode_lock);
 		iput(inode);
+		//让渡cpu
 		cond_resched();
 		spin_lock(&inode_lock);
 		if (wbc->nr_to_write <= 0) /* 处理了控制块的最大数量了，不能超过这个值 */
@@ -633,6 +654,24 @@ sync_sb_inodes(struct super_block *sb, struct writeback_control *wbc)
  *  ......
  *   background_writeout()
  *    writeback_inodes()
+ *
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      background_writeout()
+ *       writeback_inodes()
+ *
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      wb_kupdate()
+ *       writeback_inodes()
+ *
+ * 遍历各个文件系统的super_blocks上的super_block->s_io inode节点
  */
 void
 writeback_inodes(struct writeback_control *wbc)

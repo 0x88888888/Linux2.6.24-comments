@@ -212,9 +212,15 @@ void unlink_gendisk(struct gendisk *disk)
  * This function gets the structure containing partitioning
  * information for the given device @dev.
  *
- * blkdev_open()
- *  do_open()
- *   get_gendisk()
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    nameidata_to_filp()
+ *     __dentry_open()
+ *      blkdev_open()
+ *       do_open()
+ *        get_gendisk()
  */
 struct gendisk *get_gendisk(dev_t dev, int *part)
 {

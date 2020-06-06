@@ -85,6 +85,20 @@ static unsigned long last_empty_jifs;
  */
 struct pdflush_work {
 	struct task_struct *who;	/* The thread */
+/*
+ * balance_dirty_pages()
+ *  pdflush_operation(fn== background_writeout)
+ * wakeup_pdflush()
+ *  pdflush_operation(fn==background_writeout)
+ * wb_timer_fn()
+ *  pdflush_operation(fn ==wb_kupdate)
+ * laptop_timer_fn()
+ *  pdflush_operation(fn==laptop_flush)
+ * emergency_remount()
+ *  pdflush_operation(fn == do_emergency_remount)
+ * emergency_sync()
+ *  pdflush_operation(fn == do_sync)
+ */
 	void (*fn)(unsigned long);	/* A callback function */
 	unsigned long arg0;		/* An argument to the callback */
 	struct list_head list;		/* On pdflush_list, when idle */
@@ -92,8 +106,11 @@ struct pdflush_work {
 };
 
 /*
- * pdflush()
- *  __pdflush()
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
  */
 static int __pdflush(struct pdflush_work *my_work)
 {
@@ -135,6 +152,9 @@ static int __pdflush(struct pdflush_work *my_work)
 
         /*
          * 工作函数
+         * background_writeout, wb_kupdate
+         * laptop_flush, do_emergency_remount
+         * do_sync,
 		 */
 		(*my_work->fn)(my_work->arg0);
 
@@ -180,6 +200,11 @@ static int __pdflush(struct pdflush_work *my_work)
  * performing unfortunate optimisations against the auto variables.  Because
  * these are visible to other tasks and CPUs.  (No problem has actually
  * been observed.  This is just paranoia).
+ *
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
  *
  * pdflush内核线程,
  *
@@ -279,7 +304,7 @@ static int __init pdflush_init(void)
 {
 	int i;
 
-	for (i = 0; i < MIN_PDFLUSH_THREADS; i++)
+	for (i = 0; i < MIN_PDFLUSH_THREADS /* 2 */; i++)
 		start_one_pdflush_thread();
 	return 0;
 }

@@ -1159,6 +1159,17 @@ static void ext2_commit_super (struct super_block * sb,
 	sb->s_dirt = 0;
 }
 
+/*
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      sync_supers()
+ *       write_super()
+ *        ext2_write_super()
+ *         ext2_sync_super()
+ */
 static void ext2_sync_super(struct super_block *sb, struct ext2_super_block *es)
 {
 	es->s_free_blocks_count = cpu_to_le32(ext2_count_free_blocks(sb));
@@ -1178,8 +1189,16 @@ static void ext2_sync_super(struct super_block *sb, struct ext2_super_block *es)
  * flags to 0.  We need to set this flag to 0 since the fs
  * may have been checked while mounted and e2fsck may have
  * set s_state to EXT2_VALID_FS after some corrections.
+ *
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      sync_supers()
+ *       write_super()
+ *        ext2_write_super()
  */
-
 void ext2_write_super (struct super_block * sb)
 {
 	struct ext2_super_block * es;

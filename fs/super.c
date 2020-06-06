@@ -403,12 +403,21 @@ EXPORT_SYMBOL(drop_super);
  *   wb_kupdate()
  *    sync_supers()
  *     write_super()
+ *
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      sync_supers()
+ *       write_super()
  */
 static inline void write_super(struct super_block *sb)
 {
 	lock_super(sb);
 	if (sb->s_root && sb->s_dirt)
 		if (sb->s_op->write_super)
+			//ext2_write_super
 			sb->s_op->write_super(sb);
 	unlock_super(sb);
 }
@@ -422,6 +431,13 @@ static inline void write_super(struct super_block *sb)
  *  __pdflush()
  *   wb_kupdate()
  *    sync_supers()
+ *
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      sync_supers()
  *
  * sys_sync()
  *  do_sync()

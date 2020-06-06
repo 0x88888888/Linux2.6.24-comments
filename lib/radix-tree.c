@@ -50,11 +50,11 @@ struct radix_tree_node {
 	unsigned int	height;		/* Height from the bottom */
 	unsigned int	count;  /* 本节点中已经使用了的slot数量 */
 	struct rcu_head	rcu_head;
-	void		*slots[RADIX_TREE_MAP_SIZE];
+	void		*slots[RADIX_TREE_MAP_SIZE /* 64*/]; 
 	/*
 	 *  RADIX_TREE_MAX_TAGS分为   PAGECACHE_TAG_DIRTY和PAGECACHE_TAG_WRITEBACK两种。
 	 */
-	unsigned long	tags[RADIX_TREE_MAX_TAGS][RADIX_TREE_TAG_LONGS];
+	unsigned long	tags[RADIX_TREE_MAX_TAGS /* 2 */][RADIX_TREE_TAG_LONGS /* 64*/ ];
 };
 
 struct radix_tree_path {
@@ -136,6 +136,11 @@ radix_tree_node_free(struct radix_tree_node *node)
  * success, return zero, with preemption disabled.  On error, return -ENOMEM
  * with preemption not disabled.
  *
+ * read_swap_cache_async()
+ *  add_to_swap_cache()
+ *   __add_to_swap_cache()
+ *    radix_tree_preload()
+ *
  * 预分配一些radix_tree_node对象
  */
 int radix_tree_preload(gfp_t gfp_mask)
@@ -146,6 +151,7 @@ int radix_tree_preload(gfp_t gfp_mask)
 
 	preempt_disable();
 	rtp = &__get_cpu_var(radix_tree_preloads);
+	
 	while (rtp->nr < ARRAY_SIZE(rtp->nodes)) {
 		preempt_enable();
 		node = kmem_cache_alloc(radix_tree_node_cachep,

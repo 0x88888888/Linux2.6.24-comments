@@ -73,8 +73,9 @@ struct io_event {
  * we always use a 64bit off_t when communicating
  * with userland.  its up to libraries to do the
  * proper padding and aio_error abstraction
+ *
+ * 在内核态，存放在kiocb->ki_obj.user
  */
-
 struct iocb {
 	/* these are internal to the kernel/libc. */
 	__u64	aio_data;	/* data to be returned in event's data */

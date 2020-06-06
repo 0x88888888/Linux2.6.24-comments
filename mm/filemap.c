@@ -216,11 +216,15 @@ static int sync_page(void *word)
  * be waited upon, and not just skipped over.
  *
  *
- * sync_blockdev()
- *	filemap_write_and_wait()
- *	 filemap_fdatawrite()
- *    __filemap_fdatawrite()
- *     __filemap_fdatawrite_range()
+ * sys_sync()
+ *  do_sync()
+ *   sync_inodes()
+ *    __sync_inodes()
+ *     sync_blockdev()
+ *      filemap_write_and_wait()
+ *       filemap_fdatawrite()
+ *        __filemap_fdatawrite()
+ *         __filemap_fdatawrite_range()
  *
  * sys_write()
  *  vfs_write()
@@ -249,10 +253,14 @@ int __filemap_fdatawrite_range(struct address_space *mapping, loff_t start,
 }
 
 /*
- * sync_blockdev()
- *	filemap_write_and_wait()
- *	 filemap_fdatawrite()
- *    __filemap_fdatawrite()
+ * sys_sync()
+ *  do_sync()
+ *   sync_inodes()
+ *    __sync_inodes()
+ *     sync_blockdev()
+ *      filemap_write_and_wait()
+ *       filemap_fdatawrite()
+ *        __filemap_fdatawrite()
  */
 static inline int __filemap_fdatawrite(struct address_space *mapping,
 	int sync_mode)
@@ -262,9 +270,13 @@ static inline int __filemap_fdatawrite(struct address_space *mapping,
 
 
 /*
- * sync_blockdev()
- *	filemap_write_and_wait()
- *   filemap_fdatawrite()
+ * sys_sync()
+ *  do_sync()
+ *   sync_inodes()
+ *    __sync_inodes()
+ *     sync_blockdev()
+ *      filemap_write_and_wait()
+ *       filemap_fdatawrite()
  *
  */
 int filemap_fdatawrite(struct address_space *mapping)
@@ -465,6 +477,12 @@ EXPORT_SYMBOL(filemap_fdatawait);
  * sync_blockdev()
  *  filemap_write_and_wait()
  *
+ * sys_sync()
+ *  do_sync()
+ *   sync_inodes()
+ *    __sync_inodes()
+ *     sync_blockdev()
+ *      filemap_write_and_wait()
  */
 int filemap_write_and_wait(struct address_space *mapping)
 {
@@ -648,6 +666,26 @@ static wait_queue_head_t *page_waitqueue(struct page *page)
 	return &zone->wait_table[hash_ptr(page, zone->wait_table_bits)];
 }
 
+/*
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read() 
+ *      do_generic_mapping_read()
+ *       page_cache_sync_readahead()
+ *        ondemand_readahead()
+ *         __do_page_cache_readahead()
+ *          read_pages()
+ *           ext2_readpages()
+ *            mpage_readpages()
+ *             do_mpage_readpage()
+ *              mpage_bio_submit()
+ *               ......
+ *                mpage_end_io_write()
+ *                 end_page_writeback()
+ *                  wake_up_page()
+ */
 static inline void wake_up_page(struct page *page, int bit)
 {
 	/*
@@ -712,6 +750,24 @@ EXPORT_SYMBOL(unlock_page);
  *   ....
  *    end_swap_bio_write()
  *     end_page_writeback()
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read() 
+ *      do_generic_mapping_read()
+ *       page_cache_sync_readahead()
+ *        ondemand_readahead()
+ *         __do_page_cache_readahead()
+ *          read_pages()
+ *           ext2_readpages()
+ *            mpage_readpages()
+ *             do_mpage_readpage()
+ *              mpage_bio_submit()
+ *               ......
+ *                mpage_end_io_write()
+ *                 end_page_writeback()
  *
  * 在异步写入到磁盘上时，唤醒等待在该page上的进程
  */
@@ -1102,6 +1158,7 @@ void do_generic_mapping_read(struct address_space *mapping,
 		loff_t isize;
 		unsigned long nr, ret;
 
+        //释放cpu
 		cond_resched();
 find_page:
 		page = find_get_page(mapping, index); /* 从mapping->page_tree缓存中去查找 */
@@ -1179,6 +1236,7 @@ page_ok:
 		 */
 		if (prev_index != index || offset != prev_offset)
 			mark_page_accessed(page);
+		
 		prev_index = index;
 
 		/*
@@ -1233,7 +1291,7 @@ page_not_up_to_date:
 readpage:
 		/* Start the actual read. The read will unlock the page. */
 		/* 当前的for循环中不断readpage， 实际的读取数据
-		 * ext2_readpage
+		 * ext2: ext2_readpage
 		 * 块设备文件 blkdev_readpage
 		 */ 
 		error = mapping->a_ops->readpage(filp, page);
@@ -1246,7 +1304,7 @@ readpage:
 			goto readpage_error;
 		}
 
-		if (!PageUptodate(page)) {
+		if (!PageUptodate(page)) { //说明上一步的mapping->a_ops->readpage失败
 			/*lock page等待数据返回，可能会休眠*/
 			lock_page(page);
 			if (!PageUptodate(page)) {
@@ -1468,7 +1526,7 @@ generic_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
 		}
 	}
 
-	//到这里，说明前面的一步没有读取到数据
+	//到这里，说明前面的一步没有读取到数据或者不是direct io
 	retval = 0;
 	if (count) {
 		for (seg = 0; seg < nr_segs; seg++) {
@@ -2284,6 +2342,9 @@ int pagecache_write_end(struct file *file, struct address_space *mapping,
 
 	if (aops->write_end) {
 		mark_page_accessed(page);
+		/*
+		 * blkdev_write_end()
+		 */
 		ret = aops->write_end(file, mapping, pos, len, copied,
 							page, fsdata);
 	} else {
@@ -2608,15 +2669,20 @@ again:
 		//数据拷贝到内核态来
 		copied = iov_iter_copy_from_user_atomic(page, i, offset, bytes);
 		pagefault_enable();
-		//刷到磁盘上去
+		//x86为空函数
 		flush_dcache_page(page);
 
+        /*
+         * blkdev_write_end()
+         * 
+         */
 		status = a_ops->write_end(file, mapping, pos, bytes, copied,
 						page, fsdata);
 		if (unlikely(status < 0))
 			break;
 		copied = status;
 
+        //放弃cpu
 		cond_resched();
 
 		if (unlikely(copied == 0)) {
@@ -2663,6 +2729,7 @@ generic_file_buffered_write(struct kiocb *iocb, const struct iovec *iov,
 	ssize_t status;
 	struct iov_iter i;
 
+    //初始化iovec迭代器
 	iov_iter_init(&i, iov, nr_segs, count, written);
 	if (a_ops->write_begin)
 		status = generic_perform_write(file, &i, pos);
@@ -2848,8 +2915,10 @@ ssize_t generic_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
 	BUG_ON(iocb->ki_pos != pos);
 
 	mutex_lock(&inode->i_mutex);
+	
 	ret = __generic_file_aio_write_nolock(iocb, iov, nr_segs,
 			&iocb->ki_pos);
+	
 	mutex_unlock(&inode->i_mutex);
 
 	if (ret > 0 && ((file->f_flags & O_SYNC) || IS_SYNC(inode))) {

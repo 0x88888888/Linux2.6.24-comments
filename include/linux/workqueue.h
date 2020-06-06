@@ -22,6 +22,9 @@ typedef void (*work_func_t)(struct work_struct *work);
  */
 #define work_data_bits(work) ((unsigned long *)(&(work)->data))
 
+/*
+ * 
+ */
 struct work_struct {
     /*
      * 驱动程序可以利用data来将设备驱动程序使用的某些指针传递给延迟函数
@@ -37,6 +40,8 @@ struct work_struct {
 	struct list_head entry;
     /*
      * 工作函数
+     * 
+     * blk_unplug_work()
      */
 	work_func_t func;
 #ifdef CONFIG_LOCKDEP

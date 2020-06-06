@@ -996,8 +996,19 @@ ext2_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
  *       __filemap_fdatawrite_range()
  *        do_writepages()
  *         ext2_writepages()
+ *
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      background_writeout()
+ *       writeback_inodes() 
+ *        sync_sb_inodes()
+ *         __writeback_single_inode()
+ *          do_writepages()
+ *           ext2_writepages()
  */
-
 static int
 ext2_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {

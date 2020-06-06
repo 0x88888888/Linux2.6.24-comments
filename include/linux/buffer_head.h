@@ -20,19 +20,19 @@ enum bh_state_bits {
 	BH_Uptodate,	/* Contains valid data */
 	BH_Dirty,	/* Is dirty */
 	BH_Lock,	/* Is locked */
-	BH_Req,		/* Has been submitted for I/O */
+	BH_Req,		/* 如果已经为初始化缓冲区而请求数据传输就置位,Has been submitted for I/O */
 	BH_Uptodate_Lock,/* Used by the first bh in a page, to serialise
 			  * IO completion of other buffers in the page
 			  */
 
-	BH_Mapped,	/* Has a disk mapping */
-	BH_New,		/* Disk mapping was newly created by get_block */
+	BH_Mapped,	/* 如果缓冲区被映射到磁盘就置位，即：如果相应的缓冲区首部的b_bdev和b_blocknr是有效的就置位,  Has a disk mapping */
+	BH_New,		/* 如果相应的块刚被分配而还没有被访问过就置位,Disk mapping was newly created by get_block */
 	BH_Async_Read,	/* Is under end_buffer_async_read I/O */
 	BH_Async_Write,	/* Is under end_buffer_async_write I/O */
-	BH_Delay,	/* Buffer is not yet allocated on disk */
+	BH_Delay,	/* 如果还没有在磁盘上分配缓冲区就置位,Buffer is not yet allocated on disk */
 	BH_Boundary,	/* Block is followed by a discontiguity */
-	BH_Write_EIO,	/* I/O error on write */
-	BH_Ordered,	/* ordered write */
+	BH_Write_EIO,	/* 如果写块时出现I/O错误就置位, I/O error on write */
+	BH_Ordered,	/* 如果必须严格地把块写到在它之前提交的块的后面就置位（用于日志文件系统）,ordered write */
 	BH_Eopnotsupp,	/* operation not supported (barrier) */
 	BH_Unwritten,	/* Buffer is allocated on disk but not written */
 

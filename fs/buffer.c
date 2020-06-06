@@ -1449,6 +1449,19 @@ static inline void check_irqs_on(void)
 /*
  * The LRU management algorithm is dopey-but-simple.  Sorry.
  *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread() 
+ *          __getblk()
+ *           __find_get_block()
+ *            bh_lru_install()
+ *
  * 将新的buffer_head添加到bh_lru->bhs[]中去
  */
 static void bh_lru_install(struct buffer_head *bh)
@@ -1466,17 +1479,17 @@ static void bh_lru_install(struct buffer_head *bh)
 		int out = 0;
 
 		get_bh(bh);
-		bhs[out++] = bh;
+		bhs[out++] = bh; //首先就放进去先了
 		for (in = 0; in < BH_LRU_SIZE; in++) {
 			struct buffer_head *bh2 = lru->bhs[in];
 
 			if (bh2 == bh) {
-				/* 如果已经存在了，再次install是不允许的？ */
+				/* 如果已经存在了，再次install是不允许的 */
 				__brelse(bh2);
 			} else {
 				if (out >= BH_LRU_SIZE) {
 					BUG_ON(evictee != NULL);
-					evictee = bh2;/* 踢出的那个？ */
+					evictee = bh2;/* 确定被踢出的那个 */
 				} else {
 					bhs[out++] = bh2;
 				}
@@ -1566,12 +1579,13 @@ lookup_bh_lru(struct block_device *bdev, sector_t block, unsigned size)
 struct buffer_head *
 __find_get_block(struct block_device *bdev, sector_t block, unsigned size)
 {
+    //在per_cpu_var(bh_lrus)中查找
 	struct buffer_head *bh = lookup_bh_lru(bdev, block, size);
 
-	if (bh == NULL) { //没有在bh_lrus中找到
+	if (bh == NULL) { //没有找到,就到address_space中查找
 		bh = __find_get_block_slow(bdev, block);
 		if (bh)
-			bh_lru_install(bh);
+			bh_lru_install(bh);//保存到per_cpu_var(bh_lrus)中u
 	}
 	if (bh)
 		touch_buffer(bh);
@@ -1606,10 +1620,11 @@ EXPORT_SYMBOL(__find_get_block);
 struct buffer_head *
 __getblk(struct block_device *bdev, sector_t block, unsigned size)
 {
+    //首先去per_cpu_var(bh_lrus)和address_space中查找
 	struct buffer_head *bh = __find_get_block(bdev, block, size);
 
 	might_sleep();
-	if (bh == NULL)
+	if (bh == NULL) //找不到，就去分配buffer_head对象
 		bh = __getblk_slow(bdev, block, size);
 	return bh;
 }
@@ -1642,6 +1657,8 @@ EXPORT_SYMBOL(__breadahead);
 
 /**
  *  __bread() - reads a specified block and returns the bh
+ *
+ * 从磁盘读取一个block，并且返回buffer_head
  *  @bdev: the block_device to read from
  *  @block: number of block
  *  @size: size (in bytes) to read
@@ -1664,10 +1681,12 @@ EXPORT_SYMBOL(__breadahead);
 struct buffer_head *
 __bread(struct block_device *bdev, sector_t block, unsigned size)
 {
+    //先从bh_lrus和address_space中查找
 	struct buffer_head *bh = __getblk(bdev, block, size);
 
 	if (likely(bh) && !buffer_uptodate(bh))
-		bh = __bread_slow(bh);
+		bh = __bread_slow(bh); //数据不是最新的，需要从磁盘重新读取
+	
 	return bh;
 }
 EXPORT_SYMBOL(__bread);
@@ -2088,6 +2107,11 @@ void page_zero_new_buffers(struct page *page, unsigned from, unsigned to)
 }
 EXPORT_SYMBOL(page_zero_new_buffers);
 
+/*
+ * ext3_journalled_writepage()
+ *  block_prepare_write()
+ *   __block_prepare_write()
+ */
 static int __block_prepare_write(struct inode *inode, struct page *page,
 		unsigned from, unsigned to, get_block_t *get_block)
 {
@@ -2112,6 +2136,7 @@ static int __block_prepare_write(struct inode *inode, struct page *page,
 
 	for(bh = head, block_start = 0; bh != head || !block_start;
 	    block++, block_start=block_end, bh = bh->b_this_page) {
+			
 		block_end = block_start + blocksize;
 		if (block_end <= from || block_start >= to) {
 			if (PageUptodate(page)) {
@@ -2122,6 +2147,7 @@ static int __block_prepare_write(struct inode *inode, struct page *page,
 		}
 		if (buffer_new(bh))
 			clear_buffer_new(bh);
+		
 		if (!buffer_mapped(bh)) {
 			WARN_ON(bh->b_size != blocksize);
 			err = get_block(inode, block, bh, 1);
@@ -2143,9 +2169,11 @@ static int __block_prepare_write(struct inode *inode, struct page *page,
 					if (block_end > to)
 						memset(kaddr+to, 0,
 							block_end-to);
+					
 					if (block_start < from)
 						memset(kaddr+block_start,
 							0, from-block_start);
+					
 					flush_dcache_page(page);
 					kunmap_atomic(kaddr, KM_USER0);
 				}
@@ -2372,6 +2400,8 @@ EXPORT_SYMBOL(generic_write_end);
  *      do_generic_mapping_read( actor == file_read_actor)
  *       blkdev_readpage()
  *        block_read_full_page(get_block == blkdev_get_block)
+ *
+ * 当从读取块设备文件和磁盘上不相邻的普通文件时都使用该函数
  * 
  */
 int block_read_full_page(struct page *page, get_block_t *get_block)
@@ -2387,10 +2417,13 @@ int block_read_full_page(struct page *page, get_block_t *get_block)
 	blocksize = 1 << inode->i_blkbits;
 	if (!page_has_buffers(page)) /* page没有关联的buffer_head对象 */
 		create_empty_buffers(page, blocksize, 0);
-	
+
+	//得到page对应的buffer_head
 	head = page_buffers(page);/* page->private */
 
+	//开始的block号
 	iblock = (sector_t)page->index << (PAGE_CACHE_SHIFT - inode->i_blkbits);
+	//结束的block号
 	lblock = (i_size_read(inode)+blocksize-1) >> inode->i_blkbits;
 	bh = head;
 	nr = 0;
@@ -2408,11 +2441,8 @@ int block_read_full_page(struct page *page, get_block_t *get_block)
 			if (iblock < lblock) {
 				WARN_ON(bh->b_size != blocksize);
 				/*
-				 * get_block一般是ext2_get_block或者ext3_get_block了 
-				 * get_block函数并没有真的从磁盘上读取数据，读数据在后面
-				 * get_block只是修改了buffer_head上的数据(如b_bdev,b_blocknr字段)
-				 *
-				 * 将iblock在分区或磁盘上的逻辑块号
+				 * get_block== blkdev_get_block
+				 * 这个函数只是填写buffer_head的一些信息
 			     */
 				err = get_block(inode, iblock, bh, 0);
 				if (err)
@@ -2606,6 +2636,10 @@ out:
 	return err;
 }
 
+/* 
+ * ext3_journalled_writepage()
+ *  block_prepare_write()
+ */
 int block_prepare_write(struct page *page, unsigned from, unsigned to,
 			get_block_t *get_block)
 {
@@ -3195,6 +3229,21 @@ sector_t generic_block_bmap(struct address_space *mapping, sector_t block,
 	return tmp.b_blocknr;
 }
 
+/*
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread()
+ *          __bread_slow()
+ *           submit_bh()
+ *            ......
+ *             end_bio_bh_io_sync()
+ */
 static void end_bio_bh_io_sync(struct bio *bio, int err)
 {
 	struct buffer_head *bh = bio->bi_private;
@@ -3211,9 +3260,40 @@ static void end_bio_bh_io_sync(struct bio *bio, int err)
 /*
  * 提交I/O操作到BIO层。
  *
- * blkdev_readpage()
- *  block_read_full_page()
- *   submit_bh()
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read( actor == file_read_actor ) 
+ *      do_generic_mapping_read( actor == file_read_actor)
+ *       blkdev_readpage()
+ *        block_read_full_page(get_block == blkdev_get_block)
+ *         submit_bh()
+ *
+ * ext2_readpage()
+ *  mpage_readpage(get_block == ext2_get_block)
+ *   do_mpage_readpage(get_block == ext2_get_block)
+ *    block_read_full_page(get_block== ext2_get_block)
+ *     ext2_get_block()
+ *      ext2_get_blocks()
+ *       ext2_get_branch()
+ *        sb_bread()
+ *         __bread()
+ *          __bread_slow()
+ *           submit_bh()
+ *
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      sync_supers()
+ *       write_super()
+ *        ext2_write_super()
+ *         ext2_sync_super()
+ *          sync_dirty_buffer()
+ *           submit_bh()
  */
 int submit_bh(int rw, struct buffer_head * bh)
 {
@@ -3238,6 +3318,7 @@ int submit_bh(int rw, struct buffer_head * bh)
 	 * from here on down, it's all bio -- do the initial mapping,
 	 * submit_bio -> generic_make_request may further map this bio around
 	 * 分配bio对象
+	 * 用buffer_head对象的信息去填充bio
 	 */
 	bio = bio_alloc(GFP_NOIO, 1);
 
@@ -3327,6 +3408,7 @@ void ll_rw_block(int rw, int nr, struct buffer_head *bhs[])
 		else if (test_set_buffer_locked(bh))
 			continue;
 
+        //写
 		if (rw == WRITE || rw == SWRITE) {
 			if (test_clear_buffer_dirty(bh)) {
 				bh->b_end_io = end_buffer_write_sync;
@@ -3334,8 +3416,8 @@ void ll_rw_block(int rw, int nr, struct buffer_head *bhs[])
 				submit_bh(WRITE, bh);
 				continue;
 			}
-		} else {
-			if (!buffer_uptodate(bh)) {
+		} else { //读
+			if (!buffer_uptodate(bh)) { //不是最新的数据了
 				bh->b_end_io = end_buffer_read_sync;
 				get_bh(bh);
 				submit_bh(rw, bh);
@@ -3350,6 +3432,17 @@ void ll_rw_block(int rw, int nr, struct buffer_head *bhs[])
  * For a data-integrity writeout, we need to wait upon any in-progress I/O
  * and then start new I/O and then wait upon it.  The caller must have a ref on
  * the buffer_head.
+ *
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      sync_supers()
+ *       write_super()
+ *        ext2_write_super()
+ *         ext2_sync_super()
+ *          sync_dirty_buffer()
  */
 int sync_dirty_buffer(struct buffer_head *bh)
 {

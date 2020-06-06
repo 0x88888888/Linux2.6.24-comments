@@ -111,6 +111,19 @@ void kobj_unmap(struct kobj_map *domain, dev_t dev, unsigned long range)
 	kfree(found);
 }
 
+/*
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    nameidata_to_filp()
+ *     __dentry_open()
+ *      blkdev_open()
+ *       do_open()
+ *        get_gendisk()
+ *         kobj_lookup()
+ *
+ * 在domain->probes[]中查找kobject
+ */
 struct kobject *kobj_lookup(struct kobj_map *domain, dev_t dev, int *index)
 {
 	struct kobject *kobj;

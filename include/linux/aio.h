@@ -110,7 +110,7 @@ struct kiocb {
 		void __user		*user;
 		//执行io的进程 
 		struct task_struct	*tsk;
-	} ki_obj;
+	} ki_obj;//对于同步操作，它是指向发出该操作的task_struct对象，对于异步操作，它是指向用户态数据结构iocb的指针
 
    //给用户态进程返回的值
 	__u64			ki_user_data;	/* user's data for completion */

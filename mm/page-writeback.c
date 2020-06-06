@@ -554,9 +554,16 @@ void throttle_vm_writeout(gfp_t gfp_mask)
  *  2.不会回写super_block
  *  3.没有设置定时器的重启回写机制。
  *
- * pdflush_operation()
+ * pdflush_operation() 通过这个函数去设置pdflush线程的回调函数
  *  ......
  *   background_writeout()
+ *
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      background_writeout()
  */
 static void background_writeout(unsigned long _min_pages)
 {
@@ -641,6 +648,12 @@ static DEFINE_TIMER(laptop_mode_wb_timer, laptop_timer_fn, 0, 0);
  *  __pdflush()
  *   wb_kupdate()
  * 
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      wb_kupdate()
  */
 static void wb_kupdate(unsigned long arg)
 {
@@ -661,7 +674,7 @@ static void wb_kupdate(unsigned long arg)
     /* super_blocks刷入到磁盘上去 */
 	sync_supers();
 
-	oldest_jif = jiffies - dirty_expire_interval;
+	oldest_jif = jiffies - dirty_expire_interval /* 30* HZ */;
 	start_jif = jiffies;
 	next_jif = start_jif + dirty_writeback_interval;
     /* 回写page的数量 */
@@ -1018,6 +1031,17 @@ EXPORT_SYMBOL(generic_writepages);
  *      filemap_fdatawrite_range()
  *       __filemap_fdatawrite_range()
  *        do_writepages()
+ *
+ * pdflush_init()
+ *  start_one_pdflush_thread()
+ *   ......
+ *    pdflush()
+ *     __pdflush()
+ *      background_writeout()
+ *       writeback_inodes() 
+ *        sync_sb_inodes()
+ *         __writeback_single_inode()
+ *          do_writepages()
  */
 int do_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {

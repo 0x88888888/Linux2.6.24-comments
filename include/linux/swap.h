@@ -84,6 +84,7 @@ union swap_header {
   * 具体可以看函数swap_info_get(swp_entry_t entry)
   */
 typedef struct {
+    /* type || offset */
 	unsigned long val;
 } swp_entry_t;
 

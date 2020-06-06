@@ -104,9 +104,11 @@ void swap_unplug_io_fn(struct backing_dev_info *unused_bdi, struct page *page)
  *
  * 扫描swap_info_struct->swap_map[]
  * 返回swap_info_struct->swap_map[]数组空闲元素的下标.
+ *
  * shrink_page_list()
  *  add_to_swap()
  *   get_swap_page() 
+ *    scan_swap_map()
  *
  * alloc_swapdev_block()
  *  get_swap_page_of_type()
@@ -285,7 +287,7 @@ noswap:
 }
 
 /*
- * 在swap area中查找一个空闲的磁盘page
+ * 在swap_info[type]中查找一个空闲的entry
  *
  * alloc_swapdev_block()
  *  get_swap_page_of_type()
@@ -299,6 +301,7 @@ swp_entry_t get_swap_page_of_type(int type)
 	si = swap_info + type;
 	if (si->flags & SWP_WRITEOK) {
 		nr_swap_pages--;
+		//在si中得到一个空闲的entry
 		offset = scan_swap_map(si);
 	
 		if (offset) {/* 找到 */

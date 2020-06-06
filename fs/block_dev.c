@@ -54,6 +54,7 @@ static sector_t max_block(struct block_device *bdev)
 		unsigned int sizebits = blksize_bits(size);
 		retval = (sz >> sizebits);
 	}
+	
 	return retval;
 }
 
@@ -119,6 +120,16 @@ EXPORT_SYMBOL(sb_min_blocksize);
  *      filemap_fault()
  *       blkdev_readpage( get_block== blkdev_get_block) 读块设备文件
  *        blkdev_get_block()
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read( actor == file_read_actor ) 
+ *      do_generic_mapping_read( actor == file_read_actor)
+ *       blkdev_readpage()
+ *        block_read_full_page(get_block == blkdev_get_block)
+ *         blkdev_get_block()
  */
 static int
 blkdev_get_block(struct inode *inode, sector_t iblock,
@@ -166,7 +177,9 @@ blkdev_get_blocks(struct inode *inode, sector_t iblock,
 	bh->b_blocknr = iblock;
 	bh->b_size = max_blocks << inode->i_blkbits;
 	if (max_blocks)
-		set_buffer_mapped(bh);
+
+
+	set_buffer_mapped(bh);
 	return 0;
 }
 
@@ -637,6 +650,7 @@ struct block_device *bdget(dev_t dev)
 	bdev = &BDEV_I(inode)->bdev;
 
 	if (inode->i_state & I_NEW) {
+		
 		bdev->bd_contains = NULL;
 		bdev->bd_inode = inode;
 		bdev->bd_block_size = (1 << inode->i_blkbits);
@@ -654,6 +668,7 @@ struct block_device *bdget(dev_t dev)
 		spin_unlock(&bdev_lock);
 		unlock_new_inode(inode);
 	}
+	
 	return bdev;
 }
 
@@ -718,6 +733,7 @@ static struct block_device *bd_acquire(struct inode *inode)
 		}
 		spin_unlock(&bdev_lock);
 	}
+	
 	return bdev;
 }
 
@@ -1245,7 +1261,9 @@ static int do_open(struct block_device *bdev, struct file *file, int for_part)
 			/* 是主设备 */
 			struct backing_dev_info *bdi;
 
-		    /* 先打开主block设备 */
+		    /* 先打开主block设备
+		     * idescsi_ops.open == idescsi_ide_open
+		     */
 			if (disk->fops->open) {
 				/*
 				 * idedisk_ops->open == idedisk_open
@@ -1268,6 +1286,7 @@ static int do_open(struct block_device *bdev, struct file *file, int for_part)
 			if (bdev->bd_invalidated)
 				rescan_partitions(disk, bdev);
 		} else {
+		 //是打开分区
 		   
 			struct hd_struct *p;
 			struct block_device *whole;
@@ -1293,7 +1312,7 @@ static int do_open(struct block_device *bdev, struct file *file, int for_part)
 			bd_set_size(bdev, (loff_t) p->nr_sects << 9);
 		}
 	} else {
-	    /* 此前还打开过 */
+	    /* 此前已经打开过 */
 		put_disk(disk);
 		module_put(owner);
 		if (bdev->bd_contains == bdev) {
@@ -1339,6 +1358,15 @@ out:
  *  open_bdev_excl()
  *   blkdev_get()
  *    __blkdev_get()
+ *
+ * sys_open()
+ *  do_sys_open()
+ *   do_filp_open()
+ *    nameidata_to_filp()
+ *     __dentry_open()
+ *      blkdev_open()
+ *       do_open()
+ *        __blkdev_get()
  */
 static int __blkdev_get(struct block_device *bdev, mode_t mode, unsigned flags,
 			int for_part)
@@ -1392,6 +1420,7 @@ static int blkdev_open(struct inode * inode, struct file * filp)
 	 */
 	filp->f_flags |= O_LARGEFILE;
 
+    //从bdev_inode得到block_device对象，并且设置inode->i_mapping
 	bdev = bd_acquire(inode);
 	if (bdev == NULL)
 		return -ENOMEM;

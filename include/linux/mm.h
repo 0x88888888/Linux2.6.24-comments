@@ -76,6 +76,9 @@ extern unsigned int kobjsize(const void *objp);
 #define VM_READ		0x00000001	/* currently active flags */
 #define VM_WRITE	0x00000002
 #define VM_EXEC		0x00000004
+/*
+ * 如果一个vma是共享的(MAP_SHARED)就设置VM_SHARED标志，如果是MAP_PRIVATE,就清除这个标志
+ */
 #define VM_SHARED	0x00000008
 
 

@@ -369,7 +369,10 @@ struct blk_queue_tag {
 	atomic_t refcnt;		/* map can be shared */
 };
 
-/* gendisk->queue的请求队列 */
+/*
+ * gendisk->queue的请求队列 
+ * 
+ */
 struct request_queue
 {
 	/*

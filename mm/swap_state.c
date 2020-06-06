@@ -89,6 +89,11 @@ void show_swap_cache_info(void)
  *  __add_to_swap_cache()
  *
  * 
+ * shrink_zone()
+ *  shrink_inactive_list()
+ *   shrink_page_list()
+ *    add_to_swap()
+ *     __add_to_swap_cache()
  */
 static int __add_to_swap_cache(struct page *page, swp_entry_t entry,
 			       gfp_t gfp_mask)
@@ -99,6 +104,7 @@ static int __add_to_swap_cache(struct page *page, swp_entry_t entry,
 	BUG_ON(PageSwapCache(page));
 	BUG_ON(PagePrivate(page));
 	error = radix_tree_preload(gfp_mask);
+	
 	if (!error) {
 		write_lock_irq(&swapper_space.tree_lock);
 		//把page加入到swapper_space中去
@@ -107,6 +113,7 @@ static int __add_to_swap_cache(struct page *page, swp_entry_t entry,
 		if (!error) {
 			page_cache_get(page);
 			SetPageSwapCache(page); /* 设置page->flags设置PG_swapcache */
+		    //在page->private上标记在磁盘上entry的值
 			set_page_private(page, entry.val); /* 设置page->private = entry.val */
 			total_swapcache_pages++;
 			__inc_zone_page_state(page, NR_FILE_PAGES);

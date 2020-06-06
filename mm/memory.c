@@ -2575,7 +2575,7 @@ static int __do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 	if (flags & FAULT_FLAG_WRITE) {
 		/* vma辅助联络的几个pages不是属于几个进程共享的 */
 		if (!(vma->vm_flags & VM_SHARED)) {
-			//不是几个进程共享一个page
+			//不是几个进程共享vma对应的一些page
 			anon = 1;
 			//分配anon_vma
 			if (unlikely(anon_vma_prepare(vma))) {
@@ -2642,6 +2642,7 @@ static int __do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 	 */
 	/* Only go through if we didn't race with anybody else... */
 	if (likely(pte_same(*page_table, orig_pte))) {
+		
 		flush_icache_page(vma, page);
 		entry = mk_pte(page, vma->vm_page_prot);
 		if (flags & FAULT_FLAG_WRITE)
@@ -2653,6 +2654,8 @@ static int __do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
            inc_mm_counter(mm, anon_rss);
 		   //添加到lru_add_active_pvecs, 或者 zone->active_list
            lru_cache_add_active(page);
+
+		   //设置page->mapping == vma->anon_vma
            page_add_new_anon_rmap(page, vma, address);
 		   
 		} else { //文件映射

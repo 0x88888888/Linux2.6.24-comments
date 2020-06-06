@@ -38,6 +38,23 @@
  * which can complete in any order (or at the same time) then determining the
  * status of that page is hard.  See end_buffer_async_read() for the details.
  * There is no point in duplicating all that complexity.
+ *
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read() 
+ *      do_generic_mapping_read()
+ *       page_cache_sync_readahead()
+ *        ondemand_readahead()
+ *         __do_page_cache_readahead()
+ *          read_pages()
+ *           ext2_readpages()
+ *            mpage_readpages()
+ *             do_mpage_readpage()
+ *              mpage_bio_submit()
+ *               ......
+ *                mpage_end_io_read()
  */
 static void mpage_end_io_read(struct bio *bio, int err)
 {
@@ -62,6 +79,23 @@ static void mpage_end_io_read(struct bio *bio, int err)
 }
 
 /*
+ * sys_read()
+ *  vfs_read()
+ *   do_sync_read()
+ *    generic_file_aio_read()
+ *     do_generic_file_read() 
+ *      do_generic_mapping_read()
+ *       page_cache_sync_readahead()
+ *        ondemand_readahead()
+ *         __do_page_cache_readahead()
+ *          read_pages()
+ *           ext2_readpages()
+ *            mpage_readpages()
+ *             do_mpage_readpage()
+ *              mpage_bio_submit()
+ *               ......
+ *                mpage_end_io_write()
+ *
  * bio WRITE操作的回调函数。
  */
 static void mpage_end_io_write(struct bio *bio, int err)
