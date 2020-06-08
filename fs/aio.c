@@ -193,6 +193,9 @@ static int aio_setup_ring(struct kioctx *ctx)
 
 /* ioctx_alloc
  *	Allocates and initializes an ioctx.  Returns an ERR_PTR if it failed.
+ *
+ * sys_io_setup()
+ *  ioctx_alloc()
  */
 static struct kioctx *ioctx_alloc(unsigned nr_events)
 {

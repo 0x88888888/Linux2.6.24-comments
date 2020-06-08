@@ -1378,6 +1378,7 @@ int shmem_lock(struct file *file, int lock, struct user_struct *user)
 			goto out_nomem;
 		info->flags |= VM_LOCKED;
 	}
+	
 	if (!lock && (info->flags & VM_LOCKED) && user) {
 		user_shm_unlock(inode->i_size, user);
 		info->flags &= ~VM_LOCKED;

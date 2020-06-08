@@ -1786,6 +1786,7 @@ no_cached_page:
 	 */
 	if (error == -ENOMEM)
 		return VM_FAULT_OOM;
+	
 	return VM_FAULT_SIGBUS;
 
 page_not_uptodate:
