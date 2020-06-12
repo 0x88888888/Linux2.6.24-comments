@@ -138,6 +138,8 @@ enum dentry_d_lock_class
 
 /*
  * ext2的dentry_operations为NULL,所以ext2的 dir操作按照Linux内核提供的默认操作
+ *
+ * sockfs_dentry_operations,
  */
 struct dentry_operations {
     /*使用dentry前判断dentry是否有效,通常网络文件系统使用 */

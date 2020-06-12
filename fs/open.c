@@ -769,9 +769,10 @@ static struct file *__dentry_open(struct dentry *dentry, struct vfsmount *mnt,
 	 * def_chr_fops,
 	 * def_blk_fops,
 	 * def_fifo_fops,
-     * bad_sock_fops
+     * bad_sock_fops,
 	 */
 	f->f_op = fops_get(inode->i_fop);
+	
 	file_move(f, &inode->i_sb->s_files);
 
 	error = security_dentry_open(f);

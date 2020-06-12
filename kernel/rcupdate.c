@@ -234,6 +234,12 @@ EXPORT_SYMBOL_GPL(rcu_barrier);
 /*
  * Invoke the completed RCU callbacks. They are expected to be in
  * a per-cpu list.
+ *
+ * rcu_process_callbacks() RCU_SOFTIRQ处理函数
+ *  __rcu_process_callbacks()
+ *   rcu_do_batch()
+ *
+ * 调用RCU的回调函数
  */
 static void rcu_do_batch(struct rcu_data *rdp)
 {
@@ -244,6 +250,7 @@ static void rcu_do_batch(struct rcu_data *rdp)
 	while (list) {
 		next = list->next;
 		prefetch(next);
+	    //走起
 		list->func(list);
 		list = next;
 		if (++count >= rdp->blimit)
@@ -330,6 +337,10 @@ static void cpu_quiet(int cpu, struct rcu_ctrlblk *rcp)
  * Check if the cpu has gone through a quiescent state (say context
  * switch). If so and if it already hasn't done so in this RCU
  * quiescent cycle, then indicate that it has done so.
+ *
+ * rcu_process_callbacks() RCU_SOFTIRQ处理函数
+ *  __rcu_process_callbacks()
+ *   rcu_check_quiescent_state()
  */
 static void rcu_check_quiescent_state(struct rcu_ctrlblk *rcp,
 					struct rcu_data *rdp)
@@ -355,6 +366,8 @@ static void rcu_check_quiescent_state(struct rcu_ctrlblk *rcp,
 	 */
 	if (!rdp->passed_quiesc)
 		return;
+
+	//没有要被处理的RCU正在pending
 	rdp->qs_pending = 0;
 
 	spin_lock(&rcp->lock);
@@ -425,6 +438,10 @@ static void rcu_offline_cpu(int cpu)
 
 /*
  * This does the RCU processing work from tasklet context. 
+ *
+ * rcu_process_callbacks() RCU_SOFTIRQ处理函数
+ *  __rcu_process_callbacks()
+ *
  */
 static void __rcu_process_callbacks(struct rcu_ctrlblk *rcp,
 					struct rcu_data *rdp)

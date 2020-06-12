@@ -191,6 +191,7 @@ EXPORT_SYMBOL(_spin_lock);
 void __lockfunc _write_lock(rwlock_t *lock)
 {
 	preempt_disable();
+	
 	rwlock_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 	LOCK_CONTENDED(lock, _raw_write_trylock, _raw_write_lock);
 }

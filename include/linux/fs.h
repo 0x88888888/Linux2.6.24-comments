@@ -1312,7 +1312,7 @@ typedef int (*read_actor_t)(read_descriptor_t *, struct page *, unsigned long, u
  * ext2_dir_operations,
  *
  * socket_file_ops
- *
+ * 
  */
 struct file_operations {
 	struct module *owner;

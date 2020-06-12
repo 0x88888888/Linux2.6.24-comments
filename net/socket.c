@@ -377,6 +377,12 @@ static int sock_alloc_fd(struct file **filep)
 	return fd;
 }
 
+/*
+ * sys_socketcall()
+ *  sys_socket()
+ *   sock_map_fd()
+ *    sock_attach_fd()
+ */
 static int sock_attach_fd(struct socket *sock, struct file *file)
 {
 	struct dentry *dentry;
@@ -398,6 +404,7 @@ static int sock_attach_fd(struct socket *sock, struct file *file)
 	sock->file = file;
 	init_file(file, sock_mnt, dentry, FMODE_READ | FMODE_WRITE,
 		  &socket_file_ops);
+	
 	SOCK_INODE(sock)->i_fop = &socket_file_ops;
 	file->f_flags = O_RDWR;
 	file->f_pos = 0;
@@ -406,6 +413,11 @@ static int sock_attach_fd(struct socket *sock, struct file *file)
 	return 0;
 }
 
+/*
+ * sys_socketcall()
+ *  sys_socket()
+ *   sock_map_fd()
+ */
 int sock_map_fd(struct socket *sock)
 {
 	struct file *newfile;
@@ -1281,6 +1293,8 @@ static int __sock_create(struct net *net, int family, int type, int protocol,
     /*
      * inet_family_ops, inet6_family_ops, 
      * packet_family_ops, 
+     *
+     * inet_family_ops->create = inet_create
      */
 	err = pf->create(net, sock, protocol);
 	if (err < 0)

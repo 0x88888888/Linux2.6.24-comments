@@ -201,6 +201,7 @@ struct proto_ops {
  * net_proto_family->create函数指针成员是用来屏蔽这些差别的。 
  *
  * PF_INET协议族对应的对象为 inet_family_ops
+ * PF_INET6协议族对应的对象为 inet6_family_ops
  * PF_PACKET协议族对应的对象为 packet_family_ops
  * PF_NETLINK协议族对应的对象为 netlink_family_ops
  * 

@@ -33,6 +33,10 @@ typedef struct {
 
 #define SPINLOCK_MAGIC		0xdead4ead
 
+/*
+ * _write_lock()
+ * _read_lock()
+ */
 typedef struct {
 		/**
 		 * 这个锁标志与自旋锁不一样，自旋锁的lock标志只能取0和1两种值。
