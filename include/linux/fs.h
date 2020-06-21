@@ -1308,11 +1308,17 @@ typedef int (*read_actor_t)(read_descriptor_t *, struct page *, unsigned long, u
  * read, write, poll, fsync, readv, writev, unlocked_ioctl and compat_ioctl
  * can be called without the big kernel lock held in all filesystems.
  *
- * ext2_file_operations,
- * ext2_dir_operations,
+ * ext2:
+ *  ext2_file_operations,
+ *  ext2_dir_operations,
  *
- * socket_file_ops
+ * socket:
+ *  socket_file_ops
  * 
+ * sysfs:
+ *  sysfs_dir_operations
+ *  sysfs_file_operations
+ *  bin_fops
  */
 struct file_operations {
 	struct module *owner;
@@ -1356,11 +1362,13 @@ struct file_operations {
 
 /*
  * ext2: 在ext2_read_inode()中确定
-         ext2_file_inode_operations ，
-         ext2_dir_inode_operations， 
-         ext2_fast_symlink_inode_operations, 
-         ext2_special_inode_operations 
-   sysfs_dir_inode_operations      
+ *        ext2_file_inode_operations ，
+ *        ext2_dir_inode_operations， 
+ *        ext2_fast_symlink_inode_operations, 
+ *        ext2_special_inode_operations 
+ * sysfs:
+ *  sysfs_dir_inode_operations     
+ *  sysfs_symlink_inode_operations
  */
 struct inode_operations {
 	int (*create) (struct inode *,struct dentry *,int, struct nameidata *);
