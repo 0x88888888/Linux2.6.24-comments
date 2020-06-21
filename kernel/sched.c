@@ -3993,7 +3993,7 @@ need_resched_nonpreemptible:
 			 */
 			prev->state = TASK_RUNNING;
 		} else {
-			// 
+			// 通常是prev->state 有TASK_UNINTERRUPTIBLE,会将prev剔出就绪队列
 			/*
 			 * 通过deactivate_task()将当前进程prev从就绪队列中删除。
 			 * 会调用dequeue_task

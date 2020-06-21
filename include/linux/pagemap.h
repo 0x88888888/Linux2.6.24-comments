@@ -165,7 +165,7 @@ static inline loff_t page_offset(struct page *page)
  *  do_swap_page()
  *   page_add_anon_rmap()
  *    __page_set_anon_rmap()
- *  address在 文件内的偏移量或者 被映射内存的地址空间中的偏移量,4K为单位
+ *  address在 文件内的偏移量或者在vma中的偏移量,4K为单位
  */
 static inline pgoff_t linear_page_index(struct vm_area_struct *vma,
 					unsigned long address)

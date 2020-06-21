@@ -2841,6 +2841,7 @@ static inline int handle_pte_fault(struct mm_struct *mm,
 
 	//当文件被多个进程共享时，并且有一个进程是用VM_PRIVATE来mmap的
 	if (!pte_present(entry)) { /* pte对应的数据不在内存中，需要从磁盘上读过来 */
+		
 		if (pte_none(entry) /*即entry==0,需要重新从文件中读取或者分配物理内存 */ ) {
 			/*
 			 * vma->vm_ops == generic_file_vm_ops 或者shmem_vm_ops
