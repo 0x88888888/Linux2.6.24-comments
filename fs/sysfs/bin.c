@@ -32,6 +32,10 @@ struct bin_buffer {
 	int		mmapped;
 };
 
+/*
+ * read()
+ *  fill_read()
+ */
 static int
 fill_read(struct dentry *dentry, char *buffer, loff_t off, size_t count)
 {
@@ -45,7 +49,7 @@ fill_read(struct dentry *dentry, char *buffer, loff_t off, size_t count)
 		return -ENODEV;
 
 	rc = -EIO;
-	if (attr->read)
+	if (attr->read) ///这里会调用各种不同的atrr->read的实现
 		rc = attr->read(kobj, attr, buffer, off, count);
 
 	sysfs_put_active_two(attr_sd);
@@ -53,6 +57,9 @@ fill_read(struct dentry *dentry, char *buffer, loff_t off, size_t count)
 	return rc;
 }
 
+/*
+ * 从vfs层转到这里
+ */
 static ssize_t
 read(struct file *file, char __user *userbuf, size_t bytes, loff_t *off)
 {

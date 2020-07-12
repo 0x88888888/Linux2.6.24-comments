@@ -642,7 +642,10 @@ static int load_elf_binary(struct linux_binprm *bprm, struct pt_regs *regs)
     /* 照各种elf头信息，加载 */
 	for (i = 0; i < loc->elf_ex.e_phnum; i++) {
 		if (elf_ppnt->p_type == PT_INTERP) {
-			/* This is the program interpreter used for
+			/*
+			 * 这个文件使用的动态加载器
+			 *
+			 * This is the program interpreter used for
 			 * shared libraries - for now assume that this
 			 * is an a.out format binary
 			 */
@@ -975,15 +978,17 @@ static int load_elf_binary(struct linux_binprm *bprm, struct pt_regs *regs)
 		retval = -EFAULT; /* Nobody gets to see this, but.. */
 		goto out_free_dentry;
 	}
-
+
+    
 	if (elf_interpreter) {
 		if (interpreter_type == INTERPRETER_AOUT)
 			elf_entry = load_aout_interp(&loc->interp_ex,
 						     interpreter);
-		else
+		else //加载动态连接器
 			elf_entry = load_elf_interp(&loc->interp_elf_ex,
 						    interpreter,
 						    &interp_load_addr);
+		
 		if (BAD_ADDR(elf_entry)) {
 			force_sig(SIGSEGV, current);
 			retval = IS_ERR((void *)elf_entry) ?
@@ -1062,6 +1067,10 @@ static int load_elf_binary(struct linux_binprm *bprm, struct pt_regs *regs)
 	ELF_PLAT_INIT(regs, reloc_func_desc);
 #endif
 
+    /*
+     * 设置regs中各种寄存器的信息，elf_entry为动态加载器的入口
+     * 在被加载的程序切换到用户态的时候，将会跳转到elf_entry处执行
+     */
 	start_thread(regs, elf_entry, bprm->p);
 	if (unlikely(current->ptrace & PT_PTRACED)) {
 		if (current->ptrace & PT_TRACE_EXEC)

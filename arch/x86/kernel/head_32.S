@@ -63,11 +63,14 @@ LOW_PAGES = LOW_PAGES + 0x1000000
 #if PTRS_PER_PMD > 1
 PAGE_TABLE_SIZE = (LOW_PAGES / PTRS_PER_PMD) + PTRS_PER_PGD
 #else
+//页表大小
 PAGE_TABLE_SIZE = (LOW_PAGES / PTRS_PER_PGD)
 #endif
 BOOTBITMAP_SIZE = LOW_PAGES / 8
 ALLOCATOR_SLOP = 4
 
+
+//页目录swapper_pg_dir对应页表结束的位置
 INIT_MAP_BEYOND_END = BOOTBITMAP_SIZE + (PAGE_TABLE_SIZE + ALLOCATOR_SLOP)*PAGE_SIZE_asm
 
 /*
@@ -76,6 +79,10 @@ INIT_MAP_BEYOND_END = BOOTBITMAP_SIZE + (PAGE_TABLE_SIZE + ALLOCATOR_SLOP)*PAGE_
  * CS and DS must be 4 GB flat segments, but we don't depend on
  * any particular GDT layout, because we load our own as soon as we
  * can.
+ *
+ * 从实模式跳转到保护模式的入口点,
+ * 此时esi指向实模式时的boot_params对象
+ * esi在protected_mode_jum中赋值
  */
 .section .text.head,"ax",@progbits
 
@@ -134,6 +141,7 @@ ENTRY(startup_32)
 	cld
 	rep
 	movsl
+	# esi指向 boot_params中的command line ,boot_params.hdr.cmd_line_ptr
 	movl boot_params - __PAGE_OFFSET + NEW_CL_POINTER,%esi
 	andl %esi,%esi
 	jz 1f			# No comand line
@@ -196,31 +204,31 @@ page_pde_offset = (__PAGE_OFFSET >> 20);
    *
    */
 default_entry:
-	movl $(pg0 - __PAGE_OFFSET), %edi
-	movl $(swapper_pg_dir - __PAGE_OFFSET), %edx # 页目录的物理地址
+	movl $(pg0 - __PAGE_OFFSET), %edi  # edi为页表物理地址
+	movl $(swapper_pg_dir - __PAGE_OFFSET), %edx # edx为页目录的物理地址
 	movl $0x007, %eax			/* 0x007 = PRESENT+RW+USER */
 10:
 	leal 0x007(%edi),%ecx			/* Create PDE entry */
-	movl %ecx,(%edx)			/* Store identity PDE entry */
-	movl %ecx,page_pde_offset(%edx)		/* Store kernel PDE entry */
-	addl $4,%edx
-	movl $1024, %ecx
+	movl %ecx,(%edx)			/* Store identity PDE entry,设置page directory entry，映射到虚拟地址为0的部分 */
+	movl %ecx,page_pde_offset(%edx)		/* Store kernel PDE entry,设置page directory entry */
+	addl $4,%edx                    # 下一个page directory entry
+	movl $1024, %ecx     # 1024 次loop,page table 中 1024个entry
 11:
-	stosl
-	addl $0x1000,%eax
+	stosl    # 就是edi =eax;edi+=4 , 设置page table entry的值
+	addl $0x1000,%eax # 下一个page
 	loop 11b
 	/* End condition: we must map up to and including INIT_MAP_BEYOND_END */
 	/* bytes beyond the end of our own page tables; the +0x007 is the attribute bits */
-	leal (INIT_MAP_BEYOND_END+0x007)(%edi),%ebp
+	leal (INIT_MAP_BEYOND_END+0x007)(%edi),%ebp # 页表结束的位置作为ebp位置
 	cmpl %ebp,%eax
 	jb 10b
-	movl %edi,(init_pg_tables_end - __PAGE_OFFSET)
+	movl %edi,(init_pg_tables_end - __PAGE_OFFSET) # 页表结束的位置保存在init_pg_tables_end中
 
 	/* Do an early initialization of the fixmap area */
 	movl $(swapper_pg_dir - __PAGE_OFFSET), %edx
 	movl $(swapper_pg_pmd - __PAGE_OFFSET), %eax
 	addl $0x67, %eax			/* 0x67 == _PAGE_TABLE */
-	movl %eax, 4092(%edx)
+	movl %eax, 4092(%edx)       
 
 	xorl %ebx,%ebx				/* This is the boot CPU (BSP) */
 	jmp 3f
@@ -358,7 +366,7 @@ checkCPUtype:
 	pushl %ecx		# restore original EFLAGS
 	popfl
 	testl $0x40000,%eax	# check if AC bit changed
-	je is386   #确定是i386架构
+	je is386   # 确定是i386架构
 
 	movb $4,X86		# at least 486
 	testl $0x200000,%eax	# check if ID bit changed

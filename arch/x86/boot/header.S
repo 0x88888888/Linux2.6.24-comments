@@ -104,7 +104,7 @@ bugger_off_msg:
 	.section ".header", "a"
 	.globl	hdr
 hdr:
-setup_sects:	.byte SETUPSECTS
+setup_sects:	.byte SETUPSECTS  # 这个字段表示MBR扇区之后，还有几个扇区是用于填充实模式代码的
 root_flags:	.word ROOT_RDONLY
 syssize:	.long SYSSIZE
 ram_size:	.word RAMDISK

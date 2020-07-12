@@ -50,7 +50,7 @@ static inline int parameq(const char *input, const char *paramname)
  * start_kernel()
  *  parse_early_param()
  *   parse_args()
- *    parse_one()
+ *    parse_one( params==NULL, handle_unknown == do_early_param)
  */
 static int parse_one(char *param,
 		     char *val,
@@ -140,7 +140,7 @@ static char *next_arg(char *args, char **param, char **val)
  * 解析模块参数
  * start_kernel()
  *  parse_early_param()
- *   parse_args()
+ *   parse_args( ,params==NULL,0 ,unknown==do_early_param)
  */
 int parse_args(const char *name,
 	       char *args,
@@ -163,6 +163,7 @@ int parse_args(const char *name,
 		args = next_arg(args, &param, &val);
 		irq_was_disabled = irqs_disabled();
 		ret = parse_one(param, val, params, num, unknown);
+		
 		if (irq_was_disabled && !irqs_disabled()) {
 			printk(KERN_WARNING "parse_args(): option '%s' enabled "
 					"irq's!\n", param);

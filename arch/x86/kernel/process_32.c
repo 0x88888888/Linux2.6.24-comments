@@ -411,6 +411,9 @@ extern void kernel_thread_helper(void);
 /*
  * Create a kernel thread
  * 创建内核线程
+ *
+ * rest_init()
+ *  kernel_thread(kernel_init, NULL, CLONE_FS | CLONE_SIGHAND);
  */
 int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 {

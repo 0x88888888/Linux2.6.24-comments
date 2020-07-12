@@ -169,6 +169,9 @@ static int fill_read_buffer(struct dentry * dentry, struct sysfs_buffer * buffer
  * sys_read()
  *  vfs_read() 
  *   sysfs_read_file()
+ *
+ * 这里的file->private_data == sysfs_buffer对象
+ * 通过sysfs_buffer->ops来对kobj进行读操作
  */
 
 static ssize_t
@@ -258,7 +261,7 @@ flush_write_buffer(struct dentry * dentry, struct sysfs_buffer * buffer, size_t 
 	/* need attr_sd for attr and ops, its parent for kobj */
 	if (!sysfs_get_active_two(attr_sd))
 		return -ENODEV;
-    //disk_sysfs_ops->write == disk_attr_store
+    //disk_sysfs_ops->store == disk_attr_store
 	rc = ops->store(kobj, attr_sd->s_attr.attr, buffer->page, count);
 
 	sysfs_put_active_two(attr_sd);
@@ -287,6 +290,9 @@ flush_write_buffer(struct dentry * dentry, struct sysfs_buffer * buffer, size_t 
  *  vfs_write() 
  *   sysfs_write_file()
  *
+ * 这里的file->private_data == sysfs_buffer对象
+ * 通过sysfs_buffer->ops来对kobj进行写操作
+ *
  */
 static ssize_t
 sysfs_write_file(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
@@ -295,8 +301,9 @@ sysfs_write_file(struct file *file, const char __user *buf, size_t count, loff_t
 	ssize_t len;
 
 	mutex_lock(&buffer->mutex);
+	//数据从buf中复制到buffer->page中来
 	len = fill_write_buffer(buffer, buf, count);
-	if (len > 0)
+	if (len > 0) //调用buffer->ops->store
 		len = flush_write_buffer(file->f_path.dentry, buffer, len);
 	if (len > 0)
 		*ppos += len;
@@ -402,6 +409,9 @@ static void sysfs_put_open_dirent(struct sysfs_dirent *sd,
  *    nameidata_to_filp()
  *     __dentry_open()
  *      sysfs_open_file()
+ *
+ * file->private_data == sysfs_buffer()对象
+ * 
  */
 static int sysfs_open_file(struct inode *inode, struct file *file)
 {

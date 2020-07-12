@@ -144,6 +144,11 @@ static int sysfs_count_nlink(struct sysfs_dirent *sd)
 }
 
 /*
+ *
+ * sysfs_fill_super()
+ *  sysfs_get_inode()
+ *   sysfs_init_inode()
+ *
  * sysfs_lookup()
  *  sysfs_get_inode()
  *   sysfs_init_inode()

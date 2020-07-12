@@ -9,7 +9,7 @@
 #include <asm/ist.h>
 #include <video/edid.h>
 
-/* boot_params中的成员 */
+/* boot_params中的hdr成员 */
 struct setup_header {
     /* 实模式代码setup镜像的扇区数量 */
 	__u8	setup_sects;
@@ -25,9 +25,14 @@ struct setup_header {
 	__u16	jump;
 	__u32	header;
 	__u16	version;
+	/*
+	 * realmode_switch用来设置hook函数，
+	 * setup在进入保护模式前调用该函数
+	 */
 	__u32	realmode_swtch;
 	__u16	start_sys;
 	__u16	kernel_version;
+	//bootloader的type，有GRUP,FIFO,QEMU之类的
 	__u8	type_of_loader;
 	__u8	loadflags;
 #define LOADED_HIGH	(1<<0)
@@ -93,6 +98,8 @@ struct boot_params {
 	__u8  eddbuf_entries;				/* 0x1e9 */
 	__u8  edd_mbr_sig_buf_entries;			/* 0x1ea */
 	__u8  _pad6[6];					/* 0x1eb */
+
+	//这个很重要
 	struct setup_header hdr;    /* setup header */	/* 0x1f1 */
 	__u8  _pad7[0x290-0x1f1-sizeof(struct setup_header)];
 	__u32 edd_mbr_sig_buffer[EDD_MBR_SIG_MAX];	/* 0x290 */

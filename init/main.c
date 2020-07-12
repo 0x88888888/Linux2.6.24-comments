@@ -517,7 +517,8 @@ static int __init do_early_param(char *param, char *val)
 
 /*
  * Arch code calls this early on, or if not, just before other parsing. 
- * 解析内核参数
+ *
+ * 解析从GRUB等bootloader传进来的启动参数
  * start_kernel()
  *  setup_arch()
  *   parse_early_param()
