@@ -826,43 +826,36 @@ __setup("initcall_debug", initcall_debug_setup);
 extern initcall_t __initcall_start[], __initcall_end[];
 
 /*
- start_kernel()
-    rest_init()
-      kernel_init()
-        do_basic_setup()
-           do_initcalls()
-
- 非关键的的子系统（或者说模块、功能）的初始化，
- 这部分根据配置可以不加载，可以以built-in的方式编到内核的可执行文件中，
- 也可以以模块的方式加载。但是对于这一类来说，它们也需要内核的关键子系统的支持，
- 甚至在它们之间也存在某种依赖或者说顺序关系，
- 因此它们的初始化需要以另一种方式来实现
---------------------- 
-作者：goodluckwhh 
-来源：CSDN 
-原文：https://blog.csdn.net/goodluckwhh/article/details/12793177 
-版权声明：本文为博主原创文章，转载请附上博文链接！  
-
-*
-*
-do_initcalls()将按顺序从由__initcall_start开始，
-到__initcall_end结束的section中以函数指针的形式取出这些编译到内核的驱动模块中初始化函数起始地址，
-来依次完成相应的初始化,而这些初始化函数由__define_initcall(level,fn)指示编译器在编译的时候，
-将这些初始化函数的起始地址值按照一定的顺序放在这个section中。
-由于内核某些部分的初始化需要依赖于其他某些部分的初始化的完成，因此这个顺序排列常常非常重要
-
-* 调用initcalls段中的函数
-* start_kernel()
-*  rest_init() 中调用kernel_thread()创建kernel_init线程
-*	do_basic_setup()
-*    do_initcalls()
-*
-*/
+ *
+ * 非关键的的子系统（或者说模块、功能）的初始化，
+ * 这部分根据配置可以不加载，可以以built-in的方式编到内核的可执行文件中，
+ * 也可以以模块的方式加载。但是对于这一类来说，它们也需要内核的关键子系统的支持，
+ * 甚至在它们之间也存在某种依赖或者说顺序关系，
+ * 因此它们的初始化需要以另一种方式来实现
+ *
+ *
+ *
+ * do_initcalls()将按顺序从由__initcall_start开始，
+ * 到__initcall_end结束的section中以函数指针的形式取出这些编译到内核的驱动模块中初始化函数起始地址，
+ * 来依次完成相应的初始化,而这些初始化函数由__define_initcall(level,fn)指示编译器在编译的时候，
+ * 将这些初始化函数的起始地址值按照一定的顺序放在这个section中。
+ * 由于内核某些部分的初始化需要依赖于其他某些部分的初始化的完成，因此这个顺序排列常常非常重要
+ *
+ * 调用initcalls段中的函数
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *
+ */
 static void __init do_initcalls(void)
 {
 	initcall_t *call;
 	int count = preempt_count();
 
+    /*
+     * buses_init,
+     */
 	for (call = __initcall_start; call < __initcall_end; call++) {
 		ktime_t t0, t1, delta;
 		char *msg = NULL;
