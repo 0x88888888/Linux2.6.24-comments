@@ -26,6 +26,16 @@
 #define to_drv(node) container_of(node, struct device_driver, kobj.entry)
 
 
+/*
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
+ *    device_attach()
+ *     device_bind_driver()
+ *      driver_bound()
+ *
+ * 
+ */
 static void driver_bound(struct device *dev)
 {
 	if (klist_node_attached(&dev->knode_driver)) {
@@ -44,12 +54,23 @@ static void driver_bound(struct device *dev)
 	klist_add_tail(&dev->knode_driver, &dev->driver->klist_devices);
 }
 
+/*
+ * device_register()
+ *  device_add()
+ *   bus_attach_device()
+ *    device_attach()
+ *     device_bind_driver()
+ *      driver_sysfs_add()
+ *
+ * 建立device与驱动程序之间建立符号链接
+ */
 static int driver_sysfs_add(struct device *dev)
 {
 	int ret;
 
 	ret = sysfs_create_link(&dev->driver->kobj, &dev->kobj,
 			  kobject_name(&dev->kobj));
+	
 	if (ret == 0) {
 		ret = sysfs_create_link(&dev->kobj, &dev->driver->kobj,
 					"driver");
@@ -89,11 +110,14 @@ static void driver_sysfs_remove(struct device *dev)
  *   bus_attach_device()
  *    device_attach()
  *     device_bind_driver()
+ *
+ * 将device对象关联到相应的device_driver对象
  */
 int device_bind_driver(struct device *dev)
 {
 	int ret;
 
+    //这个函数是关键
 	ret = driver_sysfs_add(dev);
 	if (!ret)
 		driver_bound(dev);
@@ -201,14 +225,25 @@ int driver_probe_done(void)
  * This function must be called with @dev->sem held.  When called for a
  * USB interface, @dev->parent->sem must be held as well.
  *
+ *
  * vortex_init()
- *  pci_register_driver()
- *   __pci_register_driver()
- *    driver_register()
- *     bus_add_driver()
- *      driver_attach(fn == __driver_attach)
- *       bus_for_each_dev()
+ *  pci_register_driver(vertex_driver)
+ *   __pci_register_driver(vertex_driver, THIS_MODULE, KBUILD_MODNAME)
+ *    driver_register(vertex_driver->driver)
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver)
+ *       bus_for_each_dev(fn == __driver_attach)
  *        __driver_attach()
+ *         driver_probe_device()
+ *
+ * e1000_init_module()
+ *  pci_register_driver(e1000_driver) 
+ *   __pci_register_driver(e1000_driver, THIS_MODULE, KBUILD_MODNAME) 
+ *    driver_register(e1000_driver->driver) 
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver) 
+ *       bus_for_each_dev(fn == __driver_attach) 
+ *        __driver_attach() 
  *         driver_probe_device()
  */
 int driver_probe_device(struct device_driver * drv, struct device * dev)
@@ -287,13 +322,23 @@ int device_attach(struct device * dev)
 }
 
 /*
- * vortex_init()  
- *  pci_register_driver()
- *   __pci_register_driver()
- *    driver_register()
- *     bus_add_driver()
- *      driver_attach(fn == __driver_attach)
- *       bus_for_each_dev()
+ *
+ * vortex_init()
+ *  pci_register_driver(vertex_driver)
+ *   __pci_register_driver(vertex_driver, THIS_MODULE, KBUILD_MODNAME)
+ *    driver_register(vertex_driver->driver)
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver)
+ *       bus_for_each_dev(fn == __driver_attach)
+ *        __driver_attach()
+ *
+ * e1000_init_module()
+ *  pci_register_driver(e1000_driver) 
+ *   __pci_register_driver(e1000_driver, THIS_MODULE, KBUILD_MODNAME) 
+ *    driver_register(e1000_driver->driver) 
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver) 
+ *       bus_for_each_dev(fn == __driver_attach) 
  *        __driver_attach()
  */
 static int __driver_attach(struct device * dev, void * data)
@@ -313,6 +358,7 @@ static int __driver_attach(struct device * dev, void * data)
 	if (dev->parent)	/* Needed for USB */
 		down(&dev->parent->sem);
 	down(&dev->sem);
+	
 	if (!dev->driver)
 		driver_probe_device(drv, dev);
 	up(&dev->sem);
@@ -332,11 +378,18 @@ static int __driver_attach(struct device * dev, void * data)
  *	compatible pair.
  *
  * vortex_init()
- *  pci_register_driver()
- *   __pci_register_driver()
- *    driver_register()
- *     bus_add_driver()
- *      driver_attach()
+ *  pci_register_driver(vertex_driver)
+ *   __pci_register_driver(vertex_driver, THIS_MODULE, KBUILD_MODNAME)
+ *    driver_register(vertex_driver->driver)
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver)
+ *
+ * e1000_init_module()
+ *  pci_register_driver(e1000_driver) 
+ *   __pci_register_driver(e1000_driver, THIS_MODULE, KBUILD_MODNAME) 
+ *    driver_register(e1000_driver->driver) 
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver)
  */
 int driver_attach(struct device_driver * drv)
 {

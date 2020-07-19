@@ -665,6 +665,11 @@ int sysfs_create_subdir(struct kobject *kobj, const char *name,
 /**
  *	sysfs_create_dir - create a directory for an object.
  *	@kobj:		object we're creating directory for. 
+ *
+ * kobject_register()
+ *  kobject_add()
+ *   create_dir()
+ *    sysfs_create_dir()
  */
 int sysfs_create_dir(struct kobject * kobj)
 {

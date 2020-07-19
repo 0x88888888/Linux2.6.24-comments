@@ -453,7 +453,13 @@ void netdev_unregister_kobject(struct net_device * net)
 	device_del(dev);
 }
 
-/* Create sysfs entries for network device. */
+/* Create sysfs entries for network device. 
+ *
+ *  cs89x0_probe1()
+ *   register_netdev()
+ *    register_netdevice()
+ *     netdev_register_kobject()
+ */
 int netdev_register_kobject(struct net_device *net)
 {
 	struct device *dev = &(net->dev);
@@ -477,6 +483,7 @@ int netdev_register_kobject(struct net_device *net)
 #endif
 #endif /* CONFIG_SYSFS */
 
+    //加入到sysfs中去
 	return device_add(dev);
 }
 

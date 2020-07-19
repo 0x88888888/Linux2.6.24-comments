@@ -50,11 +50,16 @@ static int populate_dir(struct kobject * kobj)
  * 每一个Kobject，都会对应sysfs中的一个目录,
  * 因此在将Kobject添加到Kernel时，
  * create_dir接口会调用sysfs文件系统的创建目录接口，创建和Kobject对应的目录
+ *
+ * kobject_register()
+ *  kobject_add()
+ *   create_dir()
  */
 static int create_dir(struct kobject * kobj)
 {
 	int error = 0;
-	if (kobject_name(kobj)) {
+	if (kobject_name(kobj)) { //kobj->k_name不为NULL
+	
 		error = sysfs_create_dir(kobj);
 		if (!error) {
 			if ((error = populate_dir(kobj)))

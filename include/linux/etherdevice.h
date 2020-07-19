@@ -44,6 +44,10 @@ extern void eth_header_cache_update(struct hh_cache *hh,
 
 
 extern struct net_device *alloc_etherdev_mq(int sizeof_priv, unsigned int queue_count);
+/*
+ * e1000_probe()
+ *  alloc_etherdev()
+ */
 #define alloc_etherdev(sizeof_priv) alloc_etherdev_mq(sizeof_priv, 1)
 
 /**

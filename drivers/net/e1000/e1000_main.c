@@ -864,7 +864,7 @@ e1000_reset(struct e1000_adapter *adapter)
  * and a hardware reset occur.
  *
  * 
- *
+ * 
  **/
 
 static int __devinit
@@ -910,6 +910,8 @@ e1000_probe(struct pci_dev *pdev,
 	pci_set_master(pdev);
 
 	err = -ENOMEM;
+
+	//分配net_device 对象
 	netdev = alloc_etherdev(sizeof(struct e1000_adapter));
 	if (!netdev)
 		goto err_alloc_etherdev;
@@ -927,6 +929,7 @@ e1000_probe(struct pci_dev *pdev,
 	mmio_len = pci_resource_len(pdev, BAR_0);
 
 	err = -EIO;
+	//将io地址映射到内核空间的线性地址
 	adapter->hw.hw_addr = ioremap(mmio_start, mmio_len);
 	if (!adapter->hw.hw_addr)
 		goto err_ioremap;
@@ -940,6 +943,7 @@ e1000_probe(struct pci_dev *pdev,
 		}
 	}
 
+    //设置一些函数
 	netdev->open = &e1000_open;
 	netdev->stop = &e1000_close;
 	netdev->hard_start_xmit = &e1000_xmit_frame;
@@ -1168,6 +1172,7 @@ e1000_probe(struct pci_dev *pdev,
 	netif_stop_queue(netdev);
 
 	strcpy(netdev->name, "eth%d");
+	
 	if ((err = register_netdev(netdev)))
 		goto err_register;
 
@@ -3330,6 +3335,7 @@ e1000_xmit_frame(struct sk_buff *skb, struct net_device *netdev)
 		* frags into skb->data */
 		hdr_len = skb_transport_offset(skb) + tcp_hdrlen(skb);
 		if (skb->data_len && hdr_len == len) {
+			
 			switch (adapter->hw.mac_type) {
 				unsigned int pull_size;
 			case e1000_82544:
@@ -3947,6 +3953,14 @@ e1000_intr(int irq, void *data)
 /**
  * e1000_clean - NAPI Rx polling callback
  * @adapter: board private structure
+ *
+ * irq_exit()
+ *  do_softirq()
+ *   __do_softirq()
+ *    net_rx_action()
+ *     e1000_clean()
+ *
+ * 使用napi时，从e1000网卡中poll数据时，调用这个函数
  **/
 
 static int

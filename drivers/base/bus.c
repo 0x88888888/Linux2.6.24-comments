@@ -289,13 +289,22 @@ static struct device * next_device(struct klist_iter * i)
  *	to retain this data, it should do, and increment the reference
  *	count in the supplied callback.
  *
+ *
  * vortex_init()
- *  pci_register_driver()
- *   __pci_register_driver()
- *    driver_register()
- *     bus_add_driver()
- *      driver_attach(fn == __driver_attach)
- *       bus_for_each_dev()
+ *  pci_register_driver(vertex_driver)
+ *   __pci_register_driver(vertex_driver, THIS_MODULE, KBUILD_MODNAME)
+ *    driver_register(vertex_driver->driver)
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver)
+ *       bus_for_each_dev(fn == __driver_attach)
+ *
+ * e1000_init_module()
+ *  pci_register_driver(e1000_driver) 
+ *   __pci_register_driver(e1000_driver, THIS_MODULE, KBUILD_MODNAME) 
+ *    driver_register(e1000_driver->driver) 
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver) 
+ *       bus_for_each_dev(fn == __driver_attach)
  */
 int bus_for_each_dev(struct bus_type * bus, struct device * start,
 		     void * data, int (*fn)(struct device *, void *))
@@ -514,6 +523,7 @@ void bus_attach_device(struct device * dev)
 		if (bus->drivers_autoprobe)
 			ret = device_attach(dev);
 		WARN_ON(ret < 0);
+		
 		if (ret >= 0)
 			klist_add_tail(&dev->knode_bus, &bus->klist_devices);
 		else
@@ -649,10 +659,16 @@ static DRIVER_ATTR(uevent, S_IWUSR, NULL, driver_uevent_store);
  *	@drv:	driver.
  *
  * vortex_init()
- *  pci_register_driver()
- *   __pci_register_driver()
- *    driver_register()
- *     bus_add_driver()
+ *  pci_register_driver(vertex_driver)
+ *   __pci_register_driver(vertex_driver, THIS_MODULE, KBUILD_MODNAME)
+ *    driver_register(vertex_driver->driver)
+ *     bus_add_driver(vertex_driver->driver)
+ *
+ * e1000_init_module()
+ *  pci_register_driver(e1000_driver) 
+ *   __pci_register_driver(e1000_driver, THIS_MODULE, KBUILD_MODNAME) 
+ *    driver_register(e1000_driver->driver) 
+ *     bus_add_driver(vertex_driver->driver)
  *
  * 将device_driver加入到bus上
  */

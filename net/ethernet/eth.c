@@ -346,10 +346,13 @@ const struct header_ops eth_header_ops ____cacheline_aligned = {
  * @dev: network device
  * Fill in the fields of the device structure with Ethernet-generic values.
  *
- * alloc_etherdev()
- *  alloc_etherdev_mq()
- *   alloc_netdev_mq()
- *    ether_setup()
+ * e1000_probe()
+ *  alloc_etherdev()
+ *   alloc_etherdev_mq()
+ *    alloc_netdev_mq(setup == ether_setup)
+ *     ether_setup()
+ *
+ * 将dev初始化为ether设备哦
  */
 void ether_setup(struct net_device *dev)
 {
@@ -384,10 +387,10 @@ EXPORT_SYMBOL(ether_setup);
  * size (sizeof_priv).  A 32-byte (not bit) alignment is enforced for
  * this private data area.
  *
- * alloc_etherdev()
- *  alloc_etherdev_mq()
+ * e1000_probe()
+ *  alloc_etherdev()
+ *   alloc_etherdev_mq()
  */
-
 struct net_device *alloc_etherdev_mq(int sizeof_priv, unsigned int queue_count)
 {
 	return alloc_netdev_mq(sizeof_priv, "eth%d", ether_setup, queue_count);

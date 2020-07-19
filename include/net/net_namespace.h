@@ -10,7 +10,10 @@
 
 struct proc_dir_entry;
 struct net_device;
-/* 网络子系统命名空间 */
+/* 网络子系统命名空间
+ *
+ * 系统中所有的net对象都链接到net_namespace_list
+ */
 struct net {
 	atomic_t		count;		/* To decided when the network
 						 *  namespace should be freed.

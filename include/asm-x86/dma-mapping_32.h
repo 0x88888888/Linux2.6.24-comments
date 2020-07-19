@@ -126,16 +126,22 @@ dma_mapping_error(dma_addr_t dma_addr)
 
 extern int forbid_dac;
 
+/*
+ * dma_set_mask()
+ *  dma_supported()
+ *
+ * 
+ */
 static inline int
 dma_supported(struct device *dev, u64 mask)
 {
-        /*
-         * we fall back to GFP_DMA when the mask isn't all 1s,
-         * so we can't guarantee allocations that must be
-         * within a tighter range than GFP_DMA..
-         */
-        if(mask < 0x00ffffff)
-                return 0;
+    /*
+     * we fall back to GFP_DMA when the mask isn't all 1s,
+     * so we can't guarantee allocations that must be
+     * within a tighter range than GFP_DMA..
+     */
+    if(mask < 0x00ffffff)
+            return 0;
 
 	/* Work around chipset bugs */
 	if (forbid_dac > 0 && mask > 0xffffffffULL)
@@ -144,9 +150,15 @@ dma_supported(struct device *dev, u64 mask)
 	return 1;
 }
 
+/*
+ * 该函数用来查询设备的DMA寻址范围
+ * 如果设备对象dev的DMA操作支持参数mask指定的范围，则函数返回0
+ * 否则返回一个负的错误代码
+ */
 static inline int
 dma_set_mask(struct device *dev, u64 mask)
 {
+                          
 	if(!dev->dma_mask || !dma_supported(dev, mask))
 		return -EIO;
 

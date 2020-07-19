@@ -323,8 +323,7 @@ struct napi_struct {
 	 * to the per-cpu poll_list, and whoever clears that bit
 	 * can remove from the list right before clearing the bit.
 	 *
-	 * 设备列表(链接napi_struct对象),其中的设备就是在入口队列中有新frame等待被处理的设备。
-	 * 这些设备就是出于轮询状态，此列表中的设备都出于中断功能关闭状态。
+	 * 在__napi_schedule中，连接到softnet_data.poll_list 上去
 	 */
 	struct list_head	poll_list;
 
@@ -335,6 +334,11 @@ struct napi_struct {
 	 * 通过这个函数把缓冲区从设备的输入队列中退出
 	 *
 	 * 这个函数通过netif_napi_add()来设置的。
+	 *
+	 * 调用这个函数从网卡中poll数据进来
+	 * 这个函数根据网卡的不同而不同了
+	 * e1000网卡: e1000_clean,
+	 * e100网卡: e100_poll
 	 */
 	int			(*poll)(struct napi_struct *, int);
 #ifdef CONFIG_NETPOLL
@@ -406,6 +410,17 @@ static inline int napi_reschedule(struct napi_struct *napi)
  *	@n: napi context
  *
  * Mark NAPI processing as complete.
+ *
+ * irq_exit()
+ *  do_softirq()
+ *   __do_softirq()
+ *    net_rx_action()
+ *     e1000_clean()
+ *      netif_rx_complete()
+ *       __netif_rx_complete()
+ *        __napi_complete()
+ *
+ * 将设备从softnet_data->poll_list中删去 
  */
 static inline void __napi_complete(struct napi_struct *n)
 {
@@ -846,6 +861,8 @@ struct net_device
 
 	/* Network namespace this network device is inside 
 	 * 所属命名空间
+	 *
+	 * 在alloc_netdev_mq中设置为init_net
      */
 	struct net		*nd_net;
 
@@ -906,7 +923,7 @@ static inline void *netdev_priv(const struct net_device *dev)
  *  netif_napi_add(netdev, &adapter->napi, e1000_clean, 64);
  *  
  *
- *
+ * 设置napi对象的
  *  
  *
  */
@@ -1063,7 +1080,8 @@ struct softnet_data
 	/* 帧接受队列 */
 	struct sk_buff_head	input_pkt_queue;
 	
-	struct list_head	poll_list; /* napi_struct对象,其中的设备都带有输入帧等着被处理 */
+	/* napi_struct对象,其中的设备都带有输入帧等着被处理 */
+	struct list_head	poll_list; 
 	/* 已被传输完成的sk_buff对象 */
 	struct sk_buff		*completion_queue;
 
@@ -1505,6 +1523,16 @@ static inline int netif_rx_reschedule(struct net_device *dev,
 
 /* same as netif_rx_complete, except that local_irq_save(flags)
  * has already been issued
+ *
+ * irq_exit()
+ *  do_softirq()
+ *   __do_softirq()
+ *    net_rx_action()
+ *     e1000_clean()
+ *      netif_rx_complete()
+ *       __netif_rx_complete()
+ *
+ * 将设备从softnet_data->poll_list中删去
  */
 static inline void __netif_rx_complete(struct net_device *dev,
 				       struct napi_struct *napi)
@@ -1516,6 +1544,15 @@ static inline void __netif_rx_complete(struct net_device *dev,
  * on current cpu. This primitive is called by dev->poll(), when
  * it completes the work. The device cannot be out of poll list at this
  * moment, it is BUG().
+ *
+ * irq_exit()
+ *  do_softirq()
+ *   __do_softirq()
+ *    net_rx_action()
+ *     e1000_clean()
+ *      netif_rx_complete()
+ *
+ * 将设备从softnet_data->poll_list中删去
  */
 static inline void netif_rx_complete(struct net_device *dev,
 				     struct napi_struct *napi)

@@ -477,6 +477,7 @@ extern void devm_kfree(struct device *dev, void *p);
  * 通常device结构会被嵌入到一个更大的数据结构里面去,比如
  * pci_dev, net_device, scsi_device
  * 
+ * 系统中的每一个设备都对应一个device对象,所有的device对象都放在devices_kset中
  */
 struct device {
 	//子设备

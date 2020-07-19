@@ -212,6 +212,12 @@ EXPORT_SYMBOL(blk_queue_softirq_done);
  *    with buffers in "highmemory". This can be accomplished by either calling
  *    __bio_kmap_atomic() to get a temporary kernel mapping, or by calling
  *    blk_queue_bounce() to create a buffer in normal memory.
+ *
+ * scsi_alloc_queue()
+ *  __scsi_alloc_queue( , request_fn==scsi_request_fn)
+ *   blk_init_queue( rfn ==scsi_request_fn )
+ *    blk_init_queue_node(rfn ==scsi_request_fn)
+ *     blk_queue_make_request(, mfn== __make_request)
  **/
 void blk_queue_make_request(struct request_queue * q, make_request_fn * mfn)
 {
@@ -2120,15 +2126,18 @@ blk_init_queue_node(request_fn_proc *rfn, spinlock_t *lock, int node_id)
 
     //使用blk_init_queue会默认绑定blk_queue_bio来处理IO
 	blk_queue_make_request(q, __make_request);
+	//设置request_queue->max_segment_size == MAX_SEGMENT_SIZE
 	blk_queue_max_segment_size(q, MAX_SEGMENT_SIZE);
-
+    //设置request_queue->max_hw_segments == MAX_HW_SEGMENTS
 	blk_queue_max_hw_segments(q, MAX_HW_SEGMENTS);
+	//request_queue->max_phys_segments ==MAX_PHYS_SEGMENTS
 	blk_queue_max_phys_segments(q, MAX_PHYS_SEGMENTS);
 
 	q->sg_reserved_size = INT_MAX;
 
 	/*
 	 * all done
+	 * 选择IO调度器
 	 */
 	if (!elevator_init(q, NULL)) {  // 初始化IO调度
 	
@@ -4257,9 +4266,11 @@ int __init blk_dev_init(void)
 	if (!kblockd_workqueue)
 		panic("Failed to create kblockd\n");
 
+    //用于分配request对象
 	request_cachep = kmem_cache_create("blkdev_requests",
 			sizeof(struct request), 0, SLAB_PANIC, NULL);
 
+    //用于分配request_queue对象
 	requestq_cachep = kmem_cache_create("blkdev_queue",
 			sizeof(struct request_queue), 0, SLAB_PANIC, NULL);
 

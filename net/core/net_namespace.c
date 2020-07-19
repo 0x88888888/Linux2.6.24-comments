@@ -99,6 +99,7 @@ struct net *copy_net_ns(unsigned long flags, struct net *old_net)
 		goto out_unlock;
 
 	rtnl_lock();
+	//将new_net网络命名空间，加入到net_namespace_list
 	list_add_tail(&new_net->list, &net_namespace_list);
 	rtnl_unlock();
 
@@ -177,6 +178,7 @@ static int __init net_ns_init(void)
 
 	rtnl_lock();
 	list_add_tail(&init_net.list, &net_namespace_list);
+	
 	rtnl_unlock();
 
 	mutex_unlock(&net_mutex);

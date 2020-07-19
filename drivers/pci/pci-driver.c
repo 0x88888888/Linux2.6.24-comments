@@ -91,6 +91,19 @@ pci_free_dynids(struct pci_driver *drv)
 	spin_unlock(&drv->dynids.lock);
 }
 
+/*
+ *
+ * vortex_init()
+ *  pci_register_driver(vertex_driver)
+ *   __pci_register_driver(vertex_driver, THIS_MODULE, KBUILD_MODNAME)
+ *    pci_create_newid_file()
+ *
+ * e1000_init_module()
+ *  pci_register_driver(e1000_driver) 
+ *   __pci_register_driver(e1000_driver, THIS_MODULE, KBUILD_MODNAME)
+ *    pci_create_newid_file()
+ *
+ */
 static int
 pci_create_newid_file(struct pci_driver *drv)
 {
@@ -111,6 +124,7 @@ static inline int pci_create_newid_file(struct pci_driver *drv)
 
 /**
  * pci_match_id - See if a pci device matches a given pci_id table
+ *
  * @ids: array of PCI device id structures to search in
  * @dev: the PCI device structure to match against.
  *
@@ -121,18 +135,34 @@ static inline int pci_create_newid_file(struct pci_driver *drv)
  * Deprecated, don't use this as it will not catch any dynamic ids
  * that a driver might want to check for.
  *
+ *
  * vortex_init()
- *  pci_register_driver()
- *   __pci_register_driver()
- *    driver_register()
- *     bus_add_driver()
- *      driver_attach(fn == __driver_attach)
- *       bus_for_each_dev()
+ *  pci_register_driver(vertex_driver)
+ *   __pci_register_driver(vertex_driver, THIS_MODULE, KBUILD_MODNAME)
+ *    driver_register(vertex_driver->driver)
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver)
+ *       bus_for_each_dev(fn == __driver_attach)
  *        __driver_attach()
  *         driver_probe_device()
  *          pci_bus_match()
  *           pci_match_device()
  *            pci_match_id()
+ *
+ * e1000_init_module()
+ *  pci_register_driver(e1000_driver) 
+ *   __pci_register_driver(e1000_driver, THIS_MODULE, KBUILD_MODNAME) 
+ *    driver_register(e1000_driver->driver) 
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver) 
+ *       bus_for_each_dev(fn == __driver_attach) 
+ *        __driver_attach() 
+ *         driver_probe_device() 
+ *          pci_bus_match() 
+ *           pci_match_device() 
+ *            pci_match_id()
+ *
+ *
  */
 const struct pci_device_id *pci_match_id(const struct pci_device_id *ids,
 					 struct pci_dev *dev)
@@ -156,16 +186,29 @@ const struct pci_device_id *pci_match_id(const struct pci_device_id *ids,
  * system is in its list of supported devices.  Returns the matching
  * pci_device_id structure or %NULL if there is no match.
  *
+ *
  * vortex_init()
- *  pci_register_driver()
- *   __pci_register_driver()
- *    driver_register()
- *     bus_add_driver()
- *      driver_attach(fn == __driver_attach)
- *       bus_for_each_dev()
+ *  pci_register_driver(vertex_driver)
+ *   __pci_register_driver(vertex_driver, THIS_MODULE, KBUILD_MODNAME)
+ *    driver_register(vertex_driver->driver)
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver)
+ *       bus_for_each_dev(fn == __driver_attach)
  *        __driver_attach()
  *         driver_probe_device()
  *          pci_bus_match()
+ *           pci_match_device()
+ *
+ * e1000_init_module()
+ *  pci_register_driver(e1000_driver) 
+ *   __pci_register_driver(e1000_driver, THIS_MODULE, KBUILD_MODNAME) 
+ *    driver_register(e1000_driver->driver) 
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver) 
+ *       bus_for_each_dev(fn == __driver_attach) 
+ *        __driver_attach() 
+ *         driver_probe_device() 
+ *          pci_bus_match() 
  *           pci_match_device()
  */
 static const struct pci_device_id *pci_match_device(struct pci_driver *drv,
@@ -431,10 +474,15 @@ static struct kobj_type pci_driver_kobj_type = {
  * Returns a negative value on error, otherwise 0. 
  * If no error occurred, the driver remains registered even if 
  * no device was claimed during registration.
+ *    
  *
- * vortex_init() 
- *  pci_register_driver()
- *   __pci_register_driver()
+ * vortex_init()
+ *  pci_register_driver(vertex_driver)
+ *   __pci_register_driver(vertex_driver, THIS_MODULE, KBUILD_MODNAME)
+ *
+ * e1000_init_module()
+ *  pci_register_driver(e1000_driver) 
+ *   __pci_register_driver(e1000_driver, THIS_MODULE, KBUILD_MODNAME)
  *
  */
 int __pci_register_driver(struct pci_driver *drv, struct module *owner,
@@ -452,7 +500,9 @@ int __pci_register_driver(struct pci_driver *drv, struct module *owner,
 	spin_lock_init(&drv->dynids.lock);
 	INIT_LIST_HEAD(&drv->dynids.list);
 
-	/* register with core */
+	/* register with core 
+	 * 挂载驱动程序到bus上,并且查找可以驱动的设备
+	 */
 	error = driver_register(&drv->driver);
 	if (error)
 		return error;
@@ -515,15 +565,27 @@ pci_dev_driver(const struct pci_dev *dev)
  * system is in its list of supported devices. Returns the matching
  * pci_device_id structure or %NULL if there is no match.
  *
+ *
  * vortex_init()
- *  pci_register_driver()
- *   __pci_register_driver()
- *    driver_register()
- *     bus_add_driver()
- *      driver_attach(fn == __driver_attach)
- *       bus_for_each_dev()
+ *  pci_register_driver(vertex_driver)
+ *   __pci_register_driver(vertex_driver, THIS_MODULE, KBUILD_MODNAME)
+ *    driver_register(vertex_driver->driver)
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver)
+ *       bus_for_each_dev(fn == __driver_attach)
  *        __driver_attach()
  *         driver_probe_device()
+ *          pci_bus_match()
+ *
+ * e1000_init_module()
+ *  pci_register_driver(e1000_driver) 
+ *   __pci_register_driver(e1000_driver, THIS_MODULE, KBUILD_MODNAME) 
+ *    driver_register(e1000_driver->driver) 
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver) 
+ *       bus_for_each_dev(fn == __driver_attach) 
+ *        __driver_attach() 
+ *         driver_probe_device() 
  *          pci_bus_match()
  */
 static int pci_bus_match(struct device *dev, struct device_driver *drv)

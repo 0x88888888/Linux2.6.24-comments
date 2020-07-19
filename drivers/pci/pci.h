@@ -78,18 +78,34 @@ extern struct class_device_attribute class_device_attr_cpuaffinity;
  * 
  * Returns the matching pci_device_id structure or %NULL if there is no match.
  *
+ *
  * vortex_init()
- *  pci_register_driver()
- *   __pci_register_driver()
- *    driver_register()
- *     bus_add_driver()
- *      driver_attach(fn == __driver_attach)
- *       bus_for_each_dev()
+ *  pci_register_driver(vertex_driver)
+ *   __pci_register_driver(vertex_driver, THIS_MODULE, KBUILD_MODNAME)
+ *    driver_register(vertex_driver->driver)
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver)
+ *       bus_for_each_dev(fn == __driver_attach)
  *        __driver_attach()
  *         driver_probe_device()
  *          pci_bus_match()
  *           pci_match_device()
- *            pci_match_one_device()
+ *            pci_match_id()
+ *             pci_match_one_device()
+ *
+ * e1000_init_module()
+ *  pci_register_driver(e1000_driver) 
+ *   __pci_register_driver(e1000_driver, THIS_MODULE, KBUILD_MODNAME) 
+ *    driver_register(e1000_driver->driver) 
+ *     bus_add_driver(vertex_driver->driver)
+ *      driver_attach(vertex_driver->driver) 
+ *       bus_for_each_dev(fn == __driver_attach) 
+ *        __driver_attach() 
+ *         driver_probe_device() 
+ *          pci_bus_match() 
+ *           pci_match_device() 
+ *            pci_match_id() 
+ *             pci_match_one_device()
  */
 static inline const struct pci_device_id *
 pci_match_one_device(const struct pci_device_id *id, const struct pci_dev *dev)

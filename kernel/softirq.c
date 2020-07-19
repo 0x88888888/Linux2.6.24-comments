@@ -563,6 +563,14 @@ void __init softirq_init(void)
 
 
 /*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ * 	  do_pre_smp_initcalls()
+ * 	   spawn_ksoftirqd()
+ * 	    cpu_callback(, action == CPU_UP_PREPARE)启动处理软中断的ksoftirq线程
+ *       ......
+ *        ksoftirqd()
  * 执行软中断的守护进程
  * 在__do_softirq中唤醒
  */
@@ -663,6 +671,14 @@ static void takeover_tasklets(unsigned int cpu)
 }
 #endif /* CONFIG_HOTPLUG_CPU */
 
+/*
+ * start_kernel()
+ *   rest_init() 中调用kernel_thread()创建kernel_init线程
+ *    kernel_init()
+ *     do_pre_smp_initcalls()
+ *      spawn_ksoftirqd()
+ *       cpu_callback(, action == CPU_UP_PREPARE)启动处理软中断的ksoftirq线程
+ */
 static int __cpuinit cpu_callback(struct notifier_block *nfb,
 				  unsigned long action,
 				  void *hcpu)
@@ -671,7 +687,7 @@ static int __cpuinit cpu_callback(struct notifier_block *nfb,
 	struct task_struct *p;
 
 	switch (action) {
-	case CPU_UP_PREPARE:
+	case CPU_UP_PREPARE: //启动处理软中断的ksoftirq线程
 	case CPU_UP_PREPARE_FROZEN:
 		p = kthread_create(ksoftirqd, hcpu, "ksoftirqd/%d", hotcpu);
 		if (IS_ERR(p)) {
@@ -719,7 +735,8 @@ static struct notifier_block __cpuinitdata cpu_nfb = {
  *    kernel_init()
  *     do_pre_smp_initcalls()
  *      spawn_ksoftirqd()
- * 创建或者启动watchdog_task线程(入口函数为ksoftirqd)
+ *
+ * 启动处理软中断的ksoftirq线程
  */
 __init int spawn_ksoftirqd(void)
 {

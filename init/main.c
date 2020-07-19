@@ -854,7 +854,10 @@ static void __init do_initcalls(void)
 	int count = preempt_count();
 
     /*
-     * buses_init,
+     * buses_init, devices_init, genhd_device_init
+     * blk_dev_init, 
+     * net_ns_init
+     * 
      */
 	for (call = __initcall_start; call < __initcall_end; call++) {
 		ktime_t t0, t1, delta;
@@ -958,6 +961,7 @@ static void __init do_pre_smp_initcalls(void)
 	extern int spawn_ksoftirqd(void);
 
 	migration_init();
+	// 启动处理软中断的ksoftirq线程
 	spawn_ksoftirqd();
 	if (!nosoftlockup)
 		spawn_softlockup_task();

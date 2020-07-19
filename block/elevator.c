@@ -214,6 +214,15 @@ static void elevator_release(struct kobject *kobj)
 	kfree(e);
 }
 
+/*
+ * scsi_alloc_queue()
+ *  __scsi_alloc_queue( , request_fn==scsi_request_fn)
+ *   blk_init_queue( rfn ==scsi_request_fn )
+ *    blk_init_queue_node(rfn ==scsi_request_fn)
+ *     elevator_init(, NULL)
+ *
+ * 选择IO调度器
+ */
 int elevator_init(struct request_queue *q, char *name)
 {
 	struct elevator_type *e = NULL;
@@ -226,6 +235,7 @@ int elevator_init(struct request_queue *q, char *name)
 	q->end_sector = 0;
 	q->boundary_rq = NULL;
 
+    //elevator_noop,iosched_deadline, iosched_as, iosched_cfq对象中选择
 	if (name && !(e = elevator_get(name)))
 		return -EINVAL;
 

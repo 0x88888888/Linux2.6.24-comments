@@ -150,11 +150,16 @@ void put_driver(struct device_driver * drv)
  *	since most of the things we have to do deal with the bus
  *	structures.
  *
- * vortex_init()  
- *  pci_register_driver()
- *   __pci_register_driver()
- *    driver_register()
  *
+ * vortex_init()
+ *  pci_register_driver(vertex_driver)
+ *   __pci_register_driver(vertex_driver, THIS_MODULE, KBUILD_MODNAME)
+ *    driver_register(vertex_driver->driver)
+ *
+ * e1000_init_module()
+ *  pci_register_driver(e1000_driver) 
+ *   __pci_register_driver(e1000_driver, THIS_MODULE, KBUILD_MODNAME) 
+ *    driver_register(e1000_driver->driver)
  */
 int driver_register(struct device_driver * drv)
 {

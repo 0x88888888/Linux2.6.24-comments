@@ -29,6 +29,8 @@
  * during PCI bus mastering, then you would pass 0x00ffffff as the mask to
  * this function.  Of course, SN only supports devices that have 32 or more
  * address bits when using the PMU.
+ *
+ *  
  */
 int sn_dma_supported(struct device *dev, u64 mask)
 {

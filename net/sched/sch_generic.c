@@ -297,7 +297,9 @@ static void dev_watchdog_down(struct net_device *dev)
  *	netif_carrier_on - set carrier
  *	@dev: network device
  *
- * Device has detected that carrier.
+ * Device has detected that carrier.
+ *
+ * 网线重新连上，或者路由器、集线器重新通电之类的
  */
 void netif_carrier_on(struct net_device *dev)
 {
@@ -313,6 +315,8 @@ void netif_carrier_on(struct net_device *dev)
  *	@dev: network device
  *
  * Device has detected loss of carrier.
+ *
+ * 网线断了，或者路由器、集线器断电之类的
  */
 void netif_carrier_off(struct net_device *dev)
 {

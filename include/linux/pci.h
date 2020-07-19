@@ -647,7 +647,10 @@ int __must_check __pci_register_driver(struct pci_driver *, struct module *,
 
 /*
  * vortex_init()
- *  pci_register_driver()
+ *  pci_register_driver(vertex_driver)
+ *
+ * e1000_init_module()
+ *  pci_register_driver(e1000_driver)
  */
 static inline int __must_check pci_register_driver(struct pci_driver *driver)
 {

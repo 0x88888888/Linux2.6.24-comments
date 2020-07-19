@@ -483,7 +483,12 @@ err_out:
 	return err;
 }
 
-/* Not exported, helper to add_disk(). */
+/* Not exported, helper to add_disk().
+ *
+ * sr_probe()
+ *  add_disk()
+ *   register_disk()
+ */
 void register_disk(struct gendisk *disk)
 {
 	struct block_device *bdev;
@@ -499,6 +504,7 @@ void register_disk(struct gendisk *disk)
 		*s = '!';
 	if ((err = kobject_add(&disk->kobj)))
 		return;
+	
 	err = disk_sysfs_symlinks(disk);
 	if (err) {
 		kobject_del(&disk->kobj);
@@ -531,7 +537,9 @@ exit:
 	/* announce disk after possible partitions are already created */
 	kobject_uevent(&disk->kobj, KOBJ_ADD);
 
-	/* announce possible partitions */
+	/* announce possible partitions 
+	 * 磁盘分区的KOBJ_ADD uevent事件
+	 */
 	for (i = 1; i < disk->minors; i++) {
 		p = disk->part[i-1];
 		if (!p || !p->nr_sects)

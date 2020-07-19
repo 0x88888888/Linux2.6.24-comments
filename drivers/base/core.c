@@ -745,6 +745,12 @@ static void device_remove_class_symlinks(struct device *dev)
  *  device_create() 
  *   device_register()
  *    device_add()
+ *
+ *  cs89x0_probe1()
+ *   register_netdev()
+ *    register_netdevice()
+ *     netdev_register_kobject()
+ *      device_add()
  */
 int device_add(struct device *dev)
 {
@@ -759,7 +765,7 @@ int device_add(struct device *dev)
 	pr_debug("DEV: registering device: ID = '%s'\n", dev->bus_id);
 
 	parent = get_device(dev->parent);
-	//设置dev.kobj.parent = parent
+	//设置dev.kobj.parent = parent, 确定在sysfs中的层次关系
 	error = setup_parent(dev, parent);
 	if (error)
 		goto Error;
@@ -768,7 +774,8 @@ int device_add(struct device *dev)
 	 * 设备名称
 	 */
 	kobject_set_name(&dev->kobj, "%s", dev->bus_id);
-	error = kobject_add(&dev->kobj); // 添加到sysfs
+	
+	error = kobject_add(&dev->kobj); // 添加到sysfs文件系统
 	if (error)
 		goto Error;
 
@@ -820,7 +827,8 @@ int device_add(struct device *dev)
 	 * 会导致分配gendisk,hd_struct对象
 	 */
 	bus_attach_device(dev);
-	
+
+	//加到父parent的klist_children链表的末尾上去
 	if (parent)
 		klist_add_tail(&dev->knode_parent, &parent->klist_children);
 
@@ -833,6 +841,7 @@ int device_add(struct device *dev)
 		list_for_each_entry(class_intf, &dev->class->interfaces, node)
 			if (class_intf->add_dev)
 				class_intf->add_dev(dev, class_intf);
+			
 		up(&dev->class->sem);
 	}
  Done:
@@ -1123,12 +1132,10 @@ struct device * device_find_child(struct device *parent, void *data,
 }
 
 /*
-*
-* start_kernel()
-*  rest_init() 中调用kernel_thread()创建kernel_init线程
-*	do_basic_setup()
-*	 driver_init()
-*/
+ *
+ * driver_init()
+ *  devices_init()
+ */
 int __init devices_init(void)
 {
 	return subsystem_register(&devices_subsys);

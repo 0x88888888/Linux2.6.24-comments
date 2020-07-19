@@ -10,6 +10,10 @@
 #include <asm/io.h>
 #include <asm/swiotlb.h>
 
+/* 
+ *
+ * 不同的硬件平台，有不同的DMA ops实现
+ */
 struct dma_mapping_ops {
 	int             (*mapping_error)(dma_addr_t dma_addr);
 	void*           (*alloc_coherent)(struct device *dev, size_t size,

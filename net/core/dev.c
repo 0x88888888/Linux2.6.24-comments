@@ -212,7 +212,13 @@ static inline struct hlist_head *dev_index_hash(struct net *net, int ifindex)
 	return &net->dev_index_head[ifindex & ((1 << NETDEV_HASHBITS) - 1)];
 }
 
-/* Device list insertion */
+/* Device list insertion
+ *
+ * cs89x0_probe1()
+ *  register_netdev()
+ *   register_netdevice()
+ *    list_netdevice()
+ */
 static int list_netdevice(struct net_device *dev)
 {
 	struct net *net = dev->nd_net;
@@ -2039,9 +2045,18 @@ EXPORT_SYMBOL(netif_rx_ni);
 
 /*
  * bond用于将多个网络接口，聚合成一个逻辑网口，从而实现高带宽、高可用性等目标
+ *
+ * irq_exit()
+ *  do_softirq()
+ *   __do_softirq()
+ *    net_rx_action()
+ *     process_backlog()
+ *      netif_receive_skb()
+ *       skb_bond()
  */
 static inline struct net_device *skb_bond(struct sk_buff *skb)
 {
+    //接受skb的net_device对象，是个bond 设备
 	struct net_device *dev = skb->dev;
 
 	if (dev->master) {
@@ -2049,6 +2064,7 @@ static inline struct net_device *skb_bond(struct sk_buff *skb)
 			kfree_skb(skb);
 			return NULL;
 		}
+		//修改skb所属的net_device对象
 		skb->dev = dev->master;
 	}
 
@@ -2330,7 +2346,7 @@ int netif_receive_skb(struct sk_buff *skb)
 
 	rcu_read_lock();
 
-#ifdef CONFIG_NET_CLS_ACT
+#ifdef CONFIG_NET_CLS_ACT //统计
 	if (skb->tc_verd & TC_NCLS) {
 		skb->tc_verd = CLR_TC_NCLS(skb->tc_verd);
 		goto ncls;
@@ -2373,7 +2389,7 @@ ncls:
 	list_for_each_entry_rcu(ptype, &ptype_base[ntohs(type)&15], list) {
 		if (ptype->type == type &&
 		    (!ptype->dev || ptype->dev == skb->dev)) {
-			if (pt_prev)
+			if (pt_prev) //传递到下一层协议
 				ret = deliver_skb(skb, pt_prev, orig_dev);
 			pt_prev = ptype;
 		}
@@ -2531,8 +2547,8 @@ static void net_rx_action(struct softirq_action *h)
 			/*
 			 * 1.n->poll指向process_backlog(非napi方式) ,
 			 *
-			 * 2.e100_poll(napi方式),该函数把数据包递交到上层协议模块 
-			 * 
+			 * 2.e100_poll,e1000_clean(napi方式),该函数把数据包递交到上层协议模块 
+			 *  
 			 */
 			work = n->poll(n, weight);
 
@@ -3973,13 +3989,16 @@ static void rollback_registered(struct net_device *dev)
  *	The locking appears insufficient to guarantee two parallel registers
  *	will not get the same name.
  *
- *  注册网络设备
+ *  注册网络设备到dev->nd_net命名空间中去
  *
- *  cs89x0_probe1()
- *   register_netdev()
- *    register_netdevice()
+ * cs89x0_probe1()
+ *  register_netdev()
+ *   register_netdevice()
+ *
+ * e1000_probe()
+ *  register_netdev()
+ *   register_netdevice()
  */
-
 int register_netdevice(struct net_device *dev)
 {
 	struct hlist_head *head;
@@ -4137,8 +4156,11 @@ err_uninit:
  *	and expands the device name if you passed a format string to
  *	alloc_netdev.
  *
- *  cs89x0_probe1()
- *   register_netdev()
+ * cs89x0_probe1()
+ *  register_netdev()
+ *
+ * e1000_probe()
+ *  register_netdev()
  *
  * start_kernel()
  *  rest_init() 中调用kernel_thread()创建kernel_init线程
@@ -4251,6 +4273,8 @@ static DEFINE_MUTEX(net_todo_run_mutex);
 /*
  * rtnl_unlock()
  *  netdev_run_todo()
+ *
+ * 调用net_device->destructor() 函数
  */
 void netdev_run_todo(void)
 {
@@ -4269,14 +4293,19 @@ void netdev_run_todo(void)
 
 	/* Snapshot list, allow later requests */
 	spin_lock(&net_todo_list_lock);
+
+	//在这之后net_todo_list为空了，全部转到list上去
 	list_replace_init(&net_todo_list, &list);
 	spin_unlock(&net_todo_list_lock);
 
 	while (!list_empty(&list)) {
+
+	    //转成net_device对象
 		struct net_device *dev
 			= list_entry(list.next, struct net_device, todo_list);
-		list_del(&dev->todo_list);
+		list_del(&dev->todo_list);//从链表上删除
 
+        //状态不对
 		if (unlikely(dev->reg_state != NETREG_UNREGISTERING)) {
 			printk(KERN_ERR "network todo '%s' but state %d\n",
 			       dev->name, dev->reg_state);
@@ -4284,6 +4313,7 @@ void netdev_run_todo(void)
 			continue;
 		}
 
+        //装填改变了
 		dev->reg_state = NETREG_UNREGISTERED;
 
 		netdev_wait_allrefs(dev);
@@ -4324,12 +4354,14 @@ static struct net_device_stats *internal_stats(struct net_device *dev)
  *  alloc_netdev()
  *   alloc_netdev_mq()
  *
- * alloc_etherdev()
- *  alloc_etherdev_mq()
- *   alloc_netdev_mq()
+ * e1000_probe()
+ *  alloc_etherdev()
+ *   alloc_etherdev_mq()
+ *    alloc_netdev_mq(setup == ether_setup)
  */
 struct net_device *alloc_netdev_mq(int sizeof_priv, const char *name,
-		void (*setup)(struct net_device *) /* 一般是eth_setup, loopback_setup */, unsigned int queue_count)
+		void (*setup)(struct net_device *) /* 一般是ether_setup,eth_setup, loopback_setup */, 
+		      unsigned int queue_count)
 {
 	void *p;
 	struct net_device *dev;

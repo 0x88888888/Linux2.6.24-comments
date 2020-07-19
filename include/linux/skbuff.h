@@ -344,6 +344,8 @@ struct sk_buff {
 	 * 每一层都可以使用
 	 *
 	 * struct ns_skb_cb NS_SKB(skb->cb) , tcp_skb_cb TCP_SKB_SB(skb->cb)
+	 *
+	 * 存放每一层内部维护所需的私有数据，如tcp_skb_cb
 	 */
 	char			cb[48];
 
@@ -392,7 +394,14 @@ struct sk_buff {
                      */
                     nohdr:1, 
                     nfctinfo:3; /* netfilter conntrack info */
-	__u8			pkt_type:3, //由二层目的地址来决定，在eth_type_trans中设定,多播、单播、回环
+	/*
+	 * 由二层目的地址来决定，在eth_type_trans中设定,
+	 * PACKET_MULTICAST,
+	 * PACKET_HOST, PACKET_BROADCAST, PACKET_OTHERHOST
+	 * PACKET_OUTGOING, PACKET_LOOPBACK, PACKET_FASTROUTE(不再支持)
+	 * 
+	*/
+	__u8			pkt_type:3, 
 	                /*
 	                 * 当前的clone状态， 
 	                 * SKB_FCLONE_UNAVAILABLE    SKB未被clone

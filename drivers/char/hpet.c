@@ -305,6 +305,7 @@ static int hpet_mmap(struct file *file, struct vm_area_struct *vma)
 	vma->vm_flags |= VM_IO;
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
+    //就是remap_pfn_range
 	if (io_remap_pfn_range(vma, vma->vm_start, addr >> PAGE_SHIFT,
 					PAGE_SIZE, vma->vm_page_prot)) {
 		printk(KERN_ERR "%s: io_remap_pfn_range failed\n",
