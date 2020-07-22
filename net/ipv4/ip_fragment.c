@@ -730,7 +730,7 @@ int ip_defrag(struct sk_buff *skb, u32 user)
 		ip_evictor();
 
 	/* Lookup (or create) queue header
-     * 查找符合分片id, 源地址, 目标地址，分组协议标识的ipq
+     * 在ip4_frags中查找符合分片id, 源地址, 目标地址，分组协议标识的ipq
 	 */
 	if ((qp = ip_find(ip_hdr(skb), user)) != NULL) {
 		//开始重组

@@ -1260,8 +1260,15 @@ static long sock_wait_for_wmem(struct sock * sk, long timeo)
 
 /*
  *	Generic send/receive buffer handlers
+ *
+ * packet_sendmsg()
+ *  sock_alloc_send_skb()
+ *   sock_alloc_send_pskb()
+ *
+ * ip_append_data()
+ *  sock_alloc_send_skb() 
+ *   sock_alloc_send_pskb()
  */
-
 static struct sk_buff *sock_alloc_send_pskb(struct sock *sk,
 					    unsigned long header_len,
 					    unsigned long data_len,
@@ -1276,7 +1283,9 @@ static struct sk_buff *sock_alloc_send_pskb(struct sock *sk,
 	if (gfp_mask & __GFP_WAIT)
 		gfp_mask |= __GFP_REPEAT;
 
+    //得到sk->sk_sndtimo
 	timeo = sock_sndtimeo(sk, noblock);
+	
 	while (1) {
 		err = sock_error(sk);
 		if (err != 0)
@@ -1287,7 +1296,9 @@ static struct sk_buff *sock_alloc_send_pskb(struct sock *sk,
 			goto failure;
 
 		if (atomic_read(&sk->sk_wmem_alloc) < sk->sk_sndbuf) {
+			//分配skb对象
 			skb = alloc_skb(header_len, gfp_mask);
+			
 			if (skb) {
 				int npages;
 				int i;
@@ -1298,7 +1309,10 @@ static struct sk_buff *sock_alloc_send_pskb(struct sock *sk,
 
 				npages = (data_len + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 				skb->truesize += data_len;
+				//skb对象的末尾是skb_shared_info对象
 				skb_shinfo(skb)->nr_frags = npages;
+
+				//分配存放数据的page
 				for (i = 0; i < npages; i++) {
 					struct page *page;
 					skb_frag_t *frag;
@@ -1331,8 +1345,10 @@ static struct sk_buff *sock_alloc_send_pskb(struct sock *sk,
 		err = -EAGAIN;
 		if (!timeo)
 			goto failure;
+		//处理signal去
 		if (signal_pending(current))
 			goto interrupted;
+		//没有内存可供分配了，等待
 		timeo = sock_wait_for_wmem(sk, timeo);
 	}
 
@@ -1346,6 +1362,13 @@ failure:
 	return NULL;
 }
 
+/*
+ * packet_sendmsg()
+ *  sock_alloc_send_skb()
+ *
+ * ip_append_data()
+ *  sock_alloc_send_skb()
+ */
 struct sk_buff *sock_alloc_send_skb(struct sock *sk, unsigned long size,
 				    int noblock, int *errcode)
 {

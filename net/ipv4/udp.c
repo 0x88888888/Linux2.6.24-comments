@@ -746,6 +746,8 @@ int udp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		if ((rt->rt_flags & RTCF_BROADCAST) &&
 		    !sock_flag(sk, SOCK_BROADCAST))
 			goto out;
+
+		//将dst信息缓存到sk->sk_dst_cache中去
 		if (connected)
 			sk_dst_set(sk, dst_clone(&rt->u.dst));
 	}

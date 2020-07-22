@@ -770,6 +770,7 @@ static int tcp_v4_send_synack(struct sock *sk, struct request_sock *req,
 	if (!dst && (dst = inet_csk_route_req(sk, req)) == NULL)
 		goto out;
 
+    //弄出一个包含syn, ack的sk_buff对象
 	skb = tcp_make_synack(sk, dst, req);
 
 	if (skb) {
@@ -781,6 +782,7 @@ static int tcp_v4_send_synack(struct sock *sk, struct request_sock *req,
 					 csum_partial((char *)th, skb->len,
 						      skb->csum));
 
+        //发送 syn ack消息
 		err = ip_build_and_send_pkt(skb, sk, ireq->loc_addr,
 					    ireq->rmt_addr,
 					    ireq->opt);

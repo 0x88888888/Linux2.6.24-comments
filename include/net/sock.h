@@ -191,7 +191,7 @@ struct sock_common {
   *	@sk_backlog_rcv: callback to process the backlog
   *	@sk_destruct: called at sock freeing time, i.e. when all refcnt == 0
   *
-  * 作为socket的成员存在
+  * 作为inet_sock的成员存在,socket->sk指向这个对象
   * 
   * sock是网络访问层的接口，socket是到用户层的接口
   *
@@ -1158,6 +1158,14 @@ __sk_dst_set(struct sock *sk, struct dst_entry *dst)
 	dst_release(old_dst);
 }
 
+/*
+ * 将dst信息缓存到sk->sk_dst_cache中去
+ * ip4_datagram_connect()
+ *  sk_dst_set()
+ *
+ * udp_sendmsg()
+ *  sk_dst_set()
+ */
 static inline void
 sk_dst_set(struct sock *sk, struct dst_entry *dst)
 {

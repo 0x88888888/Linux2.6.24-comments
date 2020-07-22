@@ -123,6 +123,8 @@ static inline int ip_select_ttl(struct inet_sock *inet, struct dst_entry *dst)
  *
  * 构造报文的IP头，并发送给链路层。
  *
+ * tcp_v4_send_synack()
+ *  ip_build_and_send_pkt()
  */
 int ip_build_and_send_pkt(struct sk_buff *skb, struct sock *sk,
 			  __be32 saddr, __be32 daddr, struct ip_options *opt)
@@ -343,6 +345,7 @@ int ip_mc_output(struct sk_buff *skb)
  */
 int ip_output(struct sk_buff *skb)
 {
+    //出口的net_device对象
 	struct net_device *dev = skb->dst->dev;
 
 	IP_INC_STATS(IPSTATS_MIB_OUTREQUESTS);
@@ -358,6 +361,9 @@ int ip_output(struct sk_buff *skb)
 /*
  * 将TCP段打包成ip数据报的方法根据TCP段类型的不同而有多种接口，
  * 其中最常用的就是ip_queue_xmit,而ip_build_and_send_pkt和ip_send_reply只有在发送特定段时才会被调用.
+ *
+ * tcp和sctp这类已经把分段考虑进去的协议，会调用这个函数
+ * 没有把分段考虑进去的协议会调用ip_push_pending_frames来发送数据
  *
  * ip层发送数据
  *
@@ -407,12 +413,15 @@ int ip_queue_xmit(struct sk_buff *skb /* TCP数据报 */, int ipfragok /*待输�
 			 * itself out.
 			 */
 			security_sk_classify_flow(sk, &fl);
+
+			//查询路由信息，rt带出查询结果
 			if (ip_route_output_flow(&rt, &fl, sk, 0))
 				goto no_route; //查找失败
 		}
 		//将路由缓存项输出到传输层控制块中去	，就是挂到sk->sk_dst_cache上
 		sk_setup_caps(sk, &rt->u.dst);
 	}
+	//路由信息赋值到skb上去
 	skb->dst = dst_clone(&rt->u.dst);
 
 packet_routed:
@@ -974,6 +983,9 @@ static inline int ip_ufo_append_data(struct sock *sk,
  * ip_send_reply()
  *  ip_append_data()
  *
+ * L4层协议可以多次调用ip_append_data来存储要发送的数据，而不实际传输任何东西
+ *
+ * 这个函数变种为ip_append_page,主要有udp协议使用
  */
 int ip_append_data(struct sock *sk,
 		   int getfrag(void *from, char *to, int offset, int len,
@@ -1359,6 +1371,13 @@ error:
 	return err;
 }
 
+/*
+ * ip_append_page函数为ip_append_data的变种,主要有udp协议使用
+ *
+ * udp_sendpage()
+ *  ip_append_page()
+ *
+ */
 ssize_t	ip_append_page(struct sock *sk, struct page *page,
 		       int offset, size_t size, int flags)
 {
@@ -1530,6 +1549,9 @@ static void ip_cork_release(struct inet_sock *inet)
  *    ip_push_pending_frames()
  *
  *  函数用于将该socket上的所有pending的IP分片，组成一个IP报文发送出去
+ *
+ * tcp和sctp这类已经把分段考虑进去的协议，会调用ip_queue_xmit函数来发送数据
+ * 没有把分段考虑进去的协议会调用ip_push_pending_frames来发送数据 
  */
 int ip_push_pending_frames(struct sock *sk)
 {
@@ -1743,7 +1765,9 @@ void ip_send_reply(struct sock *sk, struct sk_buff *skb, struct ip_reply_arg *ar
 					       { .sport = tcp_hdr(skb)->dest,
 						 .dport = tcp_hdr(skb)->source } },
 				    .proto = sk->sk_protocol };
+		
 		security_skb_classify_flow(skb, &fl);
+		//得到路由信息，存放在rt中带出来
 		if (ip_route_output_key(&rt, &fl))
 			return;
 	}
@@ -1770,6 +1794,8 @@ void ip_send_reply(struct sock *sk, struct sk_buff *skb, struct ip_reply_arg *ar
 			  arg->csumoffset) = csum_fold(csum_add(skb->csum,
 								arg->csum));
 		skb->ip_summed = CHECKSUM_NONE;
+
+		//发送出去
 		ip_push_pending_frames(sk);
 	}
 

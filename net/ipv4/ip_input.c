@@ -238,7 +238,7 @@ static int ip_local_deliver_finish(struct sk_buff *skb)
 		if (raw_sk && !raw_v4_input(skb, ip_hdr(skb), hash))
 			raw_sk = NULL;
 
-        /* 上层协议处理函数已经注册过 */
+        /* 已经注册过的上层协议的处理函数 */
 		if ((ipprot = rcu_dereference(inet_protos[hash])) != NULL) {
 			int ret;
 
@@ -282,6 +282,7 @@ static int ip_local_deliver_finish(struct sk_buff *skb)
  *   ip_rcv_finish
  *    dst_input
  *     ip_local_deliver
+ * 检查一下，往上层送
  */
 int ip_local_deliver(struct sk_buff *skb)
 {
@@ -297,7 +298,7 @@ int ip_local_deliver(struct sk_buff *skb)
 		 * 直接返回。非0，则返回是已完成重组的IP数据报SKB缓存的指针，需传送到传输层进行处理。
 	     */
 		if (ip_defrag(skb, IP_DEFRAG_LOCAL_DELIVER))
-			return 0;
+			return 0;  //数据还不全，ip fragment詹存在ip4_frags中
 	}
 
 	/* 先netfilter机制，然后ip_local_deliver_finish */

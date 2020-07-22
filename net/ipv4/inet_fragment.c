@@ -219,7 +219,7 @@ static struct inet_frag_queue *inet_frag_intern(struct inet_frag_queue *qp_in,
 	}
 #endif
 	qp = qp_in;
-    /* 修改定时器 */
+    /* 启动一个定时器，如果在f->ctl->timeout时间段内，ip数据包还没到齐，就删除这个ip fragment了 */
 	if (!mod_timer(&qp->timer, jiffies + f->ctl->timeout))
 		atomic_inc(&qp->refcnt);
 

@@ -327,7 +327,8 @@ struct sk_buff {
 	struct net_device	*dev; /* 处理分组的网络设备,dev在处理的过程可能会改变，比如，接受到的分组通过另一个设备发出 */
 
 	/*
-	 * 目的路由缓存项,
+	 * 1.目的路由缓存项,由ip_route_input()初始化
+	 * 2.在ip_queue_xmit()中用在路由表中的查询结果赋值
 	 */
 	struct  dst_entry	*dst; /* 接下来该分组通过内核网络实现的路由 */
 	

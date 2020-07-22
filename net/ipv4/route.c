@@ -1540,6 +1540,12 @@ static void rt_set_nexthop(struct rtable *rt, struct fib_result *res, u32 itag)
 	rt->rt_type = res->type;
 }
 
+/*
+ * ip_rcv
+ *  ip_rcv_finish
+ *   ip_route_input
+ *    ip_route_input_mc() ,ip多播地址
+ */
 static int ip_route_input_mc(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 				u8 tos, struct net_device *dev, int our)
 {
@@ -1570,6 +1576,7 @@ static int ip_route_input_mc(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 	if (!rth)
 		goto e_nobufs;
 
+    //默认是一个不好用的函数
 	rth->u.dst.output= ip_rt_bug;
 
 	atomic_set(&rth->u.dst.__refcnt, 1);
@@ -1595,6 +1602,7 @@ static int ip_route_input_mc(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 	rth->rt_spec_dst= spec_dst;
 	rth->rt_type	= RTN_MULTICAST;
 	rth->rt_flags	= RTCF_MULTICAST;
+	
 	if (our) {
 		rth->u.dst.input= ip_local_deliver;
 		rth->rt_flags |= RTCF_LOCAL;
@@ -2019,7 +2027,7 @@ martian_source:
 	goto e_inval;
 }
 
-/* 查找路由 
+/* 查找路由 ,初始化到skb->dst
  * ip_rcv
  *  ip_rcv_finish
  *   ip_route_input
@@ -2044,7 +2052,8 @@ int ip_route_input(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 		    rth->fl.iif == iif &&
 		    rth->fl.oif == 0 &&
 		    rth->fl.mark == skb->mark &&
-		    rth->fl.fl4_tos == tos) {
+		    rth->fl.fl4_tos == tos) { //找到
+		    
 		    /* 在rt_hash_table[hash]中命中，更新使用计数器和时间戳 */
 			dst_use(&rth->u.dst, jiffies);
 			RT_CACHE_STAT_INC(in_hit);
@@ -2067,7 +2076,7 @@ int ip_route_input(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 	   comparing with route cache reject entries.
 	   Note, that multicast routers are not affected, because
 	   route cache entry is created eventually.
-	   多播地址
+	   ip层多播地址
 	 */
 	if (MULTICAST(daddr)) {
 		struct in_device *in_dev;
@@ -2201,10 +2210,13 @@ static inline int __mkroute_output(struct rtable **result,
 		rth->u.dst.input = ip_local_deliver;
 		rth->rt_spec_dst = fl->fl4_dst;
 	}
+	//广播或者多播
 	if (flags & (RTCF_BROADCAST | RTCF_MULTICAST)) {
 		rth->rt_spec_dst = fl->fl4_src;
+		
 		if (flags & RTCF_LOCAL &&
-		    !(dev_out->flags & IFF_LOOPBACK)) {
+		    !(dev_out->flags & IFF_LOOPBACK)) { //不是loopback
+		    
 			rth->u.dst.output = ip_mc_output;
 			RT_CACHE_STAT_INC(out_slow_mc);
 		}
@@ -2594,7 +2606,7 @@ static int ipv4_dst_blackhole(struct rtable **rp, struct flowi *flp, struct sock
 }
 
 /*
- * 路由查询
+ * 路由查询,参数rp带出查询结果
  *
  * ip_queue_xmit()
  *  ip_route_output_flow()
@@ -2603,7 +2615,9 @@ static int ipv4_dst_blackhole(struct rtable **rp, struct flowi *flp, struct sock
  *  ip_route_output_key()
  *   ip_route_output_flow()
  */
-int ip_route_output_flow(struct rtable **rp, struct flowi *flp, struct sock *sk, int flags)
+int ip_route_output_flow(struct rtable **rp /* 参数rp带出查询结果 */ , 
+                                 struct flowi *flp, 
+                                 struct sock *sk, int flags)
 {
 	int err;
 

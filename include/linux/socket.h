@@ -201,6 +201,7 @@ struct ucred {
 #define PF_UNSPEC	AF_UNSPEC
 #define PF_UNIX		AF_UNIX
 #define PF_LOCAL	AF_LOCAL
+//inet_sock对象表示PF_INET对应的 sock对象
 #define PF_INET		AF_INET
 #define PF_AX25		AF_AX25
 #define PF_IPX		AF_IPX

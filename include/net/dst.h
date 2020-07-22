@@ -67,7 +67,7 @@ struct dst_entry
 	struct xfrm_state	*xfrm;      // XFRM规则状态
 
 	int			(*input)(struct sk_buff*); // ip_forward,ip_local_deliver
-	int			(*output)(struct sk_buff*); // ip_output, ip_rt_bug
+	int			(*output)(struct sk_buff*); // ip_output, ip_rt_bug,ip_mc_output(在ip_mc_output中设置)
 
 #ifdef CONFIG_NET_CLS_ROUTE
 	__u32			tclassid;       // 分类号
@@ -243,10 +243,12 @@ static inline void dst_set_expires(struct dst_entry *dst, int timeout)
  *		 ip_forward
  *         ip_forward_finish
  *           dst_output
+ *
+ * igmp和raw ip都直接使用这个函数
  */
 static inline int dst_output(struct sk_buff *skb)
 {
-	return skb->dst->output(skb); /* 这里是函数指针是ip_output或者ip_mc_output */
+	return skb->dst->output(skb); /* 这里是函数指针是ip_output(单播)或者ip_mc_output(多播) */
 }
 
 /* Input packet from network to transport.  
