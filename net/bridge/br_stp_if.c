@@ -41,7 +41,11 @@ void br_init_port(struct net_bridge_port *p)
 	p->config_pending = 0;
 }
 
-/* called under bridge lock */
+/* called under bridge lock
+ *
+ * br_dev_open()
+ *  br_stp_enable_bridge()
+ */
 void br_stp_enable_bridge(struct net_bridge *br)
 {
 	struct net_bridge_port *p;
@@ -50,6 +54,7 @@ void br_stp_enable_bridge(struct net_bridge *br)
 	mod_timer(&br->hello_timer, jiffies + br->hello_time);
 	mod_timer(&br->gc_timer, jiffies + HZ/10);
 
+    //产生config bpdu数据包
 	br_config_bpdu_generation(br);
 
 	list_for_each_entry(p, &br->port_list, list) {

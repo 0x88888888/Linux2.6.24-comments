@@ -1759,17 +1759,38 @@ out_kfree_skb:
  *          --BLG
  *
  *
-  *  ip_rcv
- *	  ip_rcv_finish
- *     dst_input
- *      ip_forward
- *       ip_forward_finish
- *        dst_output
- *         ip_output  ip路由转发路径
- *          ip_finish_output
- *           ip_finish_output2
- *            dev_queue_xmit
- *   数据排队，等待发送
+ *  ip_rcv
+ *	 ip_rcv_finish
+ *    dst_input
+ *     ip_forward
+ *      ip_forward_finish
+ *       dst_output
+ *        ip_output  ip路由转发路径
+ *         ip_finish_output
+ *          ip_finish_output2
+ *           dev_queue_xmit
+ *
+ * br_nf_post_routing()
+ *  br_nf_dev_queue_xmit() 
+ *   br_dev_queue_push_xmit(),skb->dev是 虚拟设备网桥时
+ *    dev_queue_xmit()
+ * 
+ * bond_dev_queue_xmit() skb->dev是 bond虚拟设备
+ *  dev_queue_xmit()
+ *
+ * vlan_dev_hard_start_xmit() skb->dev是 vlan虚拟设备时
+ *  dev_queue_xmit()
+ *
+ * br_dev_open()
+ *  br_stp_enable_bridge()
+ *   br_config_bpdu_generation()
+ *    br_transmit_config()
+ *     br_send_config_bpdu()
+ *      br_send_bpdu()
+ *       ......
+ *        dev_queue_xmit()
+ *
+ *   数据排队到skb->dev，等待发送
  */
 
 int dev_queue_xmit(struct sk_buff *skb)
@@ -1874,6 +1895,7 @@ gso:
 		/* 一般的dev都应该进入这里 */
 		/* Grab device queue */
 		spin_lock(&dev->queue_lock);
+		//得到排队规则，然后enqueue
 		q = dev->qdisc;
 		if (q->enqueue) {
 			/* reset queue_mapping to zero */
@@ -1890,7 +1912,8 @@ gso:
 		spin_unlock(&dev->queue_lock);
 	}
 
-	/* The device has no queue. Common case for software devices:
+	/* dev的queue discipline没有enqueue方法
+	  The device has no queue. Common case for software devices:
 	   loopback, all the sorts of tunnels...
 
 	   Really, it is unlikely that netif_tx_lock protection is necessary
@@ -1909,7 +1932,7 @@ gso:
 		if (dev->xmit_lock_owner != cpu) {
 
 			HARD_TX_LOCK(dev, cpu);
-
+            //网卡not stopped
 			if (!netif_queue_stopped(dev) &&
 			    !netif_subqueue_stopped(dev, skb)) {
 				rc = 0;
@@ -1971,8 +1994,8 @@ DEFINE_PER_CPU(struct netif_rx_stats, netdev_rx_stat) = { 0, };
  *  网络接受数据程序时调用
  *
  *  net_interrupt() :是否是真的是由接受到的分组引发的中断
- *    net_rx()      :创建sk_buff对象
- *      netif_rx()  : 上面的两个函数是特定于网卡的 ,
+ *   net_rx()      :创建sk_buff对象
+ *    netif_rx()  : 上面的两个函数是特定于网卡的 ,
  *
  *  数据已经在net_rx()读取到skb了。
  *  
@@ -2177,6 +2200,10 @@ static inline struct sk_buff *handle_bridge(struct sk_buff *skb,
 {
 	struct net_bridge_port *port;
 
+    /*
+     * loop类型的packet或者不是作为网桥的设备，
+     * 就不需要走网桥处理路径了，直接返回
+     */
 	if (skb->pkt_type == PACKET_LOOPBACK ||
 	    (port = rcu_dereference(skb->dev->br_port)) == NULL)
 		return skb;
@@ -2303,6 +2330,10 @@ out:
  *    net_rx_action()
  *     process_backlog()
  *      netif_receive_skb()
+ *
+ * e1000_intr_msi()
+ *  e1000_clean_rx_irq()
+ *   netif_receive_skb()
  */
 int netif_receive_skb(struct sk_buff *skb)
 {
@@ -2327,7 +2358,7 @@ int netif_receive_skb(struct sk_buff *skb)
 		skb->iif = skb->dev->ifindex;
 
    
-    /* 分包器 */
+    /* 如果是bond类型的虚拟设备，要找到真实的设备 */
 	orig_dev = skb_bond(skb);
 
 	if (!orig_dev)
@@ -2376,7 +2407,7 @@ ncls:
 
     /* 通过桥转发，如果转发成功，就无需在输入到本地处理了,否则要经历ptype_base链表 */
 	skb = handle_bridge(skb, &pt_prev, &ret, orig_dev);
-	if (!skb) /* 桥接已经消化帧了 */
+	if (!skb) /* bridge已经消化帧了 */
 		goto out;
 
 	/* vlan处理 */
@@ -2388,7 +2419,8 @@ ncls:
 	
 	list_for_each_entry_rcu(ptype, &ptype_base[ntohs(type)&15], list) {
 		if (ptype->type == type &&
-		    (!ptype->dev || ptype->dev == skb->dev)) {
+		    (!ptype->dev || ptype->dev == skb->dev)) { //协议类型相等，设备相等
+		    
 			if (pt_prev) //传递到下一层协议
 				ret = deliver_skb(skb, pt_prev, orig_dev);
 			pt_prev = ptype;
@@ -4358,6 +4390,12 @@ static struct net_device_stats *internal_stats(struct net_device *dev)
  *  alloc_etherdev()
  *   alloc_etherdev_mq()
  *    alloc_netdev_mq(setup == ether_setup)
+ *
+ * sock_ioctl()
+ *  br_ioctl_deviceless_stub()
+ *   br_add_bridge()
+ *    new_bridge_dev()
+ *     alloc_netdev_mq(setup == br_dev_setup)
  */
 struct net_device *alloc_netdev_mq(int sizeof_priv, const char *name,
 		void (*setup)(struct net_device *) /* 一般是ether_setup,eth_setup, loopback_setup */, 

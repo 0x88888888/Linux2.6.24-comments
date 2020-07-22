@@ -51,6 +51,11 @@ static struct ebt_table broute_table =
 	.me		= THIS_MODULE,
 };
 
+/*
+ * netif_receive_skb()
+ *  handle_bridge()
+ *   br_handle_frame()
+ */
 static int ebt_broute(struct sk_buff *skb)
 {
 	int ret;

@@ -95,7 +95,7 @@ static int add_del_if(struct net_bridge *br, int ifindex, int isadd)
 	if (dev == NULL)
 		return -EINVAL;
 
-	if (isadd)
+	if (isadd) //添加端口
 		ret = br_add_if(br, dev);
 	else
 		ret = br_del_if(br, dev);
@@ -365,6 +365,13 @@ static int old_deviceless(void __user *uarg)
 	return -EOPNOTSUPP;
 }
 
+/*
+ * sys_ioctl()
+ *  vfs_ioctl()
+ *   do_ioctl()
+ *    sock_ioctl()
+ *     br_ioctl_deviceless_stub()
+ */
 int br_ioctl_deviceless_stub(struct net *net, unsigned int cmd, void __user *uarg)
 {
 	switch (cmd) {
@@ -384,7 +391,7 @@ int br_ioctl_deviceless_stub(struct net *net, unsigned int cmd, void __user *uar
 			return -EFAULT;
 
 		buf[IFNAMSIZ-1] = 0;
-		if (cmd == SIOCBRADDBR)
+		if (cmd == SIOCBRADDBR) //创建网桥
 			return br_add_bridge(buf);
 
 		return br_del_bridge(buf);

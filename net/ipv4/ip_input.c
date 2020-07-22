@@ -343,9 +343,9 @@ static inline int ip_rcv_options(struct sk_buff *skb)
 		goto drop;
 	}
 
-	opt = &(IPCB(skb)->opt); 
+	opt = &(IPCB(skb)->opt); //上一步解析到skb->cb中了
 	if (unlikely(opt->srr)) { /* 如果存在路由选项，并且系统允许接收源路由选项的IP数据报，则接收并处理IP数据报的路由选项，否则丢弃该数据报 */
-		struct in_device *in_dev = in_dev_get(dev);
+		struct in_device *in_dev = in_dev_get(dev); //in_dev== dev->ip_ptr
 		if (in_dev) {
 			if (!IN_DEV_SOURCE_ROUTE(in_dev)) {
 				if (IN_DEV_LOG_MARTIANS(in_dev) &&
@@ -361,6 +361,7 @@ static inline int ip_rcv_options(struct sk_buff *skb)
 			in_dev_put(in_dev);
 		}
 
+        //ip 选项数据中有strict route 信息
 		if (ip_options_rcv_srr(skb))
 			goto drop;
 	}
@@ -373,7 +374,7 @@ drop:
 
 /*
  * ip_rcv
- *   ip_rcv_finish
+ *  ip_rcv_finish
  *
  * 如果还没有为该数据报查找输入路由缓存，则调用ip_route_input为其查找输入路由缓存。
  * 接着处理ip数据报首部中的选项，最后根据输入路由缓存输入到本地或者转发.

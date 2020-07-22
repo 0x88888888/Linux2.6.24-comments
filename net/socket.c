@@ -402,9 +402,11 @@ static int sock_attach_fd(struct socket *sock, struct file *file)
 	d_instantiate(dentry, SOCK_INODE(sock));
 
 	sock->file = file;
+	//设置sock->file->f_op == socket_file_ops
 	init_file(file, sock_mnt, dentry, FMODE_READ | FMODE_WRITE,
 		  &socket_file_ops);
-	
+
+    //( (socket_alloc *)sock )->i_fop== socket_file_ops
 	SOCK_INODE(sock)->i_fop = &socket_file_ops;
 	file->f_flags = O_RDWR;
 	file->f_pos = 0;
@@ -905,6 +907,10 @@ static ssize_t sock_aio_write(struct kiocb *iocb, const struct iovec *iov,
 static DEFINE_MUTEX(br_ioctl_mutex);
 static int (*br_ioctl_hook) (struct net *, unsigned int cmd, void __user *arg) = NULL;
 
+/*
+ * br_init()
+ *  brioctl_set(hook == br_ioctl_deviceless_stub)
+ */
 void brioctl_set(int (*hook) (struct net *, unsigned int, void __user *))
 {
 	mutex_lock(&br_ioctl_mutex);
@@ -941,6 +947,11 @@ EXPORT_SYMBOL(dlci_ioctl_set);
 /*
  *	With an ioctl, arg may well be a user mode pointer, but we don't know
  *	what to do with it - that's up to the protocol still.
+ *
+ * sys_ioctl()
+ *  vfs_ioctl()
+ *   do_ioctl()
+ *    sock_ioctl()
  */
 
 static long sock_ioctl(struct file *file, unsigned cmd, unsigned long arg)
@@ -984,7 +995,7 @@ static long sock_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 				request_module("bridge");
 
 			mutex_lock(&br_ioctl_mutex);
-			if (br_ioctl_hook)
+			if (br_ioctl_hook) //创建网桥，br_ioctl_hook == br_ioctl_deviceless_stub
 				err = br_ioctl_hook(net, cmd, argp);
 			mutex_unlock(&br_ioctl_mutex);
 			break;

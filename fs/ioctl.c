@@ -16,6 +16,11 @@
 #include <asm/uaccess.h>
 #include <asm/ioctls.h>
 
+/*
+ * sys_ioctl()
+ *  vfs_ioctl()
+ *   do_ioctl()
+ */
 static long do_ioctl(struct file *filp, unsigned int cmd,
 		unsigned long arg)
 {
@@ -24,6 +29,9 @@ static long do_ioctl(struct file *filp, unsigned int cmd,
 	if (!filp->f_op)
 		goto out;
 
+    /*
+     * sock->file->f_op->unlocked_ioctl == sock_ioctl
+     */
 	if (filp->f_op->unlocked_ioctl) {
 		error = filp->f_op->unlocked_ioctl(filp, cmd, arg);
 		if (error == -ENOIOCTLCMD)
@@ -81,6 +89,9 @@ static int file_ioctl(struct file *filp, unsigned int cmd,
  *
  * vfs_ioctl() is not for drivers and not intended to be EXPORT_SYMBOL()'d.
  * It's just a simple helper for sys_ioctl and compat_sys_ioctl.
+ *
+ * sys_ioctl()
+ *  vfs_ioctl()
  */
 int vfs_ioctl(struct file *filp, unsigned int fd, unsigned int cmd, unsigned long arg)
 {
@@ -154,6 +165,9 @@ int vfs_ioctl(struct file *filp, unsigned int fd, unsigned int cmd, unsigned lon
 	return error;
 }
 
+/*
+ * 系统调用
+ */
 asmlinkage long sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 {
 	struct file * filp;

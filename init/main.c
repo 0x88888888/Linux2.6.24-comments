@@ -856,7 +856,7 @@ static void __init do_initcalls(void)
     /*
      * buses_init, devices_init, genhd_device_init
      * blk_dev_init, 
-     * net_ns_init
+     * net_ns_init,br_init(网桥功能的初始化)
      * 
      */
 	for (call = __initcall_start; call < __initcall_end; call++) {

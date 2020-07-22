@@ -405,6 +405,11 @@ static struct bin_attribute bridge_forward = {
  * Note: the ifobj exists only to be a subdirectory
  *   to hold links.  The ifobj exists in same data structure
  *   as it's parent the bridge so reference counting works.
+ *
+ * sock_ioctl()
+ *  br_ioctl_deviceless_stub()
+ *   br_add_bridge()
+ *    br_sysfs_addbr()
  */
 int br_sysfs_addbr(struct net_device *dev)
 {

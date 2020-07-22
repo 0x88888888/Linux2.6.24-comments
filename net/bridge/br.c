@@ -37,14 +37,16 @@ static int __init br_init(void)
 		return -EADDRINUSE;
 	}
 
+    //创建br_fdb_caceh对象
 	err = br_fdb_init();
 	if (err)
 		goto err_out;
 
+    //注册网桥的netfilter hook
 	err = br_netfilter_init();
 	if (err)
 		goto err_out1;
-
+     
 	err = register_netdevice_notifier(&br_device_notifier);
 	if (err)
 		goto err_out2;
@@ -53,7 +55,9 @@ static int __init br_init(void)
 	if (err)
 		goto err_out3;
 
+    //设置创建网桥的函数hook
 	brioctl_set(br_ioctl_deviceless_stub);
+	
 	br_handle_frame_hook = br_handle_frame;
 
 	br_fdb_get_hook = br_fdb_get;

@@ -141,7 +141,13 @@ static inline int ebt_basic_match(struct ebt_entry *e, struct ethhdr *h,
 	return 0;
 }
 
-/* Do some firewalling */
+/* Do some firewalling 
+ *
+ * netif_receive_skb()
+ *  handle_bridge()
+ *   br_handle_frame()
+ *    ebt_do_table()
+ */
 unsigned int ebt_do_table (unsigned int hook, struct sk_buff *skb,
    const struct net_device *in, const struct net_device *out,
    struct ebt_table *table)

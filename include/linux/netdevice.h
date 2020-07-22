@@ -621,6 +621,7 @@ struct net_device
 	/* Hardware header description 
      * 创建和解析硬件首部
      * 通常是 eth_header_ops,loopback设备也是这个对象
+     * 在ether_setup、br_dev_setup之类的函数中设置
 	 */
 	const struct header_ops *header_ops;
 
@@ -683,7 +684,7 @@ struct net_device
 	/*
 	 * 指向in_device对象
 	 */
-	void			*ip_ptr;	/* IPv4 specific data	*/  
+	void			*ip_ptr;	/* IPv4 specific data,放in_device对象,用in_dev_get()获取	*/  
 	void                    *dn_ptr;        /* DECnet specific data */
 	void                    *ip6_ptr;       /* IPv6 specific data */
 	void			*ec_ptr;	/* Econet specific data	*/
@@ -747,7 +748,9 @@ struct net_device
 	int			xmit_lock_owner;
 	void			*priv;	/* pointer to private data	*/
 
-	// 给上层用的发送数据的函数指针。
+	/* 给上层用的发送数据的函数指针。
+	 * 这个函数在dev_hard_start_xmit()中调用
+	 */
 	int			(*hard_start_xmit) (struct sk_buff *skb,
 						    struct net_device *dev);
 	/* These may be needed for future network-power-down code. */
@@ -792,6 +795,7 @@ struct net_device
 	       NETREG_RELEASED,		/* called free_netdev */
 	} reg_state;
 
+    //下面的这些函数在br_dev_setup、ether_setup之类的函数中设置
 	/* Called after device is detached from network.
 	 * 在设备与网络断开后调用
 	 */

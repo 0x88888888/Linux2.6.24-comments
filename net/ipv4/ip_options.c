@@ -42,6 +42,7 @@
  * ip_push_pending_frames
  *  ip_options_build()
  *
+ * 在ip数据包头中填入选项数据
  */
 
 void ip_options_build(struct sk_buff * skb, struct ip_options * opt,
@@ -324,6 +325,10 @@ void ip_options_fragment(struct sk_buff * skb)
  * ip_rcv_options(NULL, skb)  接受方向
  *  ip_options_compile()
  *
+ * ip_rcv
+ *  ip_rcv_finish
+ *   ip_rcv_options()
+ *    ip_options_compile(opt == NULL),opt ==NULL时，用skb->cb来存储
  * 
  *
  */
@@ -338,7 +343,7 @@ int ip_options_compile(struct ip_options * opt, struct sk_buff * skb)
 
     /* 这个if else用于确定待解析的ip选项 */
 	if (!opt) {
-		opt = &(IPCB(skb)->opt);
+		opt = &(IPCB(skb)->opt); //skb->cb装车options类型
 		iph = skb_network_header(skb);
 		opt->optlen = ((struct iphdr *)iph)->ihl*4 - sizeof(struct iphdr);
 		optptr = iph + sizeof(struct iphdr);
@@ -770,6 +775,11 @@ void ip_forward_options(struct sk_buff *skb)
 }
 
 /*
+ * ip_rcv
+ *  ip_rcv_finish
+ *   ip_rcv_options()
+ *    ip_options_rcv_srr()
+ *
  * 输入数据中的宽松源路由以及严格源路由选项，并根据源路由选项更新IP数据报的下一跳地址。
  */
 int ip_options_rcv_srr(struct sk_buff *skb)

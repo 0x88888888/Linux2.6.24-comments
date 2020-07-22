@@ -18,6 +18,7 @@
 #define BPDU_TYPE_CONFIG 0
 #define BPDU_TYPE_TCN 0x80
 
+//网桥的BPDU(bridge protocol data unit)协议的配置信息
 struct br_config_bpdu
 {
 	unsigned	topology_change:1;

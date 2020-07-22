@@ -29,6 +29,14 @@
 
 #define LLC_RESERVE sizeof(struct llc_pdu_un)
 
+/*
+ * br_dev_open()
+ *  br_stp_enable_bridge()
+ *   br_config_bpdu_generation()
+ *    br_transmit_config()
+ *     br_send_config_bpdu()
+ *      br_send_bpdu()
+ */
 static void br_send_bpdu(struct net_bridge_port *p,
 			 const unsigned char *data, int length)
 {
@@ -68,7 +76,14 @@ static inline int br_get_ticks(const unsigned char *src)
 	return DIV_ROUND_UP(ticks * HZ, STP_HZ);
 }
 
-/* called under bridge lock */
+/* called under bridge lock 
+ *
+ * br_dev_open()
+ *  br_stp_enable_bridge()
+ *   br_config_bpdu_generation()
+ *    br_transmit_config()
+ *     br_send_config_bpdu()
+ */
 void br_send_config_bpdu(struct net_bridge_port *p, struct br_config_bpdu *bpdu)
 {
 	unsigned char buf[35];

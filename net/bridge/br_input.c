@@ -22,6 +22,13 @@
 /* Bridge group multicast address 802.1d (pg 51). */
 const u8 br_group_address[ETH_ALEN] = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x00 };
 
+/*
+ * netif_receive_skb()
+ *  handle_bridge()
+ *   br_handle_frame() 
+ *    br_handle_frame_finish()
+ *     br_pass_frame_up()
+ */
 static void br_pass_frame_up(struct net_bridge *br, struct sk_buff *skb)
 {
 	struct net_device *indev;
@@ -30,7 +37,7 @@ static void br_pass_frame_up(struct net_bridge *br, struct sk_buff *skb)
 	br->statistics.rx_bytes += skb->len;
 
 	indev = skb->dev;
-	skb->dev = br->dev;
+	skb->dev = br->dev;//网桥真正对应的物理设备赋值到skb->dev上去
 
 	NF_HOOK(PF_BRIDGE, NF_BR_LOCAL_IN, skb, indev, NULL,
 		netif_receive_skb);
@@ -213,7 +220,8 @@ struct sk_buff *br_handle_frame(struct net_bridge_port *p, struct sk_buff *skb)
 	 * 这里调用了br_handle_frame_finish（）
 	 */
 	switch (p->state) {
-	case BR_STATE_FORWARDING:
+	case BR_STATE_FORWARDING: // 端口处于FROWDING状态
+	    //br_should_route_hook == ebt_broute
 		rhook = rcu_dereference(br_should_route_hook);
 		if (rhook != NULL) {
 			if (rhook(skb))
@@ -225,7 +233,7 @@ struct sk_buff *br_handle_frame(struct net_bridge_port *p, struct sk_buff *skb)
 
 		if (!compare_ether_addr(p->br->dev->dev_addr, dest))
 			skb->pkt_type = PACKET_HOST;
-
+        //这里真正网桥的处理
 		NF_HOOK(PF_BRIDGE, NF_BR_PRE_ROUTING, skb, skb->dev, NULL,
 			br_handle_frame_finish);
 		break;

@@ -31,7 +31,9 @@
 /* Path to usermode spanning tree program */
 #define BR_STP_PROG	"/sbin/bridge-stp"
 
+//网桥ID
 typedef struct bridge_id bridge_id;
+//MAC地址
 typedef struct mac_addr mac_addr;
 typedef __u16 port_id;
 
@@ -46,6 +48,7 @@ struct mac_addr
 	unsigned char	addr[6];
 };
 
+//网桥的转发数据库记录，网桥所学到的每个MAC地址都有这样一个记录
 struct net_bridge_fdb_entry
 {
 	struct hlist_node		hlist;
@@ -59,6 +62,7 @@ struct net_bridge_fdb_entry
 	unsigned char			is_static;
 };
 
+//网桥端口
 struct net_bridge_port
 {
 	struct net_bridge		*br;
@@ -85,6 +89,7 @@ struct net_bridge_port
 	struct rcu_head			rcu;
 };
 
+//网桥对象
 struct net_bridge
 {
 	spinlock_t			lock;

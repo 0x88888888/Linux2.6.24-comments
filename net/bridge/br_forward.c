@@ -46,6 +46,10 @@ static inline unsigned packet_length(const struct sk_buff *skb)
  *           __br_forward()
  *            br_forward_finish()
  *             br_dev_queue_push_xmit()
+ *
+ * br_nf_post_routing()
+ *  br_nf_dev_queue_xmit()
+ *   br_dev_queue_push_xmit()
  */
 int br_dev_queue_push_xmit(struct sk_buff *skb)
 {

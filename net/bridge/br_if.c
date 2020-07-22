@@ -127,6 +127,10 @@ static void destroy_nbp_rcu(struct rcu_head *head)
  * processing packets.
  *
  * Protected from multiple admin operations by RTNL mutex
+ *
+ * br_del_bridge()
+ *  del_br()
+ *   del_nbp()
  */
 static void del_nbp(struct net_bridge_port *p)
 {
@@ -143,6 +147,7 @@ static void del_nbp(struct net_bridge_port *p)
 
 	br_ifinfo_notify(RTM_DELLINK, p);
 
+	//删除
 	br_fdb_delete_by_port(br, p, 1);
 
 	list_del_rcu(&p->list);
@@ -155,26 +160,39 @@ static void del_nbp(struct net_bridge_port *p)
 	call_rcu(&p->rcu, destroy_nbp_rcu);
 }
 
-/* called with RTNL */
+/* called with RTNL 
+ *
+ * br_del_bridge()
+ *  del_br()
+ */
 static void del_br(struct net_bridge *br)
 {
 	struct net_bridge_port *p, *n;
 
+    //删除网桥端口
 	list_for_each_entry_safe(p, n, &br->port_list, list) {
 		del_nbp(p);
 	}
 
+    //停止垃圾收集定时器
 	del_timer_sync(&br->gc_timer);
 
 	br_sysfs_delbr(br->dev);
 	unregister_netdevice(br->dev);
 }
 
+/*
+ * sock_ioctl()
+ *  br_ioctl_deviceless_stub()
+ *   br_add_bridge()
+ *    new_bridge_dev()
+ */
 static struct net_device *new_bridge_dev(const char *name)
 {
 	struct net_bridge *br;
 	struct net_device *dev;
 
+    //br_dev_setup初始化网桥的特别数据
 	dev = alloc_netdev(sizeof(struct net_bridge), name,
 			   br_dev_setup);
 
@@ -233,7 +251,12 @@ static int find_portno(struct net_bridge *br)
 	return (index >= BR_MAX_PORTS) ? -EXFULL : index;
 }
 
-/* called with RTNL but without bridge lock */
+/* called with RTNL but without bridge lock 
+ *
+ * add_del_if()
+ *  br_add_if()
+ *   new_nbp()
+ */
 static struct net_bridge_port *new_nbp(struct net_bridge *br,
 				       struct net_device *dev)
 {
@@ -267,11 +290,19 @@ static struct net_bridge_port *new_nbp(struct net_bridge *br,
 	return p;
 }
 
+/*
+ * sock_ioctl()
+ *  br_ioctl_deviceless_stub()
+ *   br_add_bridge()
+ *
+ * 创建网桥
+ */
 int br_add_bridge(const char *name)
 {
 	struct net_device *dev;
 	int ret;
 
+    //分配net_bridge对象
 	dev = new_bridge_dev(name);
 	if (!dev)
 		return -ENOMEM;
@@ -285,6 +316,7 @@ int br_add_bridge(const char *name)
 		}
 	}
 
+	//设备注册到sysfs中去
 	ret = register_netdevice(dev);
 	if (ret)
 		goto out;
@@ -297,6 +329,7 @@ int br_add_bridge(const char *name)
 	return ret;
 }
 
+//删除网桥设备
 int br_del_bridge(const char *name)
 {
 	struct net_device *dev;
@@ -360,12 +393,17 @@ void br_features_recompute(struct net_bridge *br)
 	br->dev->features = features;
 }
 
-/* called with RTNL */
+/* called with RTNL
+ *
+ * add_del_if()
+ *  br_add_if()
+ */
 int br_add_if(struct net_bridge *br, struct net_device *dev)
 {
 	struct net_bridge_port *p;
 	int err = 0;
 
+    //loop设备和ether设备，不是网桥设备
 	if (dev->flags & IFF_LOOPBACK || dev->type != ARPHRD_ETHER)
 		return -EINVAL;
 
@@ -375,6 +413,7 @@ int br_add_if(struct net_bridge *br, struct net_device *dev)
 	if (dev->br_port != NULL)
 		return -EBUSY;
 
+    //被bridge创建 bridge port
 	p = new_nbp(br, dev);
 	if (IS_ERR(p))
 		return PTR_ERR(p);
@@ -383,6 +422,7 @@ int br_add_if(struct net_bridge *br, struct net_device *dev)
 	if (err)
 		goto err0;
 
+    //与bridge port相关的bridge的设备MAC添加到数据库中
 	err = br_fdb_insert(br, p, dev->dev_addr);
 	if (err)
 		goto err1;
@@ -400,9 +440,11 @@ int br_add_if(struct net_bridge *br, struct net_device *dev)
 	br_stp_recalculate_bridge_id(br);
 	br_features_recompute(br);
 
+    //1.dev已经up起来了，2.已经有carrier了,3.br已经up起来了，就可以启动port了
 	if ((dev->flags & IFF_UP) && netif_carrier_ok(dev) &&
 	    (br->dev->flags & IFF_UP))
 		br_stp_enable_port(p);
+	
 	spin_unlock_bh(&br->lock);
 
 	br_ifinfo_notify(RTM_NEWLINK, p);

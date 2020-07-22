@@ -143,6 +143,15 @@ static void br_hold_timer_expired(unsigned long arg)
 	spin_unlock(&p->br->lock);
 }
 
+/*
+ * sock_ioctl()
+ *  br_ioctl_deviceless_stub()
+ *   br_add_bridge()
+ *    new_bridge_dev()
+ *     br_stp_timer_init()
+ *
+ * 初始化网桥的几个定时器，有些定时器可能不会被启动
+ */
 void br_stp_timer_init(struct net_bridge *br)
 {
 	setup_timer(&br->hello_timer, br_hello_timer_expired,

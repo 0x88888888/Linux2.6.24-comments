@@ -42,7 +42,7 @@ int br_dev_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	if (dest[0] & 1)
 		br_flood_deliver(br, skb);
-	else if ((dst = __br_fdb_get(br, dest)) != NULL)
+	else if ((dst = __br_fdb_get(br, dest)) != NULL) //网桥已经学校到这个地址了
 		br_deliver(dst->dst, skb);
 	else
 		br_flood_deliver(br, skb);
@@ -54,8 +54,11 @@ static int br_dev_open(struct net_device *dev)
 {
 	struct net_bridge *br = netdev_priv(dev);
 
+    // 将网桥设备的基本特征初始化为其绑定的真实设备支持的功能
 	br_features_recompute(br);
+	//标记启动数据传输功能了
 	netif_start_queue(dev);
+	//启动网桥设备
 	br_stp_enable_bridge(br);
 
 	return 0;
@@ -155,6 +158,14 @@ static struct ethtool_ops br_ethtool_ops = {
 	.set_tso = br_set_tso,
 };
 
+/*
+ * sock_ioctl()
+ *  br_ioctl_deviceless_stub()
+ *   br_add_bridge()
+ *    new_bridge_dev()
+ *     alloc_netdev_mq(setup == br_dev_setup)
+ *      br_dev_setup()
+ */
 void br_dev_setup(struct net_device *dev)
 {
 	random_ether_addr(dev->dev_addr);

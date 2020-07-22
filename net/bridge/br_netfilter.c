@@ -765,6 +765,10 @@ static unsigned int br_nf_local_out(unsigned int hook, struct sk_buff *skb,
 	return NF_STOLEN;
 }
 
+/*
+ * br_nf_post_routing()
+ *  br_nf_dev_queue_xmit()
+ */
 static int br_nf_dev_queue_xmit(struct sk_buff *skb)
 {
 	if (skb->protocol == htons(ETH_P_IP) &&
@@ -832,6 +836,7 @@ static unsigned int br_nf_post_routing(unsigned int hook, struct sk_buff *skb,
 	if (nf_bridge->netoutdev)
 		realoutdev = nf_bridge->netoutdev;
 #endif
+
 	NF_HOOK(pf, NF_IP_POST_ROUTING, skb, NULL, realoutdev,
 		br_nf_dev_queue_xmit);
 

@@ -415,7 +415,7 @@ struct sk_buff {
 	 * 从二层设备看上层协议，即链路层承载的三层协议类型。典型的包括IP,IPv6和arp。
 	 * 每个协议都有各自的处理函数，因此该域被设备驱动用来通知上层调用哪个协议处理函数。
 	 */
-	__be16          protocol; /* ETH_P_IP, ETH_P_ARP,ETH_P_8021Q,ETH_P_PPP_DISC,ETH_P_PPP_SES */
+	__be16          protocol; /* ETH_P_ALL, ETH_P_IP, ETH_P_ARP,ETH_P_8021Q,ETH_P_PPP_DISC,ETH_P_PPP_SES */
 	
 
     /*

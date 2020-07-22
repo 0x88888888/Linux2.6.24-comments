@@ -141,7 +141,13 @@ void br_become_root_bridge(struct net_bridge *br)
 	}
 }
 
-/* called under bridge lock */
+/* called under bridge lock 
+ *
+ * br_dev_open()
+ *  br_stp_enable_bridge()
+ *   br_config_bpdu_generation()
+ *    br_transmit_config()
+ */
 void br_transmit_config(struct net_bridge_port *p)
 {
 	struct br_config_bpdu bpdu;
@@ -161,7 +167,7 @@ void br_transmit_config(struct net_bridge_port *p)
 	bpdu.root_path_cost = br->root_path_cost;
 	bpdu.bridge_id = br->bridge_id;
 	bpdu.port_id = p->port_id;
-	if (br_is_root_bridge(br))
+	if (br_is_root_bridge(br)) //在拓扑图中是根
 		bpdu.message_age = 0;
 	else {
 		struct net_bridge_port *root
@@ -175,7 +181,8 @@ void br_transmit_config(struct net_bridge_port *p)
 	bpdu.forward_delay = br->forward_delay;
 
 	if (bpdu.message_age < br->max_age) {
-		br_send_config_bpdu(p, &bpdu);
+		
+		br_send_config_bpdu(p, &bpdu); //发送bpdu数据包
 		p->topology_change_ack = 0;
 		p->config_pending = 0;
 		mod_timer(&p->hold_timer,
@@ -313,7 +320,12 @@ void br_topology_change_detection(struct net_bridge *br)
 	br->topology_change_detected = 1;
 }
 
-/* called under bridge lock */
+/* called under bridge lock 
+ *
+ * br_dev_open()
+ *  br_stp_enable_bridge()
+ *   br_config_bpdu_generation()
+ */
 void br_config_bpdu_generation(struct net_bridge *br)
 {
 	struct net_bridge_port *p;
@@ -351,7 +363,10 @@ void br_become_designated_port(struct net_bridge_port *p)
 }
 
 
-/* called under bridge lock */
+/* called under bridge lock 
+ *
+ * 端口p的状态为BR_STATE_BLOCKING
+ */
 static void br_make_blocking(struct net_bridge_port *p)
 {
 	if (p->state != BR_STATE_DISABLED &&
@@ -366,7 +381,9 @@ static void br_make_blocking(struct net_bridge_port *p)
 	}
 }
 
-/* called under bridge lock */
+/* called under bridge lock 
+ * 端口p的状态为BR_STATE_FORWARDING
+ */
 static void br_make_forwarding(struct net_bridge_port *p)
 {
 	if (p->state == BR_STATE_BLOCKING) {

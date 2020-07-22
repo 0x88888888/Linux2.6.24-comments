@@ -319,6 +319,7 @@ static int e1000_request_irq(struct e1000_adapter *adapter)
 		}
 	}
 
+    //设置中断处理函数
 	err = request_irq(adapter->pdev->irq, handler, irq_flags, netdev->name,
 	                  netdev);
 	if (err) {
@@ -516,6 +517,9 @@ e1000_release_manageability(struct e1000_adapter *adapter)
 /**
  * e1000_configure - configure the hardware for RX and TX
  * @adapter = private board structure
+ *
+ * e1000_open()
+ *  e1000_configure()
  **/
 static void e1000_configure(struct e1000_adapter *adapter)
 {
@@ -529,6 +533,7 @@ static void e1000_configure(struct e1000_adapter *adapter)
 
 	e1000_configure_tx(adapter);
 	e1000_setup_rctl(adapter);
+	//
 	e1000_configure_rx(adapter);
 	/* call E1000_DESC_UNUSED which always leaves
 	 * at least 1 descriptor unused to make sure
@@ -1448,7 +1453,10 @@ e1000_open(struct net_device *netdev)
 	/* before we allocate an interrupt, we must be ready to handle it.
 	 * Setting DEBUG_SHIRQ in the kernel makes it fire an interrupt
 	 * as soon as we call pci_request_irq, so we have to setup our
-	 * clean_rx handler before we do so.  */
+	 * clean_rx handler before we do so.  
+	 *
+	 * 设置adapter->clean_rx == e1000_clean_rx_irq
+	 */
 	e1000_configure(adapter);
 
 	err = e1000_request_irq(adapter);
@@ -2031,8 +2039,13 @@ e1000_setup_rctl(struct e1000_adapter *adapter)
  * @adapter: board private structure
  *
  * Configure the Rx unit of the MAC after a reset.
+ *
+ * e1000_open()
+ *  e1000_configure()
+ *   e1000_configure_rx()
+ *
+ * 设置 adapter->clean_rx 和adapter->alloc_rx_buf
  **/
-
 static void
 e1000_configure_rx(struct e1000_adapter *adapter)
 {
@@ -2049,6 +2062,7 @@ e1000_configure_rx(struct e1000_adapter *adapter)
 	} else {
 		rdlen = adapter->rx_ring[0].count *
 			sizeof(struct e1000_rx_desc);
+		
 		adapter->clean_rx = e1000_clean_rx_irq;
 		adapter->alloc_rx_buf = e1000_alloc_rx_buffers;
 	}
@@ -3779,6 +3793,8 @@ e1000_update_stats(struct e1000_adapter *adapter)
  * e1000_intr_msi - Interrupt Handler
  * @irq: interrupt number
  * @data: pointer to a network interface device structure
+ *
+ * 网络中断处理函数
  **/
 
 static irqreturn_t
@@ -3829,6 +3845,7 @@ e1000_intr_msi(int irq, void *data)
 	adapter->total_rx_packets = 0;
 
 	for (i = 0; i < E1000_MAX_INTR; i++)
+		//adapter->clean_rx == e1000_clean_rx_irq
 		if (unlikely(!adapter->clean_rx(adapter, adapter->rx_ring) &
 		   !e1000_clean_tx_irq(adapter, adapter->tx_ring)))
 			break;
@@ -4168,6 +4185,10 @@ e1000_rx_checksum(struct e1000_adapter *adapter,
 
 static boolean_t
 #ifdef CONFIG_E1000_NAPI
+/*
+ * e1000_intr_msi()
+ *  e1000_clean_rx_irq()
+ */
 e1000_clean_rx_irq(struct e1000_adapter *adapter,
                    struct e1000_rx_ring *rx_ring,
                    int *work_done, int work_to_do)
@@ -4286,6 +4307,7 @@ e1000_clean_rx_irq(struct e1000_adapter *adapter,
 				  ((uint32_t)(rx_desc->errors) << 24),
 				  le16_to_cpu(rx_desc->csum), skb);
 
+        //确定下一层的协议类型
 		skb->protocol = eth_type_trans(skb, netdev);
 #ifdef CONFIG_E1000_NAPI
 		if (unlikely(adapter->vlgrp &&
@@ -4294,6 +4316,7 @@ e1000_clean_rx_irq(struct e1000_adapter *adapter,
 						 le16_to_cpu(rx_desc->special) &
 						 E1000_RXD_SPC_VLAN_MASK);
 		} else {
+			//走起
 			netif_receive_skb(skb);
 		}
 #else /* CONFIG_E1000_NAPI */

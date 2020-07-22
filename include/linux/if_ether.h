@@ -37,6 +37,7 @@
 
 /*
  *	These are the defined Ethernet Protocol ID's.
+ * L3层协议的类型
  */
 
 #define ETH_P_LOOP	0x0060		/* Ethernet Loopback packet	*/
@@ -83,6 +84,10 @@
  
 #define ETH_P_802_3	0x0001		/* Dummy type for 802.3 frames  */
 #define ETH_P_AX25	0x0002		/* Dummy protocol id for AX.25  */
+/*
+ * 这不是正真的协议，而是作为处理函数的通配符，如监听所有协议的封包嗅探器
+ *  所有ETH_P_ALL的协议都放在ptype_all中，其余的放在ptype_base中，看代码dev_add_pack
+ */
 #define ETH_P_ALL	0x0003		/* Every packet (be careful!!!) */
 #define ETH_P_802_2	0x0004		/* 802.2 frames 		*/
 #define ETH_P_SNAP	0x0005		/* Internal only		*/
