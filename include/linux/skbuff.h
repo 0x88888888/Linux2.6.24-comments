@@ -344,9 +344,12 @@ struct sk_buff {
 	 * 并只在本层有效,
 	 * 每一层都可以使用
 	 *
-	 * struct ns_skb_cb NS_SKB(skb->cb) , tcp_skb_cb TCP_SKB_SB(skb->cb)
+	 * struct ns_skb_cb   NS_SKB(skb->cb) , 
+	 * tcp_skb_cb         TCP_SKB_SB(skb->cb)
+	 * ipfrag_skb_cb      FRAG_CB(skb->cb)
 	 *
-	 * 存放每一层内部维护所需的私有数据，如tcp_skb_cb
+	 * 存放每一层内部维护所需的私有数据，
+	 * 如tcp_skb_cb, 
 	 */
 	char			cb[48];
 
@@ -358,6 +361,7 @@ struct sk_buff {
 	unsigned int	len,
 	/*
 	 * SG类型和FRAGLIST类型的聚合分散I/O存储区中的数据长度。
+	 * 不包括skb中本身data到tail的长度
 	 */
                     data_len;
 	/*
@@ -986,13 +990,14 @@ static inline int skb_is_nonlinear(const struct sk_buff *skb)
 	return skb->data_len;
 }
 
+//如果skb有skb_shared_info数据，这个函数不计算skb_shared_info中的数据长度
 static inline unsigned int skb_headlen(const struct sk_buff *skb)
 {
 	return skb->len - skb->data_len;
 }
 
 /*
- * 返回skb中的数据缓存的长度，不包括frag_list中的数据长度。
+ * 返回skb中的数据缓存的长度，包括frag_list中的数据长度。
  */
 static inline int skb_pagelen(const struct sk_buff *skb)
 {

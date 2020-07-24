@@ -48,6 +48,11 @@ struct ip_options {
 	/* 
 	 * 记录宽松源路由或者严格源路由选项在IP首部中的偏移量，
 	 * 即选项的第一个字节的地址减去IP首部的第一个字节的地址。
+	 *
+	 * strict source route
+	 *
+	 * 这个srr表示路由ip列表在ip头部偏移量
+	 * 在ip_options_compile中设置
 	 */
 	unsigned char	srr;
 	/*

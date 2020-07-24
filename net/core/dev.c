@@ -2196,7 +2196,7 @@ struct sk_buff *(*br_handle_frame_hook)(struct net_bridge_port *p,
  */
 static inline struct sk_buff *handle_bridge(struct sk_buff *skb,
 					    struct packet_type **pt_prev, int *ret,
-					    struct net_device *orig_dev)
+					    struct net_device *orig_dev /* 已经脱离虚拟设备了，是真实设备 */)
 {
 	struct net_bridge_port *port;
 
@@ -2358,7 +2358,9 @@ int netif_receive_skb(struct sk_buff *skb)
 		skb->iif = skb->dev->ifindex;
 
    
-    /* 如果是bond类型的虚拟设备，要找到真实的设备 */
+    /* 如果是bond类型的虚拟设备，要找到真实的设备
+     * 在handle_bridge()中就传这个orig_dev参数进去了
+     */
 	orig_dev = skb_bond(skb);
 
 	if (!orig_dev)

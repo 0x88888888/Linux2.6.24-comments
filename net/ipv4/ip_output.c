@@ -180,6 +180,11 @@ EXPORT_SYMBOL_GPL(ip_build_and_send_pkt);
  *         ip_finish_output
  *          ip_finish_output2
  *
+ *  dst_output
+ *   ip_output  ip路由转发路径
+ *    ip_finish_output(output == ip_finish_output2)
+ *      ip_fragment() 
+ *       ip_finish_output2()
  *
  * Ip_finish_output2()函数会将skb送到neighboring subsystem，
  * 这个子系统会经过ARP协议获得L3地址（IP地址）对应的L2的地址（MAC地址）。
@@ -250,16 +255,20 @@ static inline int ip_skb_dst_mtu(struct sk_buff *skb)
  *       dst_output
  *        ip_output  ip路由转发路径
  *         ip_finish_output
+ *
+ * ip_mc_output()
+ *  ip_finish_output()
  */
 
 static int ip_finish_output(struct sk_buff *skb)
 {
+
 #if defined(CONFIG_NETFILTER) && defined(CONFIG_XFRM)
 	/* Policy lookup after SNAT yielded a new policy */
     //netfilter和IPSec相关处理, 数据包转换（XFRM）
 	if (skb->dst->xfrm != NULL) {
 		IPCB(skb)->flags |= IPSKB_REROUTED;
-		return dst_output(skb);
+		return dst_output(skb); //加上IPSKB_REROUTED，又回去
 	}
 #endif
      /* 超过mtu了，需要分片 */
@@ -335,13 +344,13 @@ int ip_mc_output(struct sk_buff *skb)
 }
 
 /*
- *  ip_rcv
- *	  ip_rcv_finish
- *      dst_input
- *        ip_forward
- *         ip_forward_finish
- *           dst_output
- *             ip_output  ip路由转发路径
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    ip_forward
+ *     ip_forward_finish
+ *      dst_output
+ *       ip_output  ip路由转发路径
  */
 int ip_output(struct sk_buff *skb)
 {
@@ -353,6 +362,10 @@ int ip_output(struct sk_buff *skb)
 	skb->dev = dev;
 	skb->protocol = htons(ETH_P_IP);
 
+    /*
+     * ip_finish_output或许要给ip数据报fragment或许直接发送出去
+     * 要看数据包有没有大过pmtu了
+     */
 	return NF_HOOK_COND(PF_INET, NF_IP_POST_ROUTING, skb, NULL, dev,
 			    ip_finish_output,
 			    !(IPCB(skb)->flags & IPSKB_REROUTED));
@@ -369,6 +382,9 @@ int ip_output(struct sk_buff *skb)
  *
  * tcp_transmit_skb()
  *  ip_queue_xmit()
+ *
+ * sctp_v4_xmit()
+ *  ip_queue_xmit()
  */
 int ip_queue_xmit(struct sk_buff *skb /* TCP数据报 */, int ipfragok /*待输出的数据报是否已经完成分片*/ )
 {
@@ -380,6 +396,8 @@ int ip_queue_xmit(struct sk_buff *skb /* TCP数据报 */, int ipfragok /*待输�
 
 	/* Skip all of this if the packet is already routed,
 	 * f.e. by something like SCTP.
+	 *
+	 * 路由信息已经缓存在skb->dst上了
 	 */
 	rt = (struct rtable *) skb->dst;
 	if (rt != NULL) /* 已经缓存路由了，直接跳到packet_routed处处理，不需要再查找路由了 */
@@ -394,8 +412,8 @@ int ip_queue_xmit(struct sk_buff *skb /* TCP数据报 */, int ipfragok /*待输�
 
 		/* Use correct destination address if we have options. */
 		daddr = inet->daddr;
-		if(opt && opt->srr)
-			daddr = opt->faddr;
+		if(opt && opt->srr) //有strict source route要求
+			daddr = opt->faddr; //目的地址必须是strict source route列表中的下一跳的地址
 
 		{ //重新查找路由缓存项，如果查找到对应的路由缓存项，则将缓存项输出到传输控制块中，否则丢弃该包
 			struct flowi fl = { .oif = sk->sk_bound_dev_if,
@@ -437,10 +455,12 @@ packet_routed:
 	iph = ip_hdr(skb);
 	*((__be16 *)iph) = htons((4 << 12) | (5 << 8) | (inet->tos & 0xff));
 	iph->tot_len = htons(skb->len);
-	if (ip_dont_fragment(sk, &rt->u.dst) && !ipfragok)
+	
+	if (ip_dont_fragment(sk, &rt->u.dst) && !ipfragok) //不准fragment
 		iph->frag_off = htons(IP_DF);
 	else
 		iph->frag_off = 0;
+	
 	iph->ttl      = ip_select_ttl(inet, &rt->u.dst);
 	iph->protocol = sk->sk_protocol;
 	iph->saddr    = rt->rt_src;
@@ -453,6 +473,7 @@ packet_routed:
 		ip_options_build(skb, opt, inet->daddr, rt, 0);
 	}
 
+    //确定ip包的ID
 	ip_select_ident_more(iph, &rt->u.dst, sk,
 			     (skb_shinfo(skb)->gso_segs ?: 1) - 1);
 
@@ -516,8 +537,12 @@ static void ip_copy_metadata(struct sk_buff *to, struct sk_buff *from)
  *      ip_forward_finish
  *       dst_output
  *        ip_output  ip路由转发路径
- *         ip_finish_output
+ *         ip_finish_output(output == ip_finish_output2)
  *          ip_fragment()
+ *
+ * br_nf_post_routing()
+ *  br_nf_dev_queue_xmit()
+ *   ip_fragment(output == br_dev_queue_push_xmit)
  * ip分片，然后发送出去
  */
 
@@ -531,9 +556,11 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 	unsigned int mtu, hlen, left, len, ll_rs, pad;
 	int offset;
 	__be16 not_last_frag;
+	//路由信息
 	struct rtable *rt = (struct rtable*)skb->dst;
 	int err = 0;
 
+    //出口的设备
 	dev = rt->u.dst.dev;
 
 	/*
@@ -543,9 +570,11 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 
 	iph = ip_hdr(skb);
 
-	/* 禁止分片,发送icmp消息 */
+	/* 禁止分片,得发送icmp消息 */
 	if (unlikely((iph->frag_off & htons(IP_DF)) && !skb->local_df)) {
 		IP_INC_STATS(IPSTATS_MIB_FRAGFAILS);
+
+	    //发送不可分片icmp信息回去
 		icmp_send(skb, ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED,
 			  htonl(ip_skb_dst_mtu(skb)));
 		kfree_skb(skb);
@@ -555,7 +584,7 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 	/*
 	 *	Setup starting values.
 	 */
-    /* 得到IP报文总长度 */
+    /* 得到IP报文头部总长度 */
 	hlen = iph->ihl * 4;
 	/* 这里的mtu为真正的MTU-IP报文头，即允许的最大IP数据长度 */
 	mtu = dst_mtu(&rt->u.dst) - hlen;	/* Size of data space */
@@ -574,14 +603,14 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 	 */
 	if (skb_shinfo(skb)->frag_list) {
 		struct sk_buff *frag;
-		//第一个分片的长度
+		//第一个分片的长度,这个长度包括所有frag和skb中本身数据的长度
 		int first_len = skb_pagelen(skb);
 
         /* 对第一个分片做检测。要进行快速分片，还需要对传输层传递的所有SKB做一些判断 */
 		if (first_len - hlen > mtu || //有分片长度大于MTU
 		    ((first_len - hlen) & 7) || //没有按8字节对齐
 		    (iph->frag_off & htons(IP_MF|IP_OFFSET)) || //IP首部中的MF或片偏移不为说明SKB不是一个完整的ip数据报。
-		    skb_cloned(skb)) //此SKB被克隆
+		    skb_cloned(skb)) //此SKB已经被clone了
 			goto slow_path;
 
         /*
@@ -609,7 +638,8 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 		}
 
 		/* Everything is OK. Generate! 
-		 * 现在可以进行fast path了
+		 * 到此，for循环中的每一个frag都检查过了，
+		 * 可以用fast path发送了
          * 重新设置ip头信息
 		 */
 
@@ -654,16 +684,19 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 				ip_send_check(iph);
 			}
 
-			//发送当前的分片
+			/*
+			 * 发送当前的分片
+			 * output == ip_finish_output2,br_dev_queue_push_xmit
+			*/
 			err = output(skb);
 
 			if (!err)
 				IP_INC_STATS(IPSTATS_MIB_FRAGCREATES);
-			if (err || !frag)
+			if (err || !frag) //出错，前面发出去的也就发出去了，目的机器不能reassemble了
 				break;
 
 			skb = frag;
-			frag = skb->next;
+			frag = skb->next; //下一个fragment
 			skb->next = NULL;
 		}
 
@@ -672,6 +705,7 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 			return 0;
 		}
 
+        //fast path发送完所有的fragments，然后要free掉fragments
 		while (frag) {
 			skb = frag->next;
 			kfree_skb(frag);
@@ -682,7 +716,10 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 	}
 
 slow_path: //慢速分片
+
+    //left为所有有效数据的长度
 	left = skb->len - hlen;		/* Space per frame */
+	//ptr指向有效数据的起始位置(也就是待发送的位置)
 	ptr = raw + hlen;		/* Where to start from */
 
 	/* for bridged IP traffic encapsulated inside f.e. a vlan header,
@@ -696,6 +733,7 @@ slow_path: //慢速分片
 
 	/*
 	 *	Fragment the datagram.
+	 *  对数据进行分片
 	 */
     /* 得到偏移 */ 
 	offset = (ntohs(iph->frag_off) & IP_OFFSET) << 3;
@@ -730,8 +768,10 @@ slow_path: //慢速分片
 		/*
 		 *	Set up data on packet
 		 */
-        /* 复制数据，以及运输层 */
+        /* 复制skb元数据到skb2，也就是根据skb来初始化skb2拉*/
 		ip_copy_metadata(skb2, skb);
+
+		//留出L2层需要的空间
 		skb_reserve(skb2, ll_rs);
 		skb_put(skb2, len + hlen);
 		skb_reset_network_header(skb2);
@@ -742,17 +782,19 @@ slow_path: //慢速分片
 		 *	it might possess
 		 */
 
-		if (skb->sk)
+		if (skb->sk) //设置skb2->sk == skb->sk,说明数据是属于同一个套接字的
 			skb_set_owner_w(skb2, skb->sk);
 
 		/*
 		 *	Copy the packet header into the new buffer.
+		 *  复制数据(从L3层的头部开始)到skb2->head + skb2->network_header处
 		 */
 
 		skb_copy_from_linear_data(skb, skb_network_header(skb2), hlen);
 
 		/*
 		 *	Copy a block of the IP datagram.
+		 *  复制ip层的数据到skb2->head+skb2->transport_header处
 		 */
 		if (skb_copy_bits(skb, ptr, skb_transport_header(skb2), len))
 			BUG();
@@ -761,7 +803,7 @@ slow_path: //慢速分片
 		/*
 		 *	Fill in the new header fields.
 		 */
-		 /* 填充网络层 */
+		 /* 填充ip层头部 */
 		iph = ip_hdr(skb2);
 		iph->frag_off = htons((offset >> 3));
 
@@ -780,8 +822,9 @@ slow_path: //慢速分片
 		 *		   last fragment then keep MF on each bit
 		 */
 		 /* 设置IP_MF标志位 */
-		if (left > 0 || not_last_frag)
+		if (left > 0 || not_last_frag) //还有数据或者不是最后一个frag
 			iph->frag_off |= htons(IP_MF);
+		
 		ptr += len;
 		offset += len;
 
@@ -791,7 +834,9 @@ slow_path: //慢速分片
 		iph->tot_len = htons(len + hlen);
         /* 计算校验和 */
 		ip_send_check(iph);
-        /* 发送该分片 */ 
+        /* 发送该分片 
+         * output == ip_finish_output2,br_dev_queue_push_xmit
+		 */ 
 		err = output(skb2);
 		if (err)
 			goto fail;
@@ -810,6 +855,14 @@ fail:
 
 EXPORT_SYMBOL(ip_fragment);
 
+/*
+ * ip_append_data()
+ *  ip_ufo_append_data()
+ *   skb_append_datato_frags()
+ *    ip_generic_getfrag() 
+ * 
+ * udp,raw ip时，会调用到这里
+ */
 int
 ip_generic_getfrag(void *from, char *to, int offset, int len, int odd, struct sk_buff *skb)
 {
@@ -917,7 +970,7 @@ static inline int ip_ufo_append_data(struct sock *sk,
 		sk->sk_sndmsg_off = 0;
 	}
 
-    /*向skb中添加数据*/
+    /*向skb中添加数据, skb_shinfo(skb)->frags[]*/
 	err = skb_append_datato_frags(sk,skb, getfrag, from,
 			       (length - transhdrlen));
 	if (!err) {
@@ -952,12 +1005,8 @@ static inline int ip_ufo_append_data(struct sock *sk,
  *
  *	LATER: length must be adjusted by pad at tail, when it is required.
  * 
- * 主要用作UDP和Raw socket的输出接口，但TCP中用于发送ACK和RST的函数ip_send_reply()最终也调用了此接口。
- * 主要作用是将数据拷贝到适合的skb(利用发送队列中现有的或新创建)中，可能有两种情况: 放入skb的线性
- * 区(skb->data)中，或者放入skb_shared_info的分片(frag)中，同时还需要考虑MTU对skb数据进行分割，为IP层的分片做准备。
  *
- *
- * 该接口是IP层提供的UDP和RAW Socket的发包接口，同时，TCP中用于发送ACK和RST报文的接口ip_send_reply最终也会调用此接口
+ * 该接口是IP层提供的UDP和RAW Socket的输出数据的接口，同时，TCP中用于发送ACK和RST报文的接口ip_send_reply最终也会调用此接口
  *  该接口的主要作用是：将数据拷贝到适合的skb(利用发送队列中现有的或新创建)中，可能有两种情况:
  *  1）放入skb的线性区(skb->data)中；
  *  2）或者放入skb_shared_info的分片(frag)中（当开启SG特性或使用UFO时，都会用到）
@@ -979,6 +1028,9 @@ static inline int ip_ufo_append_data(struct sock *sk,
  *      inet_sendmsg()
  *       udp_sendmsg()
  *        ip_append_data()
+ *
+ * raw_sendmsg()
+ *  ip_append_data()
  *
  * ip_send_reply()
  *  ip_append_data()
@@ -1011,7 +1063,7 @@ int ip_append_data(struct sock *sk,
 		return 0;
 
     
-	if (skb_queue_empty(&sk->sk_write_queue)) { // 输出队列为空
+	if (skb_queue_empty(&sk->sk_write_queue)) { // 首次写入，输出队列为空
 		/*
 		 * setup for corking.
 		 */
@@ -1090,7 +1142,6 @@ int ip_append_data(struct sock *sk,
 		csummode = CHECKSUM_PARTIAL;
 
 	/*
-	 *
 	 * 增加cork阻塞的长度
 	 */
 	inet->cork.length += length;
@@ -1103,10 +1154,11 @@ int ip_append_data(struct sock *sk,
 			(rt->u.dst.dev->features & NETIF_F_UFO)) {
 
 	  /*
+	   * 分配空间，将数据复制到skb中来
+	   *
 	   * UFO处理，需要满足上述几个条件，主要为:数据长度>mtu +   网卡启用UFO.
 	   * 默认处理是创建新的page，拷贝数据，并将其链入到skb中的分片中(skb_shared_info,SG相关)
 	   */
-
 		err = ip_ufo_append_data(sk, getfrag, from, length, hh_len,
 					 fragheaderlen, transhdrlen, mtu,
 					 flags);
@@ -1694,6 +1746,11 @@ void ip_flush_pending_frames(struct sock *sk)
 
 /*
  *	Fetch data from kernel space and fill in checksum if needed.
+ *
+ * ip_append_data()
+ *  ip_ufo_append_data()
+ *   skb_append_datato_frags() 
+ *    ip_reply_glue_bits()
  */
 static int ip_reply_glue_bits(void *dptr, char *to, int offset,
 			      int len, int odd, struct sk_buff *skb)

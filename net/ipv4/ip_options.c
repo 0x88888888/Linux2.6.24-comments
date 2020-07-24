@@ -321,22 +321,23 @@ void ip_options_fragment(struct sk_buff * skb)
  * 发送时,待解析的IP选项存储在参数opt->__data字段的起始区域中,解析得到的信息会保存到opt中.
  * 接收时,IP选项存储在参数skb的skb->network_header指向的ip首部中，解析得到的信息则会保存在skb->cb[]中. 
  *
- * ip_options_get_finish(opt, NULL) 发送方向
- * ip_rcv_options(NULL, skb)  接受方向
- *  ip_options_compile()
+ * do_ip_setsockopt()
+ *  ip_options_get_from_user()
+ *   ip_options_get_finish()
+ *    ip_options_compile(opt有值的, skb==NULL) 发送方向
+ *
  *
  * ip_rcv
  *  ip_rcv_finish
- *   ip_rcv_options()
+ *   ip_rcv_options(NULL, skb) 接受方向
  *    ip_options_compile(opt == NULL),opt ==NULL时，用skb->cb来存储
  * 
- *
  */
 int ip_options_compile(struct ip_options * opt, struct sk_buff * skb)
 {
 	int l;
-	unsigned char * iph;
-	unsigned char * optptr;
+	unsigned char * iph; //ip头的起始位置
+	unsigned char * optptr; //正在处理ip选项数据的当前的位置
 	int optlen;
 	unsigned char * pp_ptr = NULL;
 	struct rtable *rt = skb ? (struct rtable*)skb->dst : NULL;
@@ -346,7 +347,7 @@ int ip_options_compile(struct ip_options * opt, struct sk_buff * skb)
 		opt = &(IPCB(skb)->opt); //skb->cb装车options类型
 		iph = skb_network_header(skb);
 		opt->optlen = ((struct iphdr *)iph)->ihl*4 - sizeof(struct iphdr);
-		optptr = iph + sizeof(struct iphdr);
+		optptr = iph + sizeof(struct iphdr);//选项跳过正常的iphdr
 		opt->is_data = 0;
 	} else {
 		optptr = opt->is_data ? opt->__data :
@@ -367,6 +368,7 @@ int ip_options_compile(struct ip_options * opt, struct sk_buff * skb)
 				}
 			}
 			goto eol;
+			
 		      case IPOPT_NOOP://空操作符，直接下一个了
 			l--;
 			optptr++;
@@ -425,7 +427,7 @@ int ip_options_compile(struct ip_options * opt, struct sk_buff * skb)
 			}
 			//根据选项类型标识是不是严格路由选项，并记录源路由选项在IP首部中的偏移量
 			opt->is_strictroute = (optptr[0] == IPOPT_SSRR);
-			opt->srr = optptr - iph;
+			opt->srr = optptr - iph;//在iph之后的偏移量
 			break;
 			
 		    case IPOPT_RR: //处理路由记录
@@ -661,6 +663,10 @@ static struct ip_options *ip_options_get_alloc(const int optlen)
 }
 
 /*
+ * do_ip_setsockopt()
+ *  ip_options_get_from_user()
+ *   ip_options_get_finish()
+ *
  * ip_options_get()
  *  ip_options_get_finish()
  */
@@ -668,7 +674,8 @@ static int ip_options_get_finish(struct ip_options **optp,
 				 struct ip_options *opt, int optlen)
 {
 	while (optlen & 3)
-		opt->__data[optlen++] = IPOPT_END;
+		opt->__data[optlen++] = IPOPT_END; //选项数据结束了
+	
 	opt->optlen = optlen;
 	opt->is_data = 1;
 	if (optlen && ip_options_compile(opt, NULL)) {
@@ -680,6 +687,10 @@ static int ip_options_get_finish(struct ip_options **optp,
 	return 0;
 }
 
+/*
+ * do_ip_setsockopt()
+ *  ip_options_get_from_user()
+ */
 int ip_options_get_from_user(struct ip_options **optp, unsigned char __user *data, int optlen)
 {
 	struct ip_options *opt = ip_options_get_alloc(optlen);
@@ -690,6 +701,7 @@ int ip_options_get_from_user(struct ip_options **optp, unsigned char __user *dat
 		kfree(opt);
 		return -EFAULT;
 	}
+	//生成ip头的选项数据
 	return ip_options_get_finish(optp, opt, optlen);
 }
 

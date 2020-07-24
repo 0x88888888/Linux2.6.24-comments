@@ -1661,13 +1661,13 @@ static void ip_handle_martian_source(struct net_device *dev,
 
 /*
  * 设置skb->dst.input = ip_forward
- *
- *	ip_rcv
- *	  ip_rcv_finish
- *		ip_route_input
- *		  ip_route_input_slow
- *			ip_mkroute_input
- *             __mkroute_input
+ *     skb->dst.output = ip_output
+ * ip_rcv
+ *  ip_rcv_finish
+ *	 ip_route_input
+ *	  ip_route_input_slow
+ *	   ip_mkroute_input
+ *      __mkroute_input
  */
 static inline int __mkroute_input(struct sk_buff *skb,
 				  struct fib_result* res,
@@ -1695,6 +1695,7 @@ static inline int __mkroute_input(struct sk_buff *skb,
 
 	err = fib_validate_source(saddr, daddr, tos, FIB_RES_OIF(*res),
 				  in_dev->dev, &spec_dst, &itag);
+	
 	if (err < 0) {
 		ip_handle_martian_source(in_dev->dev, in_dev, skb, daddr,
 					 saddr);
@@ -1736,6 +1737,7 @@ static inline int __mkroute_input(struct sk_buff *skb,
 		rth->u.dst.flags |= DST_NOPOLICY;
 	if (IN_DEV_CONF_GET(out_dev, NOXFRM))
 		rth->u.dst.flags |= DST_NOXFRM;
+	
 	rth->fl.fl4_dst	= daddr;
 	rth->rt_dst	= daddr;
 	rth->fl.fl4_tos	= tos;
@@ -1743,6 +1745,7 @@ static inline int __mkroute_input(struct sk_buff *skb,
 	rth->fl.fl4_src	= saddr;
 	rth->rt_src	= saddr;
 	rth->rt_gateway	= daddr;
+	//网卡id和dev对象
 	rth->rt_iif 	=
 		rth->fl.iif	= in_dev->dev->ifindex;
 	rth->u.dst.dev	= (out_dev)->dev;

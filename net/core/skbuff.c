@@ -1965,6 +1965,7 @@ unsigned int skb_find_text(struct sk_buff *skb, unsigned int from,
  *
  * ip_append_data()
  *  ip_ufo_append_data()
+ *   skb_append_datato_frags()
  *
  * 将用户数据拷贝到skb数据区中，UFO流程调用，
  * 本质是将数据拷贝到skb_shared_info->frag[]对应的非线性区中
@@ -2017,7 +2018,11 @@ int skb_append_datato_frags(struct sock *sk, struct sk_buff *skb,
 		left = PAGE_SIZE - frag->page_offset;
 		copy = (length > left)? left : length;
 
-        /*从用户态拷贝数据到pfrag的page中，实际调用ip_generic_getfrags*/
+        /* 从用户态拷贝数据到pfrag的page中，
+         * 实际 udp和raw ip  调用ip_generic_getfrag，
+         * icmp 调用 icmp_glue_bits
+         * tcp 调用 ip_reply_glue_bits
+         */
 		ret = getfrag(from, (page_address(frag->page) +
 			    frag->page_offset + frag->size),
 			    offset, copy, 0, skb);

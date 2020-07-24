@@ -62,6 +62,8 @@ struct ipfrag_skb_cb
 
 /* Describe an entry in the "incomplete datagrams" queue.
  * 每一个即将被重新组合的ip数据报都用一个ipq对象来表示
+ * 
+ * ipq对象放到inet_frags中
  */
 struct ipq {
 	struct inet_frag_queue q;
@@ -212,6 +214,15 @@ static void ipq_kill(struct ipq *ipq)
 
 /* Memory limiting on fragments.  Evictor trashes the oldest
  * fragment queue until we are back under the threshold.
+ *
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    ip_local_deliver
+ *     ip_defrag()
+ *      ip_evictor()
+ * 
+ * 删除一些fragment，控制内存使用量
  */
 static void ip_evictor(void)
 {

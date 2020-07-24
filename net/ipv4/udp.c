@@ -735,6 +735,7 @@ int udp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 					       { .sport = inet->sport,
 						 .dport = dport } } };
 		security_sk_classify_flow(sk, &fl);
+		//查找路由信息，存到rt中
 		err = ip_route_output_flow(&rt, &fl, sk, 1);
 		if (err) {
 			if (err == -ENETUNREACH)
@@ -819,8 +820,9 @@ do_append_data:
      */	
 	err = ip_append_data(sk, getfrag, msg->msg_iov, ulen,
 			sizeof(struct udphdr), &ipc, rt,
-			corkreq ? msg->msg_flags|MSG_MORE : msg->msg_flags);
-	
+			corkreq ? msg->msg_flags|MSG_MORE /* 如果有MSG_MORE，是不是意味这udp可以将多次发送合并成一次了？ */ : msg->msg_flags);
+
+			
 	if (err)
 		/*出错则清空所有pending的数据帧，并清空pending标记*/
 		udp_flush_pending_frames(sk);

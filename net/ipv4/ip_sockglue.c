@@ -209,6 +209,7 @@ int ip_cmsg_send(struct msghdr *msg, struct ipcm_cookie *ipc)
 		switch (cmsg->cmsg_type) {
 		case IP_RETOPTS:// 解析并生成IP选项信息
 			err = cmsg->cmsg_len - CMSG_ALIGN(sizeof(struct cmsghdr));
+		    //根据cmsg生成ip_options到ipc->opt
 			err = ip_options_get(&ipc->opt, CMSG_DATA(cmsg), err < 40 ? err : 40);
 			if (err)
 				return err;
@@ -506,6 +507,7 @@ static int do_ip_setsockopt(struct sock *sk, int level,
 		struct ip_options * opt = NULL;
 		if (optlen > 40 || optlen < 0)
 			goto e_inval;
+		//生成ip头的选项数据
 		err = ip_options_get_from_user(&opt, optval, optlen);
 		if (err)
 			break;

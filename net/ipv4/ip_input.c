@@ -414,9 +414,11 @@ static int ip_rcv_finish(struct sk_buff *skb)
 	}
 #endif
 
+    //有ip options数据, 去解析options数据到(ip_options)skb->cb[]中
 	if (iph->ihl > 5 && ip_rcv_options(skb))
 		goto drop;
 
+    //到下一跳的路由信息
 	rt = (struct rtable*)skb->dst;
 	if (rt->rt_type == RTN_MULTICAST)
 		IP_INC_STATS_BH(IPSTATS_MIB_INMCASTPKTS);
