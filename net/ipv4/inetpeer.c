@@ -154,6 +154,8 @@ static void unlink_from_unused(struct inet_peer *p)
  * Called with local BH disabled and the pool lock held.
  * _stack is known to be NULL or not at compile time,
  * so compiler will optimize the if (_stack) tests.
+ *
+ * 在peer_root中查找_daddr对应的inet_peer对象
  */
 #define lookup(_daddr,_stack) 					\
 ({								\
@@ -348,9 +350,11 @@ static int cleanup_once(unsigned long ttl)
 
 	/* Remove the first entry from the list of unused nodes. */
 	spin_lock_bh(&inet_peer_unused_lock);
+
+	
 	if (!list_empty(&unused_peers)) {
 		__u32 delta;
-
+        
 		p = list_first_entry(&unused_peers, struct inet_peer, unused);
 		delta = (__u32)jiffies - p->dtime;
 
@@ -385,7 +389,7 @@ static int cleanup_once(unsigned long ttl)
  * ip4_frag_init()
  *  inet_getpeer()
  *
- * rt_bind_peer()
+ * rt_bind_peer( create == 1)
  *  inet_getpeer()
  *
  * tcp_v4_remember_stamp()
@@ -393,6 +397,8 @@ static int cleanup_once(unsigned long ttl)
  *
  * tcp_v4_tw_remember_stamp()
  *  inet_getpeer()
+ *
+ * 这个函数由外部调用，查询daddr对应的inet_peer对象
  */
 struct inet_peer *inet_getpeer(__be32 daddr, int create)
 {
@@ -401,6 +407,8 @@ struct inet_peer *inet_getpeer(__be32 daddr, int create)
 
 	/* Look up for the address quickly. */
 	read_lock_bh(&peer_pool_lock);
+
+	//查找
 	p = lookup(daddr, NULL);
 	if (p != peer_avl_empty)
 		atomic_inc(&p->refcnt);
@@ -416,6 +424,7 @@ struct inet_peer *inet_getpeer(__be32 daddr, int create)
 	if (!create)
 		return NULL;
 
+    //找不到，就要创建了
 	/* Allocate the space outside the locked region. */
 	n = kmem_cache_alloc(peer_cachep, GFP_ATOMIC);
 	if (n == NULL)
@@ -464,12 +473,14 @@ static void peer_check_expire(unsigned long dummy)
 	unsigned long now = jiffies;
 	int ttl;
 
-	if (peer_total >= inet_peer_threshold)
+	if (peer_total >= inet_peer_threshold) //inet_peer对象数量超过阈值
 		ttl = inet_peer_minttl;
 	else
 		ttl = inet_peer_maxttl
 				- (inet_peer_maxttl - inet_peer_minttl) / HZ *
 					peer_total / inet_peer_threshold * HZ;
+
+					
 	while (!cleanup_once(ttl)) {
 		if (jiffies != now)
 			break;

@@ -469,6 +469,7 @@ static int dn_dev_insert_ifa(struct dn_dev *dn_db, struct dn_ifaddr *ifa)
 	dn_db->ifa_list = ifa;
 
 	dn_ifaddr_notify(RTM_NEWADDR, ifa);
+	
 	blocking_notifier_call_chain(&dnaddr_chain, NETDEV_UP, ifa);
 
 	return 0;

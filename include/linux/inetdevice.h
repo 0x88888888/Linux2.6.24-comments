@@ -21,7 +21,7 @@ extern struct ipv4_devconf ipv4_devconf;
 
 /*
  * net_device->ip_ptr指向 这个对象
- * 网络设备所有与ipv4相关的内容。
+ * in_device对象表示网络设备所有与ipv4相关的配置内容。
  */
 struct in_device
 {
@@ -124,12 +124,14 @@ static inline void ipv4_devconf_setall(struct in_device *in_dev)
 
 
 /*
- * in_device中的成员
- *
+ * in_device中的成员，表示一个ip地址配置
+ * in_device->ifa_list
  */
 struct in_ifaddr
 {
+    //网络设备可以有多个ip地址
 	struct in_ifaddr	*ifa_next;
+	//对应的in_device
 	struct in_device	*ifa_dev;
 	struct rcu_head		rcu_head;
 	/*
@@ -143,6 +145,7 @@ struct in_ifaddr
 	__be32			ifa_mask;
 	/* 网络设备的广播地址 */
 	__be32			ifa_broadcast;
+	//选播地址
 	__be32			ifa_anycast;
 
 	/* 寻址范围,见枚举rt_scope_t成员

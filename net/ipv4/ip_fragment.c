@@ -154,6 +154,8 @@ static int ip4_frag_match(struct inet_frag_queue *q, void *a)
 	struct ip4_create_arg *arg = a;
 
 	qp = container_of(q, struct ipq, q);
+
+	//都相等的fragment才是符合这个iph所在的 ip层fragment的
 	return (qp->id == arg->iph->id &&
 			qp->saddr == arg->iph->saddr &&
 			qp->daddr == arg->iph->daddr &&
@@ -269,11 +271,12 @@ out:
 
 /* Find the correct entry in the "incomplete datagrams" queue for
  * this IP datagram, and create new one, if nothing is found.
- * 在ip4_frag中查找可以重组的分片
+ * 
  *
  * ip_defrag()
  *  ip_find()
  *
+ * 查找或者创建与iph对应的ipq对象
  */
 static inline struct ipq *ip_find(struct iphdr *iph, u32 user)
 {
@@ -284,10 +287,14 @@ static inline struct ipq *ip_find(struct iphdr *iph, u32 user)
 	arg.iph = iph;
 	arg.user = user;
     /* 
-    对于IP分片来说，使用IP头部信息中的identifier，源地址，目的地址，以及协议来计算hash值。一般来说，这     四个值基本上可以保证了IP分片的队列信息的唯一性。不过由于NAT设备的使用，就有可能将不同的分片队列混在     一起。在计算hash值上，还使用ip4_frags.rnd这一随机值。
+     * 对于IP分片来说，使用IP头部信息中的identifier，源地址，目的地址，以及协议来计算hash值。
+     * 一般来说，这     四个值基本上可以保证了IP分片的队列信息的唯一性。
+     * 不过由于NAT设备的使用，就有可能将不同的分片队列混在     一起。
+     * 在计算hash值上，还使用ip4_frags.rnd这一随机值。
     */	
 	hash = ipqhashfn(iph->id, iph->saddr, iph->daddr, iph->protocol);
 
+	//调用ip2_frags->match() 去查找ipq
 	q = inet_frag_find(&ip4_frags, &arg, hash);
 	if (q == NULL)
 		goto out_nomem;
@@ -382,7 +389,8 @@ static int ip_frag_queue(struct ipq *qp, struct sk_buff *skb)
 	if (qp->q.last_in & COMPLETE)
 		goto err;
 	/*
-	1. IPCB(skb)->flags只有在本机发送IPv4分片时被置位，那么这里的检查应该是预防收到本机自己发出的IP分	   片。
+	1. IPCB(skb)->flags只有在本机发送IPv4 fragments时被置位(在ip_fragment中置位)，
+	   那么这里的检查应该是预防收到本机自己发出的IP分	   片。
 	2. 关于ip_frag_too_far：该函数主要保证了来自同一个peer（相同的源地址）不会占用过多的IP分片队列。感觉，这个主要是为了防止攻击。不过如果中间设备有NAT的话，这个默认限制太小了。
 	不过有NAT设备的情况下，IPv4的分片也会有其它的问题。以后也许会谈谈这个问题。
 	3. 前面两个条件为真时，调用ip_frag_reinit，重新初始化该队列。出错，那么只好kill掉这个队列了。
@@ -403,13 +411,13 @@ static int ip_frag_queue(struct ipq *qp, struct sk_buff *skb)
 	ihl = ip_hdrlen(skb);
 
 	/* Determine the position of this fragment. */
-	/* 得到IP报文总的长度或者说末端 */
+	/* 该fragment的结束位置 */
 	end = offset + skb->len - ihl;
 	err = -EINVAL;
 
 	/* Is this the final fragment? */
-	if ((flags & IP_MF) == 0) {
-		/* 这是最后一个分片 */
+	if ((flags & IP_MF) == 0) { /* 这是最后一个fragment了 */
+		
 		/* If we already have some bits beyond end
 		 * or have different end, the segment is corrrupted.
 		 */
@@ -432,6 +440,7 @@ static int ip_frag_queue(struct ipq *qp, struct sk_buff *skb)
 			if (skb->ip_summed != CHECKSUM_UNNECESSARY)
 				skb->ip_summed = CHECKSUM_NONE;
 		}
+		
 		if (end > qp->q.len) {
 			/* 这次判断的末尾超过了之前的获得长度 */
 			/* Some bits beyond end -> corruption. */
@@ -466,6 +475,7 @@ static int ip_frag_queue(struct ipq *qp, struct sk_buff *skb)
 	 * 
 	 */
 	prev = NULL;
+	//找到skb代表的fragment该插入的位置
 	for (next = qp->q.fragments; next != NULL; next = next->next) {
 		if (FRAG_CB(next)->offset >= offset)
 			break;	/* bingo! */
@@ -481,11 +491,13 @@ static int ip_frag_queue(struct ipq *qp, struct sk_buff *skb)
 	if (prev) {
 		int i = (FRAG_CB(prev)->offset + prev->len) - offset;
 
-		if (i > 0) {
-			offset += i;
+		if (i > 0) { //说明prev包含了一部分要插入的sk_buff的数据了
+			offset += i; //sk_buff跳过重叠的部分
 			err = -EINVAL;
+		
 			if (end <= offset)
 				goto err;
+			
 			err = -ENOMEM;
 			if (!pskb_pull(skb, i))
 				goto err;
@@ -496,6 +508,7 @@ static int ip_frag_queue(struct ipq *qp, struct sk_buff *skb)
 
 	err = -ENOMEM;
 
+    //列表中逐个去处理重叠
 	while (next && FRAG_CB(next)->offset < end) {
 		/* 与已有的后面的IP分片重叠，这里使用while循环，是因为可能与多个重叠 */
 		int i = end - FRAG_CB(next)->offset; /* overlap is 'i' bytes */
@@ -549,7 +562,7 @@ static int ip_frag_queue(struct ipq *qp, struct sk_buff *skb)
 		skb->dev = NULL;
 	}
 	qp->q.stamp = skb->tstamp;
-	qp->q.meat += skb->len;
+	qp->q.meat += skb->len; //记录下收到分片总数据量的值
 	atomic_add(skb->truesize, &ip4_frags.mem);
 	
 	/* 偏移为0，说明是第一个分片 */	
@@ -557,8 +570,9 @@ static int ip_frag_queue(struct ipq *qp, struct sk_buff *skb)
 		qp->q.last_in |= FIRST_IN;
 
     /* 
-    如果已经收到了第一个分片和最后一个分片，且收到的IP分片的长度也等于了原始的IP长度。
-    那么说明一切就绪，可以重组IP分片了。
+     * 如果已经收到了第一个分片和最后一个分片，
+     * 且收到的IP分片的长度也等于了原始的IP长度。
+     * 那么说明一切就绪，可以重组IP分片了。
     */
 	if (qp->q.last_in == (FIRST_IN | LAST_IN) && qp->q.meat == qp->q.len)
 		return ip_frag_reasm(qp, prev, dev); //重组
@@ -587,6 +601,7 @@ static int ip_frag_reasm(struct ipq *qp, struct sk_buff *prev,
 			 struct net_device *dev)
 {
 	struct iphdr *iph;
+	
 	struct sk_buff *fp, *head = qp->q.fragments;
 	int len;
 	int ihlen;
@@ -733,9 +748,9 @@ int ip_defrag(struct sk_buff *skb, u32 user)
 	IP_INC_STATS_BH(IPSTATS_MIB_REASMREQDS);
 
 	/* Start by cleaning up the memory. 
-	*
-    IP分片占用的内存已经超过了设定的最高阀值，需要回收内存。
-    这个是必不可少的。因为所以的未重组的IP分片都保存在内存中。	
+	 *
+     * IP分片占用的内存已经超过了设定的最高阀值，需要回收内存。
+     * 这个是必不可少的。因为所以的未重组的IP分片都保存在内存中。	
 	 */
 	if (atomic_read(&ip4_frags.mem) > ip4_frags_ctl.high_thresh)
 		ip_evictor();
@@ -750,7 +765,7 @@ int ip_defrag(struct sk_buff *skb, u32 user)
 		spin_lock(&qp->q.lock);
 
 		/* 判断是否所有的分片都到了，如果都到了，就重组完成了
-         * 如果分片没有都到达,就在qp中排队
+         * skb会插入到qp中，或者完成重组
 		*/
 		ret = ip_frag_queue(qp, skb);
 

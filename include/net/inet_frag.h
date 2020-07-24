@@ -51,6 +51,9 @@ struct inet_frags_ctl {
 	int secret_interval;
 };
 
+/*
+ * 全局只有一个ip4_frags 对象
+ */
 struct inet_frags {
 	struct list_head	lru_list;
 	struct hlist_head	hash[INETFRAGS_HASHSZ];
@@ -58,7 +61,11 @@ struct inet_frags {
 	u32			rnd;
 	int			nqueues;
 	int			qsize;
+	//系统中所有ip 分片使用掉的内存数量
 	atomic_t		mem;
+	/*
+	 * 这个timer_list对象用于重建hash表
+	 */
 	struct timer_list	secret_timer;
 	struct inet_frags_ctl	*ctl;
 

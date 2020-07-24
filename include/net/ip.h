@@ -232,6 +232,9 @@ int ip_dont_fragment(struct sock *sk, struct dst_entry *dst)
 
 extern void __ip_select_ident(struct iphdr *iph, struct dst_entry *dst, int more);
 
+/*
+ *
+ */
 static inline void ip_select_ident(struct iphdr *iph, struct dst_entry *dst, struct sock *sk)
 {
 	if (iph->frag_off & htons(IP_DF)) {
@@ -246,9 +249,17 @@ static inline void ip_select_ident(struct iphdr *iph, struct dst_entry *dst, str
 		__ip_select_ident(iph, dst, 0);
 }
 
+/*
+ * tcp_transmit_skb()
+ *  ip_queue_xmit()
+ *   ip_select_ident_more()
+ *
+ * 这个函数有tcp ,sctp协议调用
+ */
 static inline void ip_select_ident_more(struct iphdr *iph, struct dst_entry *dst, struct sock *sk, int more)
 {
 	if (iph->frag_off & htons(IP_DF)) {
+		
 		if (sk && inet_sk(sk)->daddr) {
 			iph->id = htons(inet_sk(sk)->id);
 			inet_sk(sk)->id += 1 + more;

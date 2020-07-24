@@ -157,6 +157,7 @@ static struct in_device *inetdev_init(struct net_device *dev)
 
 	ASSERT_RTNL();
 
+    //分配一个in_device对象，用于存储ipv2相关的配置信息
 	in_dev = kzalloc(sizeof(*in_dev), GFP_KERNEL);
 	
 	if (!in_dev)
@@ -165,7 +166,7 @@ static struct in_device *inetdev_init(struct net_device *dev)
 	/* 复制默认的ipv4配置 */
 	memcpy(&in_dev->cnf, &ipv4_devconf_dflt, sizeof(in_dev->cnf));
 	in_dev->cnf.sysctl = NULL;
-	in_dev->dev = dev;
+	in_dev->dev = dev; //对应的设备对象
 
 	/* 
 	 * 为ip配置块分配邻居协议参数配置块,并根据ARP初始化
@@ -209,6 +210,7 @@ static void in_dev_rcu_put(struct rcu_head *head)
 {
 	struct in_device *idev = container_of(head, struct in_device, rcu_head);
 	in_dev_put(idev);
+	 
 }
 
 static void inetdev_destroy(struct in_device *in_dev)
@@ -357,6 +359,9 @@ static void inet_del_ifa(struct in_device *in_dev, struct in_ifaddr **ifap,
 
 /*
  * inet_insert_ifa()
+ *  __inet_insert_ifa()
+ *
+ * inet_rtm_newaddr()
  *  __inet_insert_ifa()
  */
 static int __inet_insert_ifa(struct in_ifaddr *ifa, struct nlmsghdr *nlh,

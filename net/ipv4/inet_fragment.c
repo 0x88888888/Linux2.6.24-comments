@@ -98,6 +98,10 @@ static inline void fq_unlink(struct inet_frag_queue *fq, struct inet_frags *f)
 	write_unlock(&f->lock);
 }
 
+/*
+ * ipq_kill()
+ *  inet_frag_kill()
+ */
 void inet_frag_kill(struct inet_frag_queue *fq, struct inet_frags *f)
 {
 	if (del_timer(&fq->timer))
@@ -285,10 +289,12 @@ static struct inet_frag_queue *inet_frag_create(struct inet_frags *f,
 {
 	struct inet_frag_queue *q;
 
+    //分配一个inet_frag_queue对象，启动对应的timer
 	q = inet_frag_alloc(f, arg);
 	if (q == NULL)
 		return NULL;
 
+	//将q放入到f->hash[hash]中去
 	return inet_frag_intern(q, f, hash, arg);
 }
 
@@ -304,6 +310,7 @@ struct inet_frag_queue *inet_frag_find(struct inet_frags *f, void *key,
 	struct hlist_node *n;
 
 	read_lock(&f->lock);
+	//遍历f->hash[hash]中的所有inet_frag_queue 对象
 	hlist_for_each_entry(q, n, &f->hash[hash], list) {
 		/* 匹配函数返回true，则表示为正确的分片队列  */
 		if (f->match(q, key)) { //函数ip4_frag_match
@@ -314,7 +321,7 @@ struct inet_frag_queue *inet_frag_find(struct inet_frags *f, void *key,
 	}
 	read_unlock(&f->lock);
 	/* 
-	没有找到正确的IP分片队列，需要重新创建一个新的IP分片队列。
+	没有找到正确的IP分片队列(ipq对象)，需要重新创建一个新的IP分片队列。
 	这个函数很简单，申请一个新的队列节点，计算其hash值，并将其添加到hash表中。
 	*/
 	return inet_frag_create(f, key, hash);

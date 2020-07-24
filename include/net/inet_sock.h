@@ -181,15 +181,20 @@ struct inet_sock {
 	struct ip_mc_socklist	*mc_list;
 	
 
+	//用于处理UDP_CORK,TCP_CORK选项
 	struct {
+	    //仅ip4使用,IPCORK_OPT，意味着opt中有选项
 		unsigned int		flags;
+		//产生的数据片段的尺寸
 		unsigned int		fragsize;
+		//要用的IP选项
 		struct ip_options	*opt;
+		
 		struct rtable		*rt;
 		int			length; /* Total length of all frames */
 		__be32			addr;
 		struct flowi		fl;
-	} cork;
+	} cork; 
 	/*
 	 * 看 http://blog.chinaunix.net/uid-23629988-id-186822.html
 	 * cork在四个文件中被使用，分别是ip6_output.c，ip_output.c，raw.c，和udp.c

@@ -150,6 +150,8 @@ int ip_build_and_send_pkt(struct sk_buff *skb, struct sock *sk,
 	iph->saddr    = rt->rt_src;
 	iph->protocol = sk->sk_protocol;
 	iph->tot_len  = htons(skb->len);
+
+	//确定ip部分的id
 	ip_select_ident(iph, &rt->u.dst, sk);
 
     // 构建IP选项数据
@@ -1694,6 +1696,7 @@ int ip_push_pending_frames(struct sock *sk)
 	iph->tos = inet->tos;
 	iph->tot_len = htons(skb->len);
 	iph->frag_off = df;
+	//确定ip头部的ID
 	ip_select_ident(iph, &rt->u.dst, sk);
 	iph->ttl = ttl;
 	iph->protocol = sk->sk_protocol;

@@ -979,6 +979,11 @@ restart:
 	return 0;
 }
 
+/*
+ * ip_select_ident_more()
+ *  __ip_select_ident()
+ *   rt_bind_peer(, create == 1)
+ */
 void rt_bind_peer(struct rtable *rt, int create)
 {
 	static DEFINE_SPINLOCK(rt_peer_lock);
@@ -1002,6 +1007,10 @@ void rt_bind_peer(struct rtable *rt, int create)
  * Random ID selection looks a bit dangerous because we have no chances to
  * select ID being unique in a reasonable period of time.
  * But broken packet identifier may be better than no packet at all.
+ *
+ * ip_select_ident_more()
+ *  __ip_select_ident()
+ *   ip_select_fb_ident()
  */
 static void ip_select_fb_ident(struct iphdr *iph)
 {
@@ -1016,6 +1025,10 @@ static void ip_select_fb_ident(struct iphdr *iph)
 	spin_unlock_bh(&ip_fb_id_lock);
 }
 
+/*
+ * ip_select_ident_more()
+ *  __ip_select_ident()
+ */
 void __ip_select_ident(struct iphdr *iph, struct dst_entry *dst, int more)
 {
 	struct rtable *rt = (struct rtable *) dst;
