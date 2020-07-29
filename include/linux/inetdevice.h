@@ -53,6 +53,7 @@ struct in_device
 	struct timer_list	mr_ifc_timer;	/* interface change timer */
  
 	struct neigh_parms	*arp_parms;
+	
 	struct ipv4_devconf	cnf;
 	struct rcu_head		rcu_head;
 };
@@ -140,6 +141,7 @@ struct in_ifaddr
 	 * 2.如果是点对点,则ifa_address存储点对点对端的ip地址，而ifa_local存储本地的ip地址
 	 */
 	__be32			ifa_local;
+	//ip地址
 	__be32			ifa_address;
 	/* 子网掩码 */
 	__be32			ifa_mask;
@@ -149,9 +151,17 @@ struct in_ifaddr
 	__be32			ifa_anycast;
 
 	/* 寻址范围,见枚举rt_scope_t成员
-	 *
+	 * RT_SCOPE_UNIVERSE,
+	 * RT_SCOPE_SITE,
+	 * RT_SCOPE_LINK,
+	 * RT_SCOPE_HOST,
+	 * RT_SCOPE_NOWHERE
 	 */
 	unsigned char		ifa_scope;
+	/*
+	 * IFA_F_SECONDARY,
+	 * IFA_F_PERMANENT
+	 */
 	unsigned char		ifa_flags;
 	/*
 	 * 子网掩码长度
@@ -176,6 +186,8 @@ extern void		inet_forward_change(void);
 /*
  * inet_addr_onlink()
  *  inet_ifa_match()
+ *
+ * 判读addr所处的网段是否为ifa结构中地址的一个子网
  */
 static __inline__ int inet_ifa_match(__be32 addr, struct in_ifaddr *ifa)
 {

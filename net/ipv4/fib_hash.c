@@ -48,16 +48,21 @@
 static struct kmem_cache *fn_hash_kmem __read_mostly;
 static struct kmem_cache *fn_alias_kmem __read_mostly;
 
+/*
+ * 一条路由表项
+ * 表示一个唯一的子网
+ */
 struct fib_node {
 	struct hlist_node	fn_hash;
 	struct list_head	fn_alias;
+	//
 	__be32			fn_key;
 };
 
 /*
  * fn_hash中的成员
- * 每个fn_zone管理着相同地址前缀的路由表项.
- *
+ * 每个fn_zone管理着相同地址前缀(子网掩码)的一组路由.
+ * 因为子网掩码占用32位，因而每个路由表有33个zone。
  */
 struct fn_zone {
     /* 指向下一个struct fn_zone结构体 */
@@ -840,6 +845,9 @@ struct fib_table * __init fib_hash_init(u32 id)
 /* ------------------------------------------------------------------------ */
 #ifdef CONFIG_PROC_FS
 
+/*
+ * 遍历fib_table时用的
+ */
 struct fib_iter_state {
 	struct fn_zone	*zone;
 	int		bucket;

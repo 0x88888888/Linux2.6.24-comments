@@ -62,12 +62,12 @@ struct dst_entry
 	unsigned long		rate_last;	 /* 为ICMP提供的速率控制, rate limiting for ICMP */
 	unsigned long		rate_tokens; /* 令牌速率控制 */
 
-	struct neighbour	*neighbour; // neighbour子系统指针
+	struct neighbour	*neighbour; // 对应的neighbour子系统指针
 	struct hh_cache		*hh;        // nieghbour子系统的指针
 	struct xfrm_state	*xfrm;      // XFRM规则状态
 
-	int			(*input)(struct sk_buff*); // ip_forward,ip_local_deliver
-	int			(*output)(struct sk_buff*); // ip_output, ip_rt_bug,ip_mc_output(在ip_mc_output中设置)
+	int			(*input)(struct sk_buff*); // ip_forward,ip_local_deliver,ip_error,ip_mr_input, dst_discard
+	int			(*output)(struct sk_buff*); // ip_output, ip_rt_bug,ip_mc_output(在ip_mc_output中设置), dst_discard
 
 #ifdef CONFIG_NET_CLS_ROUTE
 	__u32			tclassid;       // 分类号
@@ -88,6 +88,9 @@ struct dst_entry
 };
 
 
+/*
+ * 向三层协议同志特定的事件，比如链路失效，每个三层协议都有这么一组函数
+ */
 struct dst_ops
 {
 	unsigned short		family;
@@ -205,6 +208,7 @@ static inline void dst_rcu_free(struct rcu_head *head)
 	dst_free(dst);
 }
 
+//更新dst对应的邻居dst->neighbour->confirmed时间
 static inline void dst_confirm(struct dst_entry *dst)
 {
 	if (dst)
@@ -243,6 +247,15 @@ static inline void dst_set_expires(struct dst_entry *dst, int timeout)
  *		 ip_forward
  *         ip_forward_finish
  *           dst_output
+ *
+ * tcp_transmit_skb()
+ *  ip_queue_xmit()
+ *   dst_output()
+ *
+ *  udp_sendmsg()
+ *   udp_push_pending_frames()
+ *    ip_push_pending_frames()
+ *     dst_output()
  *
  * igmp和raw ip都直接使用这个函数
  */

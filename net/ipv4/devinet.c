@@ -252,6 +252,8 @@ static void inetdev_destroy(struct in_device *in_dev)
 int inet_addr_onlink(struct in_device *in_dev, __be32 a, __be32 b)
 {
 	rcu_read_lock();
+
+	//遍历ip地址
 	for_primary_ifa(in_dev) {
 		
 		if (inet_ifa_match(a, ifa)) {
@@ -358,11 +360,13 @@ static void inet_del_ifa(struct in_device *in_dev, struct in_ifaddr **ifap,
 }
 
 /*
- * inet_insert_ifa()
- *  __inet_insert_ifa()
  *
  * inet_rtm_newaddr()
  *  __inet_insert_ifa()
+ *
+ * inetdev_event()
+ *  inet_insert_ifa()
+ *   __inet_insert_ifa()
  */
 static int __inet_insert_ifa(struct in_ifaddr *ifa, struct nlmsghdr *nlh,
 			     u32 pid)
@@ -380,6 +384,7 @@ static int __inet_insert_ifa(struct in_ifaddr *ifa, struct nlmsghdr *nlh,
 	ifa->ifa_flags &= ~IFA_F_SECONDARY;
 	last_primary = &in_dev->ifa_list;
 
+    //遍历设备上所有的ip地址，不能与ifa重复
 	for (ifap = &in_dev->ifa_list; (ifa1 = *ifap) != NULL;
 	     ifap = &ifa1->ifa_next) {
 		if (!(ifa1->ifa_flags & IFA_F_SECONDARY) &&
@@ -404,6 +409,7 @@ static int __inet_insert_ifa(struct in_ifaddr *ifa, struct nlmsghdr *nlh,
 		ifap = last_primary;
 	}
 
+    //插入到链表
 	ifa->ifa_next = *ifap;
 	*ifap = ifa;
 
@@ -424,6 +430,9 @@ static int __inet_insert_ifa(struct in_ifaddr *ifa, struct nlmsghdr *nlh,
 /*
  * 添加ip地址。通常是在设置广播地址、点对点地址和掩码地址时
  * 先调用inet_del_ifa,然后再调用inet_insert_ifa来设置
+ *
+ * inetdev_event()
+ *  inet_insert_ifa()
  */
 static int inet_insert_ifa(struct in_ifaddr *ifa)
 {
@@ -1135,8 +1144,11 @@ static int inetdev_event(struct notifier_block *this, unsigned long event,
 			 void *ptr)
 {
 	struct net_device *dev = ptr;
+	//从dev->ip_ptr中获取
 	struct in_device *in_dev = __in_dev_get_rtnl(dev);
 
+
+	//只能是这个命名空间？
 	if (dev->nd_net != &init_net)
 		return NOTIFY_DONE;
 
@@ -1160,9 +1172,10 @@ static int inetdev_event(struct notifier_block *this, unsigned long event,
 		printk(KERN_DEBUG "inetdev_event: bug\n");
 		dev->ip_ptr = NULL;
 		break;
-	case NETDEV_UP:
+	case NETDEV_UP: //启动dev
 		if (dev->mtu < 68)
-			break;
+			break; //mtu不能这么小
+		
 		if (dev->flags & IFF_LOOPBACK) {
 			struct in_ifaddr *ifa;
 			if ((ifa = inet_alloc_ifa()) != NULL) {
@@ -1179,10 +1192,10 @@ static int inetdev_event(struct notifier_block *this, unsigned long event,
 		}
 		ip_mc_up(in_dev);
 		break;
-	case NETDEV_DOWN:
+	case NETDEV_DOWN: //关闭设备
 		ip_mc_down(in_dev);
 		break;
-	case NETDEV_CHANGEMTU:
+	case NETDEV_CHANGEMTU: //修改mtu，没有任何代码，什么意思？
 		if (dev->mtu >= 68)
 			break;
 		/* MTU falled under 68, disable IP */
@@ -1417,6 +1430,10 @@ static int devinet_conf_sysctl(ctl_table *table, int __user *name, int nlen,
 	return 1;
 }
 
+/*
+ * devinet_sysctl_forward()
+ *  inet_forward_change()
+ */
 void inet_forward_change(void)
 {
 	struct net_device *dev;

@@ -573,6 +573,9 @@ struct timewait_sock_ops;
  * socket layer -> transport layer interface
  * transport -> network interface is defined by struct inet_proto(应该是net_protocol)
  *
+ * 在inet_init中调用 proto_register添加tcp_prot,udp_prot,raw_prot
+ * 到这个链表proto_list中来
+ *
  * socket层转到L4层使用
  *
  *

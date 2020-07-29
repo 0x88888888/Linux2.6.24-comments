@@ -1033,7 +1033,15 @@ nla_put_failure:
    - local address disappeared -> we must delete all the entries
      referring to it.
    - device went down -> we must shutdown all nexthops going via it.
- */
+ *
+ * 设备关掉了，路由项也要随之停用
+ *
+ * fib_del_ifaddr()
+ *  fib_sync_down( force ==0)
+ *
+ * 参数force==0时，就删除所有合法的表项，除了本地配置地址的表项(scope== RT_SCOPE_HOST)
+ *     force==1或者2时, 删除所有的合法表项，不管路由的scope
+ */    
 
 int fib_sync_down(__be32 local, struct net_device *dev, int force)
 {
@@ -1060,6 +1068,7 @@ int fib_sync_down(__be32 local, struct net_device *dev, int force)
 	if (dev) {
 		struct fib_info *prev_fi = NULL;
 		unsigned int hash = fib_devindex_hashfn(dev->ifindex);
+	    //设备对应的路由项链表
 		struct hlist_head *head = &fib_info_devhash[hash];
 		struct hlist_node *node;
 		struct fib_nh *nh;
@@ -1078,7 +1087,7 @@ int fib_sync_down(__be32 local, struct net_device *dev, int force)
 					dead++;
 				else if (nh->nh_dev == dev &&
 					 nh->nh_scope != scope) {
-					nh->nh_flags |= RTNH_F_DEAD;
+					nh->nh_flags |= RTNH_F_DEAD; //标记为dead了，最后有fib_flush来删除
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
 					spin_lock_bh(&fib_multipath_lock);
 					fi->fib_power -= nh->nh_power;

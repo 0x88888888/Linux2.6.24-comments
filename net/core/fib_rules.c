@@ -657,6 +657,13 @@ static struct notifier_block fib_rules_notifier = {
 	.notifier_call = fib_rules_event,
 };
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     fib_rules_init()
+ */
 static int __init fib_rules_init(void)
 {
 	rtnl_register(PF_UNSPEC, RTM_NEWRULE, fib_nl_newrule, NULL);

@@ -34,6 +34,10 @@
 
 /* This is used to register protocols. 
  *
+ * L3层协议到 L4层协议传递时用的这个结构
+ * 内核中所有的net_protocol通过inet_add_protocol()添加到inet_protos[]中
+ *
+ *
  * ip层转到4层的时候会用到
  *
  * 定义支持的传输层协议以及传输层报文接受函数
@@ -41,11 +45,14 @@
  * 
  * 在ip_local_deliver_finish 用 net_protocol->handler 分派
  *
- * icmp_protocol,udp_protocol,tcp_protocol,igmp_protocol 分别注册到inet_protos
+ * icmp_protocol,
+ * udp_protocol,tcp_protocol,
+ * igmp_protocol 在inet_init()分别注册到inet_protos
  */
 struct net_protocol {
     /* tcp_v4_rcv(),udp_rcv(),igmp_rcv(),icmp_rcv() */
 	int			(*handler)(struct sk_buff *skb);
+	
 	/* 在icmp模块中接受到差错报文后，会解析差错报文，并根据差错报文中原始的IP首部，
 	 * 调用对应传输层的异常处理函数err_handler.
 	 * tcp_v4_err, udp_err.
@@ -60,7 +67,8 @@ struct net_protocol {
 	struct sk_buff	       *(*gso_segment)(struct sk_buff *skb,
 					       int features);
 	/*
-	 * 标识在路由是是否进行策略路由，TCP,UDP默认不进行策略路由。
+	 * 用于免于IPSec策略检测，
+	 * 为1的时候就是免于IPSec策略检测，
 	 */
 	int			no_policy;
 };

@@ -319,6 +319,7 @@ int sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 	 */
 	skb_len = skb->len;
 
+    //将skb添加都sock中，应用层可以接受这些sk_buff中的数据
 	skb_queue_tail(&sk->sk_receive_queue, skb);
 
 	if (!sock_flag(sk, SOCK_DEAD)) //唤醒等待的进程
@@ -1941,6 +1942,11 @@ void sk_common_release(struct sock *sk)
 EXPORT_SYMBOL(sk_common_release);
 
 static DEFINE_RWLOCK(proto_list_lock);
+
+/*
+ * 在inet_init中调用 添加tcp_prot,udp_prot,raw_prot
+ * 到这个链表中来
+ */
 static LIST_HEAD(proto_list);
 
 #ifdef CONFIG_SMP

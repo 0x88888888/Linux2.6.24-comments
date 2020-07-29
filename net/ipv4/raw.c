@@ -120,6 +120,7 @@ struct sock *__raw_v4_lookup(struct sock *sk, unsigned short num,
 	sk_for_each_from(sk, node) {
 		struct inet_sock *inet = inet_sk(sk);
 
+		//找到
 		if (inet->num == num 					&&
 		    !(inet->daddr && inet->daddr != raddr) 		&&
 		    !(inet->rcv_saddr && inet->rcv_saddr != laddr)	&&
@@ -197,13 +198,14 @@ int raw_v4_input(struct sk_buff *skb, struct iphdr *iph, int hash)
 		 int err = setsockopt( sock, SOL_RAW, ICMP_FILTER, &filter, sizeof(structicmp_filter) );
 	     */
 		if (iph->protocol != IPPROTO_ICMP || !icmp_filter(sk, skb)) {
-			//克隆一个数据包交给raw_rcv函数继续接收，原始数据包继续走协议栈
+			//每次都clone一个sk_buff对象交给raw_rcv函数继续接收，原始数据包继续走协议栈
 			struct sk_buff *clone = skb_clone(skb, GFP_ATOMIC);
 
 			/* Not releasing hash table! */
 			if (clone)
 				raw_rcv(sk, clone);
 		}
+		
 		//再查找是否有其他符合条件的sock
 		sk = __raw_v4_lookup(sk_next(sk), iph->protocol,
 				     iph->saddr, iph->daddr,

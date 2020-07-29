@@ -53,6 +53,7 @@ static struct sock *fibnl;
 
 #ifndef CONFIG_IP_MULTIPLE_TABLES
 
+//系统内中的两张路由表
 struct fib_table *ip_fib_local_table;
 struct fib_table *ip_fib_main_table;
 
@@ -79,6 +80,11 @@ static void __init fib4_rules_init(void)
 #define FIB_TABLE_HASHSZ 256
 static struct hlist_head fib_table_hash[FIB_TABLE_HASHSZ];
 
+/*
+ * fib_magic()
+ *  fib_new_table()
+ *
+ */
 struct fib_table *fib_new_table(u32 id)
 {
 	struct fib_table *tb;
@@ -86,6 +92,7 @@ struct fib_table *fib_new_table(u32 id)
 
 	if (id == 0)
 		id = RT_TABLE_MAIN;
+	
 	tb = fib_get_table(id);
 	if (tb)
 		return tb;
@@ -118,6 +125,11 @@ struct fib_table *fib_get_table(u32 id)
 }
 #endif /* CONFIG_IP_MULTIPLE_TABLES */
 
+/*
+ * fib_inetaddr_event()
+ *  fib_del_ifaddr()
+ *   fib_flush()
+ */
 static void fib_flush(void)
 {
 	int flushed = 0;
@@ -163,6 +175,7 @@ out:
 	return dev;
 }
 
+//得到IP地址类型
 unsigned inet_addr_type(__be32 addr)
 {
 	struct flowi		fl = { .nl_u = { .ip4_u = { .daddr = addr } } };
@@ -630,6 +643,11 @@ out:
    only when netlink is already locked.
  */
 
+/*
+ * fib_netdev_event()
+ *  fib_add_ifaddr()
+ *   fib_magic()
+ */
 static void fib_magic(int cmd, int type, __be32 dst, int dst_len, struct in_ifaddr *ifa)
 {
 	struct fib_table *tb;
@@ -664,6 +682,10 @@ static void fib_magic(int cmd, int type, __be32 dst, int dst_len, struct in_ifad
 		tb->tb_delete(tb, &cfg);
 }
 
+/*
+ * fib_netdev_event()
+ *  fib_add_ifaddr()
+ */
 void fib_add_ifaddr(struct in_ifaddr *ifa)
 {
 	struct in_device *in_dev = ifa->ifa_dev;
@@ -683,7 +705,7 @@ void fib_add_ifaddr(struct in_ifaddr *ifa)
 
 	fib_magic(RTM_NEWROUTE, RTN_LOCAL, addr, 32, prim);
 
-	if (!(dev->flags&IFF_UP))
+	if (!(dev->flags&IFF_UP)) //必须是up状态的
 		return;
 
 	/* Add broadcast address, if it is explicitly assigned. */
@@ -703,6 +725,12 @@ void fib_add_ifaddr(struct in_ifaddr *ifa)
 	}
 }
 
+/*
+ * 删除一个ip地址
+ *
+ * fib_inetaddr_event()
+ *  fib_del_ifaddr()
+ */
 static void fib_del_ifaddr(struct in_ifaddr *ifa)
 {
 	struct in_device *in_dev = ifa->ifa_dev;
@@ -733,7 +761,7 @@ static void fib_del_ifaddr(struct in_ifaddr *ifa)
 
 	   Scan address list to be sure that addresses are really gone.
 	 */
-
+    //遍历设备上的所有的ip地址
 	for (ifa1 = in_dev->ifa_list; ifa1; ifa1 = ifa1->ifa_next) {
 		if (ifa->ifa_local == ifa1->ifa_local)
 			ok |= LOCAL_OK;
@@ -844,11 +872,17 @@ static void nl_fib_lookup_init(void)
 				      nl_fib_input, NULL, THIS_MODULE);
 }
 
+/*
+ * fib_netdev_event()
+ *  fib_disable_ip()
+ */
 static void fib_disable_ip(struct net_device *dev, int force)
 {
 	if (fib_sync_down(0, dev, force))
 		fib_flush();
+	
 	rt_cache_flush(0);
+	
 	arp_ifdown(dev);
 }
 
@@ -864,7 +898,7 @@ static int fib_inetaddr_event(struct notifier_block *this, unsigned long event, 
 #endif
 		rt_cache_flush(-1);
 		break;
-	case NETDEV_DOWN:
+	case NETDEV_DOWN: //删除ip地址
 		fib_del_ifaddr(ifa);
 		if (ifa->ifa_dev->ifa_list == NULL) {
 			/* Last address was deleted from this interface.
@@ -897,6 +931,7 @@ static int fib_netdev_event(struct notifier_block *this, unsigned long event, vo
 
 	switch (event) {
 	case NETDEV_UP:
+		//遍历设备上的所有ip，将每一个ip添加到相应的路由项到RT_TABLE_LOCAL中
 		for_ifa(in_dev) {
 			fib_add_ifaddr(ifa);
 		} endfor_ifa(in_dev);

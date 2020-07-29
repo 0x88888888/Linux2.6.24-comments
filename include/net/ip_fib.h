@@ -88,7 +88,10 @@ struct fib_nh {
  *
  * 路由表项信息
  *
- * fib_info用于存储路由条目的一些共用的参数
+ * fib_info用于存储 几个路由条目的一些共用的参数
+ * 当一个新路由项和老路由项有共同的参数的时候，
+ * 只要增加fib_info->fib_clntref
+ *
  */
 struct fib_info {
 	struct hlist_node	fib_hash;
@@ -111,6 +114,7 @@ struct fib_info {
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
 	int			fib_power;
 #endif
+    //next hop链表
 	struct fib_nh		fib_nh[0];
 #define fib_dev		fib_nh[0].nh_dev
 };
@@ -120,6 +124,9 @@ struct fib_info {
 struct fib_rule;
 #endif
 
+/*
+ * 对路由表查找后返回该结构。
+ */
 struct fib_result {
 	unsigned char	prefixlen;
 	unsigned char	nh_sel;
@@ -163,6 +170,10 @@ struct fib_result_nl {
 #define FIB_RES_DEV(res)		(FIB_RES_NH(res).nh_dev)
 #define FIB_RES_OIF(res)		(FIB_RES_NH(res).nh_oif)
 
+/*
+ * 表示一张路由表
+ * 一共有两张路由表 ip_fib_main_table， ip_fib_local_table
+ */
 struct fib_table {
     /* 负载成员，用于将所有的fib_table链接起来 */
 	struct hlist_node tb_hlist;	
@@ -207,15 +218,24 @@ struct fib_table {
 	 * 路由表数据：因为有hash和trie两种方式，所以使用零长数组
 	 *
 	 * 如果是用hash方式实现，就存储fn_hash对象
+	 * 
+	 * tb_data存fn_zone对象数组
 	 */
 	unsigned char	tb_data[0];
 };
 
 #ifndef CONFIG_IP_MULTIPLE_TABLES
 
+//系统中的两张路由表
 extern struct fib_table *ip_fib_local_table;
 extern struct fib_table *ip_fib_main_table;
 
+/*
+ * fib_magic()
+ *  fib_new_table()
+ *   fib_get_table()
+ * 得到相应的路由表
+ */
 static inline struct fib_table *fib_get_table(u32 id)
 {
 	if (id != RT_TABLE_LOCAL)
@@ -228,6 +248,7 @@ static inline struct fib_table *fib_new_table(u32 id)
 	return fib_get_table(id);
 }
 
+//查找路由项
 static inline int fib_lookup(const struct flowi *flp, struct fib_result *res)
 {
 

@@ -152,6 +152,7 @@ static struct neigh_ops arp_hh_ops = {
 	.queue_xmit =		dev_queue_xmit,
 };
 
+//广播、多播IP地址时，用这个neigh_ops
 static struct neigh_ops arp_direct_ops = {
 	.family =		AF_INET,
 	.output =		dev_queue_xmit,
@@ -181,6 +182,7 @@ struct neigh_table arp_tbl = {
 	.parms = {
 		.tbl =			&arp_tbl,
 		.base_reachable_time =	30 * HZ,
+		 //如果没有收到一个solicitation应答，就在1秒后发送一个新的请求
 		.retrans_time =	1 * HZ,
 		.gc_staletime =	60 * HZ,
 		.reachable_time =		30 * HZ,
@@ -228,6 +230,10 @@ static u32 arp_hash(const void *pkey, const struct net_device *dev)
 	return jhash_2words(*(u32 *)pkey, dev->ifindex, arp_tbl.hash_rnd);
 }
 
+/*
+ * neigh_create()
+ *  arp_constructor()
+ */
 static int arp_constructor(struct neighbour *neigh)
 {
 	__be32 addr = *(__be32*)neigh->primary_key;
@@ -235,6 +241,7 @@ static int arp_constructor(struct neighbour *neigh)
 	struct in_device *in_dev;
 	struct neigh_parms *parms;
 
+    //ip地址类型，广播、多播、单播
 	neigh->type = inet_addr_type(addr);
 
 	rcu_read_lock();
@@ -249,7 +256,13 @@ static int arp_constructor(struct neighbour *neigh)
 	neigh->parms = neigh_parms_clone(parms);
 	rcu_read_unlock();
 
+    /*
+     * dev->header_ops == NULL,表示驱动程序没有提供填充L2帧头的函数
+     * 也就是说设备不需要L2帧头，因此neighbour->nud_state == NUD_NOARP
+     * 并且neighbour->ops == arp_direct_ops, arp_direct_ops中的所有操作，都不需要填充L2帧头的
+     */
 	if (!dev->header_ops) {
+		//广播、多播IP地址不需要来将其转换为L2广播、多播地址，所以就是NUD_NOARP状态了
 		neigh->nud_state = NUD_NOARP;
 		neigh->ops = &arp_direct_ops;
 		neigh->output = neigh->ops->queue_xmit;
@@ -326,6 +339,9 @@ static void arp_error_report(struct neighbour *neigh, struct sk_buff *skb)
 	kfree_skb(skb);
 }
 
+/*
+ * 发送 ARP SOLICATION请求
+ */
 static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb)
 {
 	__be32 saddr = 0;
@@ -510,6 +526,8 @@ int arp_find(unsigned char *haddr, struct sk_buff *skb)
  *       arp_bind_neighbour()
  *
  * 为ip_finish_output2()发送数据做好准备
+ *
+ * 将dst->rt_gateway 与 与之相对的neighbour 对象绑定
  */
  
 int arp_bind_neighbour(struct dst_entry *dst)
@@ -524,6 +542,7 @@ int arp_bind_neighbour(struct dst_entry *dst)
 		__be32 nexthop = ((struct rtable*)dst)->rt_gateway;
 		if (dev->flags&(IFF_LOOPBACK|IFF_POINTOPOINT))
 			nexthop = 0;
+		//在arp_tbl中查找neighbour 对象
 		n = __neigh_lookup_errno(
 #if defined(CONFIG_ATM_CLIP) || defined(CONFIG_ATM_CLIP_MODULE)
 		    dev->type == ARPHRD_ATM ? clip_tbl_hook :
@@ -569,6 +588,10 @@ static inline int arp_fwd_proxy(struct in_device *in_dev, struct rtable *rt)
 /*
  *	Create an arp packet. If (dest_hw == NULL), we create a broadcast
  *	message.
+ *
+ * arp_solicit()
+ *  arp_send()
+ *   arp_create()
  */
 struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 			   struct net_device *dev, __be32 src_ip,
@@ -674,6 +697,10 @@ out:
 
 /*
  *	Send an arp packet.
+ *
+ * arp_solicit()
+ *  arp_send()
+ *   arp_xmit()
  */
 void arp_xmit(struct sk_buff *skb)
 {
@@ -683,6 +710,9 @@ void arp_xmit(struct sk_buff *skb)
 
 /*
  *	Create and send an arp packet.
+ *
+ * arp_solicit()
+ *  arp_send()
  */
 void arp_send(int type, int ptype, __be32 dest_ip,
 	      struct net_device *dev, __be32 src_ip,
@@ -709,8 +739,14 @@ void arp_send(int type, int ptype, __be32 dest_ip,
 
 /*
  *	Process an arp request.
+ *
+ * netif_receive_skb()
+ *  deliver_skb()
+ *   arp_rcv()
+ *    arp_process()
+ *
+ * 处理ARP_REQUEST和ARP_REPLY
  */
-
 static int arp_process(struct sk_buff *skb)
 {
 	struct net_device *dev = skb->dev;
@@ -788,6 +824,8 @@ static int arp_process(struct sk_buff *skb)
 /*
  *	Check for bad requests for 127.x.x.x and requests for multicast
  *	addresses.  If this is one such, delete it.
+ *
+ * 不能谁回路ip地址，也不能是多播ip地址
  */
 	if (LOOPBACK(tip) || MULTICAST(tip))
 		goto out;
@@ -816,22 +854,25 @@ static int arp_process(struct sk_buff *skb)
  */
 
 	/* Special case: IPv4 duplicate address detection packet (RFC2131) */
-	if (sip == 0) {
+	if (sip == 0) { //处理DHCP发出的IP地址突检测ARPOP_REQUEST包
 		if (arp->ar_op == htons(ARPOP_REQUEST) &&
 		    inet_addr_type(tip) == RTN_LOCAL &&
 		    !arp_ignore(in_dev,dev,sip,tip))
+		    
 			arp_send(ARPOP_REPLY, ETH_P_ARP, sip, dev, tip, sha,
 				 dev->dev_addr, sha);
 		goto out;
 	}
 
+  
 	if (arp->ar_op == htons(ARPOP_REQUEST) &&
 	    ip_route_input(skb, tip, sip, 0, dev) == 0) {
 
 		rt = (struct rtable*)skb->dst;
 		addr_type = rt->rt_type;
 
-		if (addr_type == RTN_LOCAL) {
+		if (addr_type == RTN_LOCAL) { //给本机的ARPOP_REQUEST，处理
+			
 			n = neigh_event_ns(&arp_tbl, sha, &sip, dev);
 			if (n) {
 				int dont_send = 0;
@@ -840,15 +881,16 @@ static int arp_process(struct sk_buff *skb)
 					dont_send |= arp_ignore(in_dev,dev,sip,tip);
 				if (!dont_send && IN_DEV_ARPFILTER(in_dev))
 					dont_send |= arp_filter(sip,tip,dev);
-				if (!dont_send)
+				if (!dont_send) //回复这个ARPOP_REQUEST包
 					arp_send(ARPOP_REPLY,ETH_P_ARP,sip,dev,tip,sha,dev->dev_addr,sha);
 
 				neigh_release(n);
 			}
 			goto out;
-		} else if (IN_DEV_FORWARD(in_dev)) {
-			if ((rt->rt_flags&RTCF_DNAT) ||
-			    (addr_type == RTN_UNICAST  && rt->u.dst.dev != dev &&
+		} else if (IN_DEV_FORWARD(in_dev) /* 设备启用了转发的功能 */) {
+			//代理
+			if ((rt->rt_flags&RTCF_DNAT  )  ||
+			    (addr_type == RTN_UNICAST/*是单播地址*/  && rt->u.dst.dev != dev    /* 目的设备不是当前设备 */&&
 			     (arp_fwd_proxy(in_dev, rt) || pneigh_lookup(&arp_tbl, &tip, dev, 0)))) {
 				n = neigh_event_ns(&arp_tbl, sha, &sip, dev);
 				if (n)
@@ -859,6 +901,7 @@ static int arp_process(struct sk_buff *skb)
 				    in_dev->arp_parms->proxy_delay == 0) {
 					arp_send(ARPOP_REPLY,ETH_P_ARP,sip,dev,tip,sha,dev->dev_addr,sha);
 				} else {
+					//先进入队列，暂时不处理，因为有可能会一下子发过来很多ARPOP_REQUEST请求包
 					pneigh_enqueue(&arp_tbl, in_dev->arp_parms, skb);
 					in_dev_put(in_dev);
 					return 0;
@@ -883,7 +926,8 @@ static int arp_process(struct sk_buff *skb)
 			n = __neigh_lookup(&arp_tbl, &sip, dev, 1);
 	}
 
-	if (n) {
+	if (n) {//这部分代码去更新neighbour的状态
+		
 		int state = NUD_REACHABLE;
 		int override;
 
@@ -1229,6 +1273,9 @@ static struct notifier_block arp_netdev_notifier = {
 /* Note, that it is not on notifier chain.
    It is necessary, that this routine was called after route cache will be
    flushed.
+ *
+ * fib_disable_ip()
+ *  arp_ifdown()
  */
 void arp_ifdown(struct net_device *dev)
 {
@@ -1257,6 +1304,8 @@ void __init arp_init(void)
 
     /* 加到ptype_base中 */
 	dev_add_pack(&arp_packet_type);
+
+	//建立 /proc/net/arp文件
 	arp_proc_init();
 #ifdef CONFIG_SYSCTL
 	neigh_sysctl_register(NULL, &arp_tbl.parms, NET_IPV4,

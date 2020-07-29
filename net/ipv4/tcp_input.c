@@ -3428,7 +3428,7 @@ static int tcp_ack(struct sock *sk, struct sk_buff *skb, int flag)
      * 则确认该传输控制块的输出路由缓存项是有效的。
      */
 	if ((flag & FLAG_FORWARD_PROGRESS) || !(flag&FLAG_NOT_DUP))
-		dst_confirm(sk->sk_dst_cache);
+		dst_confirm(sk->sk_dst_cache);//更新邻居item的有效时间
 
 	return 1;
 

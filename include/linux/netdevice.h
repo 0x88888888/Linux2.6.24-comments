@@ -210,17 +210,22 @@ struct dev_addr_list
 #define dmi_gusers	da_gusers
 
 /*
- * hardware header，缓存二层首部
+ * hardware header，缓存二层首部,用于加快查询
+ *
+ * dst_entry->hh指向hh_cache对象
  */
 struct hh_cache
 {
-	struct hh_cache *hh_next;	/* Next entry			     */
+    //同一个neighbour相关联的缓存L2帧头可以有多个
+	struct hh_cache *hh_next;	/* Next entry     */
 	atomic_t	hh_refcnt;	/* number of users                   */
 /*
  * We want hh_output, hh_len, hh_lock and hh_data be a in a separate
  * cache line on SMP.
  * They are mostly read, but hh_refcnt may be changed quite frequently,
  * incurring cache line ping pongs.
+ *
+ * L3相关地址协议
  */
 	__be16		hh_type ____cacheline_aligned_in_smp;
 					/* protocol identifier, f.e ETH_P_IP
@@ -238,6 +243,8 @@ struct hh_cache
 	(HH_DATA_MOD - (((__len - 1) & (HH_DATA_MOD - 1)) + 1))
 #define HH_DATA_ALIGN(__len) \
 	(((__len)+(HH_DATA_MOD-1))&~(HH_DATA_MOD - 1))
+
+    //缓存的帧头
 	unsigned long	hh_data[HH_DATA_ALIGN(LL_MAX_HEADER) / sizeof(long)];
 };
 
@@ -571,6 +578,7 @@ struct net_device
 #define NETIF_F_GSO		2048	/* Enable software GSO. */
 #define NETIF_F_LLTX		4096	/* LockLess TX - deprecated. Please */
 					/* do not use LLTX in new drivers */
+//NETIF_F_NETNS_LOCAL 表示不允许net_device在不同的net命名空间中迁移
 #define NETIF_F_NETNS_LOCAL	8192	/* Does not change network namespaces */
 #define NETIF_F_MULTI_QUEUE	16384	/* Has multiple TX/RX queues */
 #define NETIF_F_LRO		32768	/* large receive offload */
@@ -634,6 +642,8 @@ struct net_device
     /*
      * flags字段中的某些bits代表网络设备的功能(如IFF_MULTICAST)，而其他bits代表状态的改变
      * 如IFF_UP或者IFF_RUNNING
+     *
+     * 如果有IFF_NOARP标记，表明设备不会回复ARP request
      */
 	unsigned int		flags;	/* interface flags (a la BSD)	*/
 	/*

@@ -1125,6 +1125,11 @@ static void igmpv3_clear_delrec(struct in_device *in_dev)
 }
 #endif
 
+/*
+ * inetdev_event()
+ *  ip_mc_down()
+ *   igmp_group_dropped()
+ */
 static void igmp_group_dropped(struct ip_mc_list *im)
 {
 	struct in_device *in_dev = im->interface;
@@ -1159,6 +1164,7 @@ static void igmp_group_dropped(struct ip_mc_list *im)
 	}
 done:
 #endif
+
 	ip_mc_clear_src(im);
 }
 
@@ -1280,14 +1286,18 @@ void ip_mc_rejoin_group(struct ip_mc_list *im)
 
 /*
  *	A socket has left a multicast group on device dev
+ *
+ * inetdev_event()
+ *	ip_mc_down()
+ *   ip_mc_dec_group()
  */
-
 void ip_mc_dec_group(struct in_device *in_dev, __be32 addr)
 {
 	struct ip_mc_list *i, **ip;
 
 	ASSERT_RTNL();
 
+	//多播地址
 	for (ip=&in_dev->mc_list; (i=*ip)!=NULL; ip=&i->next) {
 		if (i->multiaddr==addr) {
 			if (--i->users == 0) {
@@ -1307,8 +1317,11 @@ void ip_mc_dec_group(struct in_device *in_dev, __be32 addr)
 	}
 }
 
-/* Device going down */
-
+/* Device going down 
+ *
+ * inetdev_event()
+ *  ip_mc_down()
+ */
 void ip_mc_down(struct in_device *in_dev)
 {
 	struct ip_mc_list *i;

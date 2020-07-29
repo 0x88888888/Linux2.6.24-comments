@@ -19,6 +19,7 @@
 #define RTCF_SNAT	0x00800000
 #define RTCF_DOREDIRECT 0x01000000
 #define RTCF_DIRECTSRC	0x04000000
+/* DNAT的意思是:destination network address translatiion */
 #define RTCF_DNAT	0x08000000
 #define RTCF_BROADCAST	0x10000000
 #define RTCF_MULTICAST	0x20000000

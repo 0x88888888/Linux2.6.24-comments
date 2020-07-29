@@ -49,7 +49,8 @@
 struct fib_nh;
 struct inet_peer;
 
-/*
+/* 路由缓存信息,每个rtable实例对应着一个不同的ip地址
+ *
  * rt_hash_bucket中的成员
  */
 struct rtable

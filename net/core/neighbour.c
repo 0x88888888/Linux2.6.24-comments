@@ -62,9 +62,10 @@ static int pneigh_ifdown(struct neigh_table *tbl, struct net_device *dev);
 void neigh_changeaddr(struct neigh_table *tbl, struct net_device *dev);
 
 /*
- * 
+ * 系统中所有的neigh_table对象
  */
 static struct neigh_table *neigh_tables;
+
 #ifdef CONFIG_PROC_FS
 static const struct file_operations neigh_stat_seq_fops;
 #endif
@@ -128,8 +129,13 @@ unsigned long neigh_rand_reach_time(unsigned long base)
 	return (base ? (net_random() % base) + (base >> 1) : 0);
 }
 
-
-static int neigh_forced_gc(struct neigh_table *tbl)
+/*
+ * neigh_alloc()
+ *  neigh_forced_gc()
+ *
+ * 同步回收neigh_table中NUD_FAILED的neighbour对象
+ */
+static int (struct neigh_table *tbl)
 {
 	int shrunk = 0;
 	int i;
@@ -229,6 +235,12 @@ static void neigh_flush_dev(struct neigh_table *tbl, struct net_device *dev)
 	}
 }
 
+/*
+ * arp_netdev_event()
+ *  neigh_changeaddr()
+ *
+ * 由其他内核子系统调用，通知neighbour L2地址发生变化了
+ */
 void neigh_changeaddr(struct neigh_table *tbl, struct net_device *dev)
 {
 	write_lock_bh(&tbl->lock);
@@ -236,6 +248,13 @@ void neigh_changeaddr(struct neigh_table *tbl, struct net_device *dev)
 	write_unlock_bh(&tbl->lock);
 }
 
+/*
+ * fib_disable_ip()
+ *  arp_ifdown()
+ *   neigh_ifdown()
+ *
+ * 由其他内核子系统调用，通知neighbour L3地址发生变化了
+ */
 int neigh_ifdown(struct neigh_table *tbl, struct net_device *dev)
 {
 	write_lock_bh(&tbl->lock);
@@ -255,6 +274,8 @@ static struct neighbour *neigh_alloc(struct neigh_table *tbl)
 	int entries;
 
 	entries = atomic_inc_return(&tbl->entries) - 1;
+
+	//neigh_table中entries过多，就要回收掉一些
 	if (entries >= tbl->gc_thresh3 ||
 	    (entries >= tbl->gc_thresh2 &&
 	     time_after(now, tbl->last_flush + 5 * HZ))) {
@@ -349,18 +370,23 @@ static void neigh_hash_grow(struct neigh_table *tbl, unsigned long new_entries)
 	neigh_hash_free(old_hash, old_entries);
 }
 
-struct neighbour *neigh_lookup(struct neigh_table *tbl, const void *pkey,
+struct neighbour *neigh_lookup(struct neigh_table *tbl, 
+                                     const void *pkey /* pkeykey 是 L3 地址  */,
 			       struct net_device *dev)
 {
 	struct neighbour *n;
 	int key_len = tbl->key_len;
+	//计算出hash值
 	u32 hash_val = tbl->hash(pkey, dev);
 
 	NEIGH_CACHE_STAT_INC(tbl, lookups);
 
 	read_lock_bh(&tbl->lock);
+
+	//得到在neigh_table->hash_buckets[]中相应的bucket，然后遍历
 	for (n = tbl->hash_buckets[hash_val & tbl->hash_mask]; n; n = n->next) {
-		if (dev == n->dev && !memcmp(n->primary_key, pkey, key_len)) {
+		
+		if (dev == n->dev && !memcmp(n->primary_key, pkey, key_len)) {  //找到
 			neigh_hold(n);
 			NEIGH_CACHE_STAT_INC(tbl, hits);
 			break;
@@ -390,12 +416,14 @@ struct neighbour *neigh_lookup_nodev(struct neigh_table *tbl, const void *pkey)
 	return n;
 }
 
-struct neighbour *neigh_create(struct neigh_table *tbl, const void *pkey,
-			       struct net_device *dev)
+struct neighbour *neigh_create(struct neigh_table *tbl, 
+                                     const void *pkey /* pkey是L3的地址 */,
+                                     struct net_device *dev)
 {
 	u32 hash_val;
 	int key_len = tbl->key_len;
 	int error;
+	//分配neighbour对象
 	struct neighbour *n1, *rc, *n = neigh_alloc(tbl);
 
 	if (!n) {
@@ -407,7 +435,9 @@ struct neighbour *neigh_create(struct neigh_table *tbl, const void *pkey,
 	n->dev = dev;
 	dev_hold(dev);
 
-	/* Protocol specific setup. */
+	/* Protocol specific setup. 
+	 *  tbl->constructor == arp_constructor
+	 */
 	if (tbl->constructor &&	(error = tbl->constructor(n)) < 0) {
 		rc = ERR_PTR(error);
 		goto out_neigh_release;
@@ -427,6 +457,7 @@ struct neighbour *neigh_create(struct neigh_table *tbl, const void *pkey,
 	if (atomic_read(&tbl->entries) > (tbl->hash_mask + 1))
 		neigh_hash_grow(tbl, (tbl->hash_mask + 1) << 1);
 
+    //hash值
 	hash_val = tbl->hash(pkey, dev) & tbl->hash_mask;
 
 	if (n->parms->dead) {
@@ -434,6 +465,7 @@ struct neighbour *neigh_create(struct neigh_table *tbl, const void *pkey,
 		goto out_tbl_unlock;
 	}
 
+    //遍历buckets，确定不存在
 	for (n1 = tbl->hash_buckets[hash_val]; n1; n1 = n1->next) {
 		if (dev == n1->dev && !memcmp(n1->primary_key, pkey, key_len)) {
 			neigh_hold(n1);
@@ -442,6 +474,7 @@ struct neighbour *neigh_create(struct neigh_table *tbl, const void *pkey,
 		}
 	}
 
+    //放入bucket中
 	n->next = tbl->hash_buckets[hash_val];
 	tbl->hash_buckets[hash_val] = n;
 	n->dead = 0;
@@ -458,6 +491,11 @@ out_neigh_release:
 	goto out;
 }
 
+/*
+ * arp_process()
+ *  pneigh_lookup()
+ *
+ */
 struct pneigh_entry * pneigh_lookup(struct neigh_table *tbl, const void *pkey,
 				    struct net_device *dev, int creat)
 {
@@ -642,6 +680,7 @@ static void neigh_connect(struct neighbour *neigh)
 		hh->hh_output = neigh->ops->hh_output;
 }
 
+//定期回收NUD_FAILED状态的neighbour对象
 static void neigh_periodic_timer(unsigned long arg)
 {
 	struct neigh_table *tbl = (struct neigh_table *)arg;
@@ -673,6 +712,8 @@ static void neigh_periodic_timer(unsigned long arg)
 		write_lock(&n->lock);
 
 		state = n->nud_state;
+
+		//不能回收的状态
 		if (state & (NUD_PERMANENT | NUD_IN_TIMER)) {
 			write_unlock(&n->lock);
 			goto next_elt;
@@ -683,7 +724,8 @@ static void neigh_periodic_timer(unsigned long arg)
 
 		if (atomic_read(&n->refcnt) == 1 &&
 		    (state == NUD_FAILED ||
-		     time_after(now, n->used + n->parms->gc_staletime))) {
+		     time_after(now, n->used + n->parms->gc_staletime))) { //可以回收了
+		     
 			*np = n->next;
 			n->dead = 1;
 			write_unlock(&n->lock);
@@ -880,6 +922,7 @@ int __neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
 			return 1;
 		}
 	} else if (neigh->nud_state & NUD_STALE) {
+	
 		NEIGH_PRINTK2("neigh %p is delayed.\n", neigh);
 		neigh_hold(neigh);
 		neigh->nud_state = NUD_DELAY;
@@ -890,6 +933,8 @@ int __neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
 
 	if (neigh->nud_state == NUD_INCOMPLETE) {
 		if (skb) {
+
+		    //neigh->arp_queue 中的skb对象太多了，删除队列中的第一个sk_buff对象
 			if (skb_queue_len(&neigh->arp_queue) >=
 			    neigh->parms->queue_len) {
 				struct sk_buff *buff;
@@ -897,6 +942,7 @@ int __neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
 				__skb_unlink(buff, &neigh->arp_queue);
 				kfree_skb(buff);
 			}
+			//将skb插入到neigh->arp_queue
 			__skb_queue_tail(&neigh->arp_queue, skb);
 		}
 		rc = 1;
@@ -942,9 +988,20 @@ static void neigh_update_hhs(struct neighbour *neigh)
 				a router.
 
    Caller MUST hold reference count on the entry.
+ *
+ *
+ * arp_process()
+ *  neigh_update()
+ *
+ * arp_process()
+ *  neigh_event_ns()
+ *   neigh_update()
+ *
+ * 改变neigh->nud_state状态值和函数
  */
 
-int neigh_update(struct neighbour *neigh, const u8 *lladdr, u8 new,
+int neigh_update(struct neighbour *neigh, const u8 *lladdr /* 新的链路层地址 */, 
+                       u8 new, //新的NUD状态
 		 u32 flags)
 {
 	u8 old;
@@ -1049,6 +1106,7 @@ int neigh_update(struct neighbour *neigh, const u8 *lladdr, u8 new,
 		neigh_connect(neigh);
 	else
 		neigh_suspect(neigh);
+	
 	if (!(old & NUD_VALID)) {
 		struct sk_buff *skb;
 
@@ -1080,6 +1138,13 @@ out:
 	return err;
 }
 
+/*
+ * 根据对端的ARPOP_REQUEST信息，被动学习，增加或者更新neighbour条目
+ *
+ * arp_process()
+ *  neigh_event_ns()
+ *
+ */
 struct neighbour *neigh_event_ns(struct neigh_table *tbl,
 				 u8 *lladdr, void *saddr,
 				 struct net_device *dev)
@@ -1158,6 +1223,23 @@ int neigh_compat_output(struct sk_buff *skb)
  *    ip_finish_output2
  *     neigh_resolve_output
  *
+ * tcp_transmit_skb()
+ *  ip_queue_xmit()
+ *   dst_output()
+ *    ip_output()
+ *     ip_finish_output()
+ *      ip_finish_output2()
+ *       neigh_resolve_output()
+ *
+ *  udp_sendmsg()
+ *   udp_push_pending_frames()
+ *    ip_push_pending_frames()
+ *     dst_output()
+ *      ip_output()
+ *       ip_finish_output()
+ *        ip_finish_output2() 
+ *         neigh_resolve_output()
+ *
  *  此函数的目的是解析未连接的邻居，或已连接但没有缓存硬件头的邻居
  */
 int neigh_resolve_output(struct sk_buff *skb)
@@ -1195,7 +1277,7 @@ int neigh_resolve_output(struct sk_buff *skb)
 			read_unlock_bh(&neigh->lock);
 		}
 		
-		if (err >= 0)
+		if (err >= 0) //发送出去
 			rc = neigh->ops->queue_xmit(skb);
 		else
 			goto out_kfree_skb;
@@ -1211,8 +1293,27 @@ out_kfree_skb:
 	goto out;
 }
 
-/* As fast as possible without hh cache */
-
+/*
+ * tcp_transmit_skb()
+ *  ip_queue_xmit()
+ *   dst_output()
+ *    ip_output()
+ *     ip_finish_output()
+ *      ip_finish_output2()
+ *       neigh_connected_output()
+ *
+ *  udp_sendmsg()
+ *   udp_push_pending_frames()
+ *    ip_push_pending_frames()
+ *     dst_output()
+ *      ip_output()
+ *       ip_finish_output()
+ *        ip_finish_output2()
+ *         neigh_connected_output()
+ *
+ * As fast as possible without hh cache 
+ *
+ */
 int neigh_connected_output(struct sk_buff *skb)
 {
 	int err;
@@ -1420,13 +1521,13 @@ void neigh_table_init_no_netlink(struct neigh_table *tbl)
 
 /*
  * inet_init()
- *  arp_init()
+ *  arp_init(tbl==arp_tbl)
  *   neigh_table_init()
  *
- * dn_neigh_init()
+ * dn_neigh_init(tbl == dn_neigh_table)
  *  neigh_table_init()
  *
- * ndisc_init()
+ * ndisc_init(tbl == nd_tbl)
  *  neigh_table_init()
  *
  */
@@ -1440,6 +1541,7 @@ void neigh_table_init(struct neigh_table *tbl)
 		if (tmp->family == tbl->family)
 			break;
 	}
+	//放到neigh_tables链表的头部
 	tbl->next	= neigh_tables;
 	neigh_tables	= tbl;
 	write_unlock(&neigh_tbl_lock);
@@ -1451,6 +1553,9 @@ void neigh_table_init(struct neigh_table *tbl)
 	}
 }
 
+/*
+ * 将tbl从neigh_tables中删除
+ */
 int neigh_table_clear(struct neigh_table *tbl)
 {
 	struct neigh_table **tp;
@@ -1464,7 +1569,8 @@ int neigh_table_clear(struct neigh_table *tbl)
 		printk(KERN_CRIT "neighbour leakage\n");
 	write_lock(&neigh_tbl_lock);
 	for (tp = &neigh_tables; *tp; tp = &(*tp)->next) {
-		if (*tp == tbl) {
+		
+		if (*tp == tbl) { // 找到
 			*tp = tbl->next;
 			break;
 		}

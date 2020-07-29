@@ -4549,6 +4549,8 @@ int dev_change_net_namespace(struct net_device *dev, struct net *net, const char
 
 	/* Don't allow namespace local devices to be moved. */
 	err = -EINVAL;
+
+	//NETIF_F_NETNS_LOCAL 表示不允许net_device在不同的net命名空间中迁移
 	if (dev->features & NETIF_F_NETNS_LOCAL)
 		goto out;
 

@@ -188,6 +188,21 @@ EXPORT_SYMBOL_GPL(ip_build_and_send_pkt);
  *      ip_fragment() 
  *       ip_finish_output2()
  *
+ * tcp_transmit_skb()
+ *  ip_queue_xmit()
+ *   dst_output()
+ *    ip_output()
+ *     ip_finish_output()
+ *      ip_finish_output2()
+ *
+ *  udp_sendmsg()
+ *   udp_push_pending_frames()
+ *    ip_push_pending_frames()
+ *     dst_output()
+ *      ip_output()
+ *       ip_finish_output()
+ *        ip_finish_output2()
+ *
  * Ip_finish_output2()函数会将skb送到neighboring subsystem，
  * 这个子系统会经过ARP协议获得L3地址（IP地址）对应的L2的地址（MAC地址）。
  * 这样整个L3单播地址路由skb数据跟踪就结束了
@@ -228,11 +243,12 @@ static inline int ip_finish_output2(struct sk_buff *skb)
     //如果缓存了链路层的首部,则调用neigh_hh_output输出数据报。
 	if (dst->hh) /* 这里就将skb送往neighboring subsystem,经过ARP协议映射获得L3对应的L2的地址 */
 		return neigh_hh_output(dst->hh, skb);
+	
 	else if (dst->neighbour) //存在邻居项
 	    /* neigh->output会被设置为neigh->ops_connected_output或 neigh->ops->output，具体取决于邻居的状态
 	     * 看 arp_hh_ops
 	     */
-		return dst->neighbour->output(skb); /* 这里的函数指针是dev_queue_xmit,neigh_resolve_output */
+		return dst->neighbour->output(skb); /* 这里的函数指针是dev_queue_xmit,neigh_connected_output,neigh_resolve_output */
 
 	if (net_ratelimit())
 		printk(KERN_DEBUG "ip_finish_output2: No header cache and no neighbour!\n");
@@ -260,6 +276,19 @@ static inline int ip_skb_dst_mtu(struct sk_buff *skb)
  *
  * ip_mc_output()
  *  ip_finish_output()
+ *
+ * tcp_transmit_skb()
+ *  ip_queue_xmit()
+ *   dst_output()
+ *    ip_output()
+ *     ip_finish_output()
+ *
+ *  udp_sendmsg()
+ *   udp_push_pending_frames()
+ *    ip_push_pending_frames()
+ *     dst_output()
+ *      ip_output()
+ *       ip_finish_output()
  */
 
 static int ip_finish_output(struct sk_buff *skb)
@@ -353,6 +382,17 @@ int ip_mc_output(struct sk_buff *skb)
  *     ip_forward_finish
  *      dst_output
  *       ip_output  ip路由转发路径
+ *
+ * tcp_transmit_skb()
+ *  ip_queue_xmit()
+ *   dst_output()
+ *    ip_output()
+ *
+ *  udp_sendmsg()
+ *   udp_push_pending_frames()
+ *    ip_push_pending_frames()
+ *     dst_output()
+ *      ip_output()
  */
 int ip_output(struct sk_buff *skb)
 {
@@ -545,6 +585,22 @@ static void ip_copy_metadata(struct sk_buff *to, struct sk_buff *from)
  * br_nf_post_routing()
  *  br_nf_dev_queue_xmit()
  *   ip_fragment(output == br_dev_queue_push_xmit)
+ *
+ * tcp_transmit_skb()
+ *  ip_queue_xmit()
+ *   dst_output()
+ *    ip_output()
+ *     ip_finish_output()
+ *      ip_fragment()
+ *
+ *  udp_sendmsg()
+ *   udp_push_pending_frames()
+ *    ip_push_pending_frames()
+ *     dst_output()
+ *      ip_output()
+ *       ip_finish_output()
+ *        ip_fragment()
+ *
  * ip分片，然后发送出去
  */
 

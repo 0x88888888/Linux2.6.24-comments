@@ -45,6 +45,7 @@ enum
 #define NUD_FAILED	0x20
 
 /* Dummy states */
+//广播、多播IP地址不需要来将其转换为L2广播、多播地址，所以就是NUD_NOARP状态了
 #define NUD_NOARP	0x40
 #define NUD_PERMANENT	0x80
 #define NUD_NONE	0x00

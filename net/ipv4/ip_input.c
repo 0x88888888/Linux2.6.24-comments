@@ -210,7 +210,7 @@ int ip_call_ra_chain(struct sk_buff *skb)
  */
 static int ip_local_deliver_finish(struct sk_buff *skb)
 {
-   //去掉ip首部
+    //去掉ip首部，即ip->data += ip_hdrlen(skb)
 	__skb_pull(skb, ip_hdrlen(skb));
 
 	/* Point into the IP datagram, just past the header. 
@@ -224,16 +224,19 @@ static int ip_local_deliver_finish(struct sk_buff *skb)
 		int protocol = ip_hdr(skb)->protocol;/* 上层协议类型 */
 		int hash;
 		struct sock *raw_sk;
+		
 		struct net_protocol *ipprot;
 
 	resubmit:
 		hash = protocol & (MAX_INET_PROTOS - 1);
+
+		//查找是否有对应的raw socket，看是不是raw socket
 		raw_sk = sk_head(&raw_v4_htable[hash]);
 
 		/* If there maybe a raw socket we must check - if not we
 		 * don't care less
 		 * 
-		 * raw socket 处理,需要复制一份数据
+		 * 如果是raw socket，需要复制一份数据
 		 */
 		if (raw_sk && !raw_v4_input(skb, ip_hdr(skb), hash))
 			raw_sk = NULL;
@@ -242,6 +245,7 @@ static int ip_local_deliver_finish(struct sk_buff *skb)
 		if ((ipprot = rcu_dereference(inet_protos[hash])) != NULL) {
 			int ret;
 
+            //为0，需要IPSec处理
 			if (!ipprot->no_policy) {
 				if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb)) {
 					kfree_skb(skb);

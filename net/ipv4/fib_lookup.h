@@ -5,6 +5,10 @@
 #include <linux/list.h>
 #include <net/ip_fib.h>
 
+/*
+ * 到达相同的网络的路由，因为其他一些参数二不同，比如TOS，
+ * 不同的路由是通过fib_alias来区分的
+ */
 struct fib_alias {
 	struct list_head	fa_list;
 	struct rcu_head rcu;

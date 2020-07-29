@@ -611,6 +611,13 @@ static void rt_check_expire(struct work_struct *work)
 
 /* This can run from both BH and non-BH contexts, the latter
  * in the case of a forced flush event.
+ *
+ * devinet_sysctl_forward()
+ *  inet_forward_change()
+ *   rt_cache_flush()
+ *    rt_run_flush(0)
+ *
+ * 刷新一次路由缓存
  */
 static void rt_run_flush(unsigned long dummy)
 {
@@ -623,6 +630,7 @@ static void rt_run_flush(unsigned long dummy)
 
 	for (i = rt_hash_mask; i >= 0; i--) {
 		spin_lock_bh(rt_hash_lock_addr(i));
+		
 		rth = rt_hash_table[i].chain;
 		if (rth)
 			rt_hash_table[i].chain = NULL;
@@ -630,13 +638,18 @@ static void rt_run_flush(unsigned long dummy)
 
 		for (; rth; rth = next) {
 			next = rth->u.dst.rt_next;
-			rt_free(rth);
+			rt_free(rth); //释放掉
 		}
 	}
 }
 
 static DEFINE_SPINLOCK(rt_flush_lock);
 
+/*
+ * devinet_sysctl_forward()
+ *  inet_forward_change()
+ *   rt_cache_flush()
+ */
 void rt_cache_flush(int delay)
 {
 	unsigned long now = jiffies;
@@ -673,6 +686,7 @@ void rt_cache_flush(int delay)
 	if (rt_deadline == 0)
 		rt_deadline = now + ip_rt_max_delay;
 
+    //重新启动时间
 	mod_timer(&rt_flush_timer, now+delay);
 	spin_unlock_bh(&rt_flush_lock);
 }
@@ -1236,6 +1250,11 @@ static struct dst_entry *ipv4_negative_advice(struct dst_entry *dst)
  *
  * NOTE. Do not forget to inhibit load limiting for redirects (redundant)
  * and "frag. need" (breaks PMTU discovery) in icmp.c.
+ *
+ * ip_forward()
+ *  ip_rt_send_redirect()
+ *
+ * 发送icmp redirect包
  */
 
 void ip_rt_send_redirect(struct sk_buff *skb)
@@ -2047,6 +2066,9 @@ martian_source:
  * ip_rcv
  *  ip_rcv_finish
  *   ip_route_input
+ *
+ * arp_process()
+ *  ip_route_input()
  */
 int ip_route_input(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 		   u8 tos, struct net_device *dev)
@@ -3159,6 +3181,8 @@ __setup("rhash_entries=", set_rhash_entries);
  * inet_init()
  *  ip_init()
  *   ip_rt_init()
+ *
+ * 路由子系统初始化
  */
 int __init ip_rt_init(void)
 {
@@ -3206,7 +3230,8 @@ int __init ip_rt_init(void)
 
     /*主要的初始化函数*/
 	devinet_init();
-	
+
+	//初始化默认路由表
 	ip_fib_init();
 
 	init_timer(&rt_flush_timer);

@@ -3,6 +3,9 @@
 
 /* WARNING: The ordering of these elements must match ordering
  *          of RTA_* rtnetlink attribute numbers.
+ *
+ * 当内核接收到添加或者删除一条路由请求时,这个请求来自用户空间的一条IPROUTE2命令，
+ * 内核就解析请求并将其存储到kern_rta结构里
  */
 struct dn_kern_rta
 {

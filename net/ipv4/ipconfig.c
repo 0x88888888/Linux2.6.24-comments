@@ -351,6 +351,7 @@ static int __init ic_setup_routes(void)
 		set_sockaddr((struct sockaddr_in *) &rm.rt_genmask, 0, 0);
 		set_sockaddr((struct sockaddr_in *) &rm.rt_gateway, ic_gateway, 0);
 		rm.rt_flags = RTF_UP | RTF_GATEWAY;
+		
 		if ((err = ic_route_ioctl(SIOCADDRT, &rm)) < 0) {
 			printk(KERN_ERR "IP-Config: Cannot add default route (%d).\n", err);
 			return -1;

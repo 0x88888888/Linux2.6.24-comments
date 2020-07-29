@@ -12,6 +12,8 @@
 
 /*
  * rtable 中的成员
+ *
+ * 根据从L3与L4包头中选择的字段值，作为查找时的关键值
  */
 struct flowi {
 	int	oif;

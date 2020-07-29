@@ -223,6 +223,7 @@ enum rt_scope_t
 	RT_SCOPE_SITE=200,
 	RT_SCOPE_LINK=253,
 	RT_SCOPE_HOST=254,
+	//表示非法socpe
 	RT_SCOPE_NOWHERE=255
 };
 

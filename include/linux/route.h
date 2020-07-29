@@ -26,7 +26,10 @@
 #include <linux/if.h>
 #include <linux/compiler.h>
 
-/* This structure gets passed by the SIOCADDRT and SIOCDELRT calls. */
+/* This structure gets passed by the SIOCADDRT and SIOCDELRT calls. 
+ *
+ * 使用route命令向内核添加或者删除路由表项的请求时所用的数据结构
+ */
 struct rtentry 
 {
 	unsigned long	rt_pad1;

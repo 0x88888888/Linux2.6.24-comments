@@ -34,6 +34,7 @@
 #define	IFF_POINTOPOINT	0x10		/* interface is has p-p link	*/
 #define	IFF_NOTRAILERS	0x20		/* avoid use of trailers	*/
 #define	IFF_RUNNING	0x40		/* interface RFC2863 OPER_UP	*/
+//net_device->flags 如果有IFF_NOARP标记，表明设备不会回复ARP request
 #define	IFF_NOARP	0x80		/* no ARP protocol		*/
 #define	IFF_PROMISC	0x100		/* receive all packets		*/
 #define	IFF_ALLMULTI	0x200		/* receive all multicast packets*/

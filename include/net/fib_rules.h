@@ -7,6 +7,9 @@
 #include <net/flow.h>
 #include <net/rtnetlink.h>
 
+/*
+ * 表示由策略路由在路由流量时选择的规则
+ */
 struct fib_rule
 {
 	struct list_head	list;
