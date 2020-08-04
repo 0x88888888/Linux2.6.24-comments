@@ -105,6 +105,11 @@ pcibios_align_resource(void *data, struct resource *res,
  *	    not configured at all or misconfigured.  If explicitly
  *	    requested by the user, configure expansion ROM address
  *	    as well.
+ *
+ * do_initcalls()
+ *  pcibios_init()
+ *   pcibios_resource_survey()
+ *    pcibios_allocate_bus_resources()
  */
 
 static void __init pcibios_allocate_bus_resources(struct list_head *bus_list)

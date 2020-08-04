@@ -247,6 +247,7 @@ struct pci_bus * __devinit pci_acpi_scan_root(struct acpi_device *device, int do
 }
 
 extern int pci_routeirq;
+
 static int __init pci_acpi_init(void)
 {
 	struct pci_dev *dev = NULL;
@@ -258,8 +259,9 @@ static int __init pci_acpi_init(void)
 		return 0;
 
 	printk(KERN_INFO "PCI: Using ACPI for IRQ routing\n");
+	//更新acpi_irq_penalty表
 	acpi_irq_penalty_init();
-	pcibios_scanned++;
+	pcibios_scanned++;//不是0了
 	pcibios_enable_irq = acpi_pci_irq_enable;
 	pcibios_disable_irq = acpi_pci_irq_disable;
 
@@ -271,7 +273,7 @@ static int __init pci_acpi_init(void)
 		 */
 		printk(KERN_INFO "PCI: Routing PCI interrupts for all devices because \"pci=routeirq\" specified\n");
 		for_each_pci_dev(dev)
-			acpi_pci_irq_enable(dev);
+			acpi_pci_irq_enable(dev); //为dev分配irq号
 	} else
 		printk(KERN_INFO "PCI: If a device doesn't work, try \"pci=routeirq\".  If it helps, post a report\n");
 
