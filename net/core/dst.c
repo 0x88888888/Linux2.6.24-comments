@@ -159,6 +159,13 @@ static int dst_discard(struct sk_buff *skb)
 	return 0;
 }
 
+/*
+ * ip_rcv
+ *  ip_rcv_finish
+ *   ip_route_input
+ *    ip_route_input_slow
+ *     dst_alloc(ops == ipv4_dst_ops) 分配rtable对象
+ */ 
 void * dst_alloc(struct dst_ops * ops)
 {
 	struct dst_entry * dst;
@@ -168,6 +175,7 @@ void * dst_alloc(struct dst_ops * ops)
 		if (ops->gc())
 			return NULL;
 	}
+	
 	dst = kmem_cache_zalloc(ops->kmem_cachep, GFP_ATOMIC);
 	if (!dst)
 		return NULL;

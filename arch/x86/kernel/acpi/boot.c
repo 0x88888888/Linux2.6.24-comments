@@ -1181,8 +1181,11 @@ static struct dmi_system_id __initdata acpi_dmi_table[] = {
  * return value: (currently ignored)
  *	0: success
  *	!0: failure
+ *
+ * start_kernel() [init/main.c]
+ *  setup_arch()
+ *   acpi_boot_table_init()
  */
-
 int __init acpi_boot_table_init(void)
 {
 	int error;

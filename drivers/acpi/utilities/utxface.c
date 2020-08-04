@@ -119,6 +119,10 @@ acpi_status __init acpi_initialize_subsystem(void)
  * DESCRIPTION: Completes the subsystem initialization including hardware.
  *              Puts system into ACPI mode if it isn't already.
  *
+ * start_kernel()
+ *  acpi_early_init()
+ *   acpi_enable_subsystem()
+ *
  ******************************************************************************/
 acpi_status acpi_enable_subsystem(u32 flags)
 {

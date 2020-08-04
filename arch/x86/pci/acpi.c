@@ -187,6 +187,12 @@ res_alloc_fail:
 	return;
 }
 
+/*
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *   acpi_pci_root_add()
+ *    pci_acpi_scan_root()
+ */
 struct pci_bus * __devinit pci_acpi_scan_root(struct acpi_device *device, int domain, int busnum)
 {
 	struct pci_bus *bus;
@@ -220,6 +226,7 @@ struct pci_bus * __devinit pci_acpi_scan_root(struct acpi_device *device, int do
 		sd->node = pxm_to_node(pxm);
 #endif
 
+    //枚举host 主桥上的设备
 	bus = pci_scan_bus_parented(NULL, busnum, &pci_root_ops, sd);
 	if (!bus)
 		kfree(sd);

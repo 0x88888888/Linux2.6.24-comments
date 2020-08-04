@@ -858,6 +858,11 @@ static void __init do_initcalls(void)
      * blk_dev_init, 
      * net_ns_init,br_init(网桥功能的初始化)
      * fib_rules_init,
+     *
+     * pcibus_class_init, pci_driver_init, pci_access_init
+     * pci_legacy_init, pcibios_init, pci_iommu_init,
+     * pcibios_assign_resources, pci_init, pci_proc_init
+     * acpi_pci_root_init
      * 
      */
 	for (call = __initcall_start; call < __initcall_end; call++) {

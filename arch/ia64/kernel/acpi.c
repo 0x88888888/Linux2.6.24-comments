@@ -643,6 +643,13 @@ unsigned long __init acpi_find_rsdp(void)
 	return rsdp_phys;
 }
 
+/*
+ * start_kernel() [init/main.c]
+ *  setup_arch()
+ *   acpi_boot_init()
+ *
+ * 解释MADT表
+ */
 int __init acpi_boot_init(void)
 {
 

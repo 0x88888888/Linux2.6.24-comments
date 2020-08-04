@@ -184,6 +184,11 @@ static void acpi_pci_bridge_scan(struct acpi_device *device)
 		}
 }
 
+/*
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *   acpi_pci_root_add()
+ */
 static int acpi_pci_root_add(struct acpi_device *device)
 {
 	int result = 0;
@@ -300,6 +305,8 @@ static int acpi_pci_root_add(struct acpi_device *device)
 	 * Must do this prior to any attempt to bind the root device, as the
 	 * PCI namespace does not get created until this call is made (and 
 	 * thus the root bridge's pci_dev does not exist).
+	 *
+	 * 扫描host 主桥
 	 */
 	root->bus = pci_acpi_scan_root(device, root->id.segment, root->id.bus);
 	if (!root->bus) {
@@ -314,6 +321,8 @@ static int acpi_pci_root_add(struct acpi_device *device)
 	 * Attach ACPI-PCI Context
 	 * -----------------------
 	 * Thus binding the ACPI and PCI devices.
+	 *
+	 * 设置device->ops.bind, device.ops.unbind
 	 */
 	result = acpi_pci_bind_root(device, &root->id, root->bus);
 	if (result)
@@ -350,7 +359,9 @@ static int acpi_pci_root_start(struct acpi_device *device)
 	struct acpi_pci_root *root;
 
 
+    //遍历host 主桥
 	list_for_each_entry(root, &acpi_pci_roots, node) {
+		
 		if (root->device == device) {
 			pci_bus_add_devices(root->bus);
 			return 0;
@@ -374,6 +385,13 @@ static int acpi_pci_root_remove(struct acpi_device *device, int type)
 	return 0;
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_root_init()
+ */
 static int __init acpi_pci_root_init(void)
 {
 

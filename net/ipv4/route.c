@@ -245,9 +245,12 @@ static spinlock_t	*rt_hash_locks;
 # define rt_hash_lock_init()
 #endif
 
+//路由缓存hash表，
 static struct rt_hash_bucket 	*rt_hash_table;
+//确定rt_hash_table中的容量
 static unsigned			rt_hash_mask;
 static unsigned int		rt_hash_log;
+//随机值，确定rt_hash_table中的元素的分布
 static unsigned int		rt_hash_rnd;
 
 static DEFINE_PER_CPU(struct rt_cache_stat, rt_cache_stat);
@@ -570,9 +573,11 @@ static void rt_check_expire(struct work_struct *work)
 	mult = ((u64)ip_rt_gc_interval) << rt_hash_log;
 	if (ip_rt_gc_timeout > 1)
 		do_div(mult, ip_rt_gc_timeout);
+	//要删除goal个rtable
 	goal = (unsigned int)mult;
 	if (goal > rt_hash_mask)
 		goal = rt_hash_mask + 1;
+	
 	for (; goal > 0; goal--) {
 		unsigned long tmo = ip_rt_gc_timeout;
 
@@ -584,7 +589,9 @@ static void rt_check_expire(struct work_struct *work)
 
 		if (*rthp == NULL)
 			continue;
+		
 		spin_lock_bh(rt_hash_lock_addr(i));
+		
 		while ((rth = *rthp) != NULL) {
 			if (rth->u.dst.expires) {
 				/* Entry is expired even if it is in use */
@@ -599,6 +606,7 @@ static void rt_check_expire(struct work_struct *work)
 				continue;
 			}
 
+            //下一个rtable
 			/* Cleanup aged off entries. */
 			*rthp = rth->u.dst.rt_next;
 			rt_free(rth);
@@ -1405,6 +1413,7 @@ unsigned short ip_rt_frag_needed(struct iphdr *iph, unsigned short new_mtu)
 								(1 << RTAX_MTU);
 						}
 						rth->u.dst.metrics[RTAX_MTU-1] = mtu;
+						//设置dst_entry过期的时间
 						dst_set_expires(&rth->u.dst,
 							ip_rt_mtu_expires);
 					}
@@ -1426,6 +1435,7 @@ static void ip_rt_update_pmtu(struct dst_entry *dst, u32 mtu)
 			dst->metrics[RTAX_LOCK-1] |= (1 << RTAX_MTU);
 		}
 		dst->metrics[RTAX_MTU-1] = mtu;
+		//设置dst_entry过期的时间
 		dst_set_expires(dst, ip_rt_mtu_expires);
 		call_netevent_notifiers(NETEVENT_PMTU_UPDATE, dst);
 	}
@@ -1913,6 +1923,8 @@ static int ip_route_input_slow(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 	 *
 	 *	Now we are ready to route packet.
 	 *  根据fl查询路由表，并把查询得到的结果返回到res参数中
+	 *
+	 * 在ip_fib.h中
 	 */
 	if ((err = fib_lookup(&fl, &res)) != 0) {
 		if (!IN_DEV_FORWARD(in_dev))  /*没找到，先判断转发标志是否打开*/
@@ -2114,7 +2126,8 @@ int ip_route_input(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 	   comparing with route cache reject entries.
 	   Note, that multicast routers are not affected, because
 	   route cache entry is created eventually.
-	   ip层多播地址
+	 *
+	 * ip层多播地址
 	 */
 	if (MULTICAST(daddr)) {
 		struct in_device *in_dev;
@@ -2142,6 +2155,7 @@ int ip_route_input(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 
 	/*
 	 * 如果路由缓存中查找不到匹配的表项，就需要转到路由表中去查找了
+	 * ip_fib_local_table, ip_fib_main_table
 	 */
 	return ip_route_input_slow(skb, daddr, saddr, tos, dev);
 }
@@ -2449,7 +2463,9 @@ static int ip_route_output_slow(struct rtable **rp, const struct flowi *oldflp)
 	}
 
 	
-	/* 根据fl查找到路由表,并把查询得到结果返回到res参数中 */
+	/* 根据fl查找到路由表,并把查询得到结果返回到res参数中 
+	 * 在ip_fib.h中
+	 */
 	if (fib_lookup(&fl, &res)) {
 		res.fi = NULL;
 		if (oldflp->oif) {
@@ -3221,6 +3237,7 @@ int __init ip_rt_init(void)
 					&rt_hash_log,
 					&rt_hash_mask,
 					0);
+	
 	memset(rt_hash_table, 0, (rt_hash_mask + 1) * sizeof(struct rt_hash_bucket));
 	rt_hash_lock_init();
 

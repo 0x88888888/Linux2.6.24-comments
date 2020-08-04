@@ -620,7 +620,7 @@ char * __init __attribute__((weak)) memory_setup(void)
  * global efi_enabled. This allows the same kernel image to be used on existing
  * systems (with a traditional BIOS) as well as on EFI systems.
  *
- * 会初始化APIC
+ * 会初始化APIC, ACPI
  *
  * start_kernel() [init/main.c]
  *  setup_arch()
@@ -779,7 +779,7 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_ACPI
 	/*
 	 * Parse the ACPI tables for possible boot-time SMP configuration.
-	 * 
+	 * 解释 ACPI table
 	 */
 	acpi_boot_table_init();
 #endif
@@ -789,6 +789,7 @@ void __init setup_arch(char **cmdline_p)
 #endif
 
 #ifdef CONFIG_ACPI
+// 初始化acpi
 	acpi_boot_init();
 
 #if defined(CONFIG_SMP) && defined(CONFIG_X86_PC)

@@ -112,8 +112,16 @@ static struct class pcibus_class = {
 	.release	= &release_pcibus_dev,
 };
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pcibus_class_init()
+ */
 static int __init pcibus_class_init(void)
 {
+    //在sysfs中注册一个class对象,创建 /sys/class/pci_bus目录
 	return class_register(&pcibus_class);
 }
 postcore_initcall(pcibus_class_init);
@@ -285,6 +293,18 @@ static void pci_read_bases(struct pci_dev *dev, unsigned int howmany, int rom)
 	}
 }
 
+/*
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *   acpi_pci_root_add()
+ *    pci_acpi_scan_root()
+ *     pci_scan_bus_parented()
+ *      pci_scan_child_bus()
+ *       pcibios_fixup_bus()
+ *
+ * 初始化bus的 I/O limit, I/O base, Memory Limit, Memory base,
+ * Prefetchable Memory Limit和Prefetchable memory base
+ */
 void pci_read_bridge_bases(struct pci_bus *child)
 {
 	struct pci_dev *dev = child->self;
@@ -482,6 +502,14 @@ unsigned int pci_scan_child_bus(struct pci_bus *bus);
  * already configured by the BIOS and after we are done with all of
  * them, we proceed to assigning numbers to the remaining buses in
  * order to avoid overlaps between old and new bus numbers.
+ *
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *   acpi_pci_root_add()
+ *    pci_acpi_scan_root()
+ *     pci_scan_bus_parented()
+ *      pci_scan_child_bus()
+ *       pci_scan_bridge()
  */
 int pci_scan_bridge(struct pci_bus *bus, struct pci_dev * dev, int max, int pass)
 {
@@ -531,6 +559,7 @@ int pci_scan_bridge(struct pci_bus *bus, struct pci_dev * dev, int max, int pass
 		cmax = pci_scan_child_bus(child);
 		if (cmax > max)
 			max = cmax;
+		
 		if (child->subordinate > max)
 			max = child->subordinate;
 	} else {
@@ -685,6 +714,14 @@ static void pci_read_irq(struct pci_dev *dev)
  * Called at initialisation of the PCI subsystem and by CardBus services.
  * Returns 0 on success and -1 if unknown type of device (not normal, bridge
  * or CardBus).
+ *
+ * pci_acpi_scan_root()
+ *  pci_scan_bus_parented()
+ *   pci_scan_child_bus()
+ *    pci_scan_slot()
+ *     pci_scan_single_device()
+ *      pci_scan_device()
+ *       pci_setup_device()
  */
 static int pci_setup_device(struct pci_dev * dev)
 {
@@ -752,8 +789,14 @@ static int pci_setup_device(struct pci_dev * dev)
 		/* The PCI-to-PCI bridge spec requires that subtractive
 		   decoding (i.e. transparent) bridge must have programming
 		   interface code of 0x01. */ 
+		/*
+		 * 这里会读取dev->irq,但是这个irq基本上不会是真的中断号，
+		 * 只有在由8259A中断控制器来传输中断时，这个irq号才是真的irq号，
+		 * 如果io apic ,local apic来处理中断，中断号会变的
+		 */
 		pci_read_irq(dev);
 		dev->transparent = ((dev->class & 0xff) == 1);
+		//访问BAR空间和ROM空间，初始化dev->resource
 		pci_read_bases(dev, 2, PCI_ROM_ADDRESS1);
 		break;
 
@@ -872,6 +915,16 @@ EXPORT_SYMBOL(alloc_pci_dev);
 /*
  * Read the config data for a PCI device, sanity-check it
  * and fill in the dev structure...
+ *
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *   acpi_pci_root_add()
+ *    pci_acpi_scan_root()
+ *     pci_scan_bus_parented()
+ *      pci_scan_child_bus()
+ *       pci_scan_slot()
+ *        pci_scan_single_device()
+ *         pci_scan_device()
  */
 static struct pci_dev * __devinit
 pci_scan_device(struct pci_bus *bus, int devfn)
@@ -881,6 +934,7 @@ pci_scan_device(struct pci_bus *bus, int devfn)
 	u8 hdr_type;
 	int delay = 1;
 
+    //读取PCI设备的Verder ID
 	if (pci_bus_read_config_dword(bus, devfn, PCI_VENDOR_ID, &l))
 		return NULL;
 
@@ -905,9 +959,11 @@ pci_scan_device(struct pci_bus *bus, int devfn)
 		}
 	}
 
+    //读取PCI设备的 header type
 	if (pci_bus_read_config_byte(bus, devfn, PCI_HEADER_TYPE, &hdr_type))
 		return NULL;
-
+ 
+    //分配一个pci_dev对象
 	dev = alloc_pci_dev();
 	if (!dev)
 		return NULL;
@@ -959,6 +1015,16 @@ void pci_device_add(struct pci_dev *dev, struct pci_bus *bus)
 	up_write(&pci_bus_sem);
 }
 
+/*
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *   acpi_pci_root_add()
+ *    pci_acpi_scan_root()
+ *     pci_scan_bus_parented()
+ *      pci_scan_child_bus()
+ *       pci_scan_slot()
+ *        pci_scan_single_device()
+ */
 struct pci_dev *pci_scan_single_device(struct pci_bus *bus, int devfn)
 {
 	struct pci_dev *dev;
@@ -980,6 +1046,16 @@ struct pci_dev *pci_scan_single_device(struct pci_bus *bus, int devfn)
  * Scan a PCI slot on the specified PCI bus for devices, adding
  * discovered devices to the @bus->devices list.  New devices
  * will have an empty dev->global_list head.
+ *
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *   acpi_pci_root_add()
+ *    pci_acpi_scan_root()
+ *     pci_scan_bus_parented()
+ *      pci_scan_child_bus()
+ *       pci_scan_slot()
+ *
+ * 扫描bus上的所有设备，添加到bus->devices
  */
 int pci_scan_slot(struct pci_bus *bus, int devfn)
 {
@@ -1014,6 +1090,16 @@ int pci_scan_slot(struct pci_bus *bus, int devfn)
 	return nr;
 }
 
+/*
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *   acpi_pci_root_add()
+ *    pci_acpi_scan_root()
+ *     pci_scan_bus_parented()
+ *      pci_scan_child_bus()
+ *
+ * 遍历总线上的设备，返回bus的subordinate号
+ */
 unsigned int pci_scan_child_bus(struct pci_bus *bus)
 {
 	unsigned int devfn, pass, max = bus->secondary;
@@ -1023,14 +1109,16 @@ unsigned int pci_scan_child_bus(struct pci_bus *bus)
 
 	/* Go find them, Rover! */
 	for (devfn = 0; devfn < 0x100; devfn += 8)
-		pci_scan_slot(bus, devfn);
+		pci_scan_slot(bus, devfn); //扫描当前总线的所有设备,并且添加到bus->devices
 
 	/*
 	 * After performing arch-dependent fixup of the bus, look behind
 	 * all PCI-to-PCI bridges on this bus.
 	 */
 	pr_debug("PCI: Fixups for bus %04x:%02x\n", pci_domain_nr(bus), bus->number);
+	
 	pcibios_fixup_bus(bus);
+	//2趟
 	for (pass=0; pass < 2; pass++)
 		list_for_each_entry(dev, &bus->devices, bus_list) {
 			if (dev->hdr_type == PCI_HEADER_TYPE_BRIDGE ||
@@ -1142,6 +1230,13 @@ err_out:
 }
 EXPORT_SYMBOL_GPL(pci_create_bus);
 
+/*
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *   acpi_pci_root_add()
+ *    pci_acpi_scan_root()
+ *     pci_scan_bus_parented()
+ */
 struct pci_bus *pci_scan_bus_parented(struct device *parent,
 		int bus, struct pci_ops *ops, void *sysdata)
 {

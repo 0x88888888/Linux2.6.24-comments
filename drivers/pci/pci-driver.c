@@ -654,8 +654,17 @@ struct bus_type pci_bus_type = {
 	.dev_attrs	= pci_dev_attrs,
 };
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pci_driver_init()
+ */
 static int __init pci_driver_init(void)
 {
+
+    //创建 /sys/bus/pci目录
 	return bus_register(&pci_bus_type);
 }
 

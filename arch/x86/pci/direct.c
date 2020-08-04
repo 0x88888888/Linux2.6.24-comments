@@ -265,10 +265,19 @@ void __init pci_direct_init(int type)
 		raw_pci_ops = &pci_direct_conf2;
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pci_access_init()
+ *      pci_direct_probe()
+ */
 int __init pci_direct_probe(void)
 {
 	struct resource *region, *region2;
 
+    // pci_probe 看默认的设置就可以
 	if ((pci_probe & PCI_PROBE_CONF1) == 0)
 		goto type2;
 	region = request_region(0xCF8, 8, "PCI conf1");

@@ -3,20 +3,32 @@
 #include "pci.h"
 
 /* arch_initcall has too random ordering, so call the initializers
-   in the right sequence from here. */
+   in the right sequence from here. 
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pci_access_init()
+ */
 static __init int pci_access_init(void)
 {
 	int type __maybe_unused = 0;
 
 #ifdef CONFIG_PCI_DIRECT
+    // raw_pci_ops == pci_direct_conf2
 	type = pci_direct_probe();
 #endif
+
 #ifdef CONFIG_PCI_MMCONFIG
+    // raw_pci_ops == pci_mmcfg
 	pci_mmcfg_init(type);
 #endif
+
 	if (raw_pci_ops)
 		return 0;
 #ifdef CONFIG_PCI_BIOS
+    //raw_pci_ops== pci_bios_access
 	pci_pcbios_init();
 #endif
 	/*
@@ -26,6 +38,7 @@ static __init int pci_access_init(void)
 	 * fails.
 	 */
 #ifdef CONFIG_PCI_DIRECT
+     //raw_pci_ops== pci_direct_conf1 或者 raw_pci_ops == pci_direct_conf2
 	pci_direct_init(type);
 #endif
 	if (!raw_pci_ops)

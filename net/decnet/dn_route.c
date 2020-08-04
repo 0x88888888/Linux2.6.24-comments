@@ -238,6 +238,7 @@ static void dn_dst_update_pmtu(struct dst_entry *dst, u32 mtu)
 	if (dst->metrics[RTAX_MTU-1] > mtu && mtu >= min_mtu) {
 		if (!(dst_metric_locked(dst, RTAX_MTU))) {
 			dst->metrics[RTAX_MTU-1] = mtu;
+			//设置dst_entry过期的时间
 			dst_set_expires(dst, dn_rt_mtu_expires);
 		}
 		if (!(dst_metric_locked(dst, RTAX_ADVMSS))) {

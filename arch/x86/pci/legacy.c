@@ -33,6 +33,15 @@ static void __devinit pcibios_fixup_peer_bridges(void)
 	}
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pci_legacy_init()
+ *
+ * 完成对pci总线的枚举
+ */
 static int __init pci_legacy_init(void)
 {
 	if (!raw_pci_ops) {
@@ -44,8 +53,9 @@ static int __init pci_legacy_init(void)
 		return 0;
 
 	printk("PCI: Probing PCI hardware\n");
+	//完成对pci总线树的枚举
 	pci_root_bus = pcibios_scan_root(0);
-	if (pci_root_bus)
+	if (pci_root_bus) //添加总线设备到sysfs中
 		pci_bus_add_devices(pci_root_bus);
 
 	pcibios_fixup_peer_bridges();

@@ -289,6 +289,12 @@ static void __init check_multiple_madt(void)
  * checksum all tables, print SDT/XSDT
  *
  * result: sdt_entry[] is initialized
+ *
+ *
+ * start_kernel() [init/main.c]
+ *  setup_arch()
+ *   acpi_boot_table_init()
+ *    acpi_table_init()
  */
 
 int __init acpi_table_init(void)

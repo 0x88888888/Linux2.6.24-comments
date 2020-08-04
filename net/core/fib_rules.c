@@ -160,7 +160,7 @@ out:
  *   __ip_route_output_key()
  *    ip_route_output_slow()
  *	   fib_lookup()
- *      fib_rules_lookup()
+ *      fib_rules_lookup( ops == fib4_rules_ops)
  */ 
 int fib_rules_lookup(struct fib_rules_ops *ops, struct flowi *fl,
 		     int flags, struct fib_lookup_arg *arg)

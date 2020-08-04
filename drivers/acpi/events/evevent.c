@@ -144,6 +144,11 @@ acpi_status acpi_ev_install_fadt_gpes(void)
  *
  * DESCRIPTION: Install interrupt handlers for the SCI and Global Lock
  *
+ * start_kernel()
+ *  acpi_early_init()
+ *   acpi_enable_subsystem()
+ *    acpi_ev_install_xrupt_handlers()
+ *
  ******************************************************************************/
 
 acpi_status acpi_ev_install_xrupt_handlers(void)
@@ -153,7 +158,7 @@ acpi_status acpi_ev_install_xrupt_handlers(void)
 	ACPI_FUNCTION_TRACE(ev_install_xrupt_handlers);
 
 	/* Install the SCI handler */
-
+    //设置Sci中断处理函数
 	status = acpi_ev_install_sci_handler();
 	if (ACPI_FAILURE(status)) {
 		ACPI_EXCEPTION((AE_INFO, status,

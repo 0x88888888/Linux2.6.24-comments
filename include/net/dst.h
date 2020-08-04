@@ -108,6 +108,7 @@ struct dst_ops
 	int			entry_size;
 
 	atomic_t		entries;
+	//分配rtable
 	struct kmem_cache 		*kmem_cachep;
 };
 
@@ -229,6 +230,9 @@ static inline void dst_link_failure(struct sk_buff *skb)
 		dst->ops->link_failure(skb);
 }
 
+/*
+ * 设置dst_entry过期时间
+ */
 static inline void dst_set_expires(struct dst_entry *dst, int timeout)
 {
 	unsigned long expires = jiffies + timeout;

@@ -150,6 +150,13 @@ acpi_pci_irq_del_entry(int segment, int bus, struct acpi_prt_entry *entry)
 	}
 }
 
+/*
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *   acpi_pci_root_add()
+ *    acpi_pci_irq_add_prt()
+ *
+ */
 int acpi_pci_irq_add_prt(acpi_handle handle, int segment, int bus)
 {
 	acpi_status status = AE_OK;

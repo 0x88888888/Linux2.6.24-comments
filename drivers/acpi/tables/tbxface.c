@@ -101,6 +101,12 @@ acpi_status acpi_allocate_root_table(u32 initial_table_count)
  *              If the host OS memory managers are initialized, use NULL for
  *              initial_table_array, and the table will be dynamically allocated.
  *
+ * start_kernel() [init/main.c]
+ *  setup_arch()
+ *   acpi_boot_table_init()
+ *    acpi_table_init()
+ *     acpi_initialize_tables()
+ *
  ******************************************************************************/
 
 acpi_status __init

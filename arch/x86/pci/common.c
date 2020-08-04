@@ -113,8 +113,15 @@ static void __devinit pcibios_fixup_ghosts(struct pci_bus *b)
 /*
  *  Called after each bus is probed, but before its children
  *  are examined.
+ *
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *   acpi_pci_root_add()
+ *    pci_acpi_scan_root()
+ *     pci_scan_bus_parented()
+ *      pci_scan_child_bus()
+ *       pcibios_fixup_bus()
  */
-
 void __devinit  pcibios_fixup_bus(struct pci_bus *b)
 {
 	pcibios_fixup_ghosts(b);
@@ -366,6 +373,13 @@ struct pci_bus * __devinit pcibios_scan_root(int busnum)
 
 extern u8 pci_cache_line_size;
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pcibios_init()
+ */
 static int __init pcibios_init(void)
 {
 	struct cpuinfo_x86 *c = &boot_cpu_data;
@@ -386,6 +400,7 @@ static int __init pcibios_init(void)
 	else if (c->x86 > 6 && c->x86_vendor == X86_VENDOR_INTEL)
 		pci_cache_line_size = 128 >> 2;	/* P4 */
 
+    //检查pci设备使用的存储器以及I/0资源
 	pcibios_resource_survey();
 
 	if (pci_bf_sort >= pci_force_bf)

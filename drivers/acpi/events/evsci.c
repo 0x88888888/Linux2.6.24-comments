@@ -62,6 +62,8 @@ static u32 ACPI_SYSTEM_XFACE acpi_ev_sci_xrupt_handler(void *context);
  * DESCRIPTION: Interrupt handler that will figure out what function or
  *              control method to call to deal with a SCI.
  *
+ * sci中断处理函数
+ *
  ******************************************************************************/
 
 static u32 ACPI_SYSTEM_XFACE acpi_ev_sci_xrupt_handler(void *context)
@@ -134,6 +136,12 @@ u32 ACPI_SYSTEM_XFACE acpi_ev_gpe_xrupt_handler(void *context)
  *
  * DESCRIPTION: Installs SCI handler.
  *
+ * start_kernel()
+ *  acpi_early_init()
+ *   acpi_enable_subsystem()
+ *    acpi_ev_install_xrupt_handlers()
+ *     acpi_ev_install_sci_handler()
+ *
  ******************************************************************************/
 
 u32 acpi_ev_install_sci_handler(void)
@@ -144,7 +152,7 @@ u32 acpi_ev_install_sci_handler(void)
 
 	status =
 	    acpi_os_install_interrupt_handler((u32) acpi_gbl_FADT.sci_interrupt,
-					      acpi_ev_sci_xrupt_handler,
+					      acpi_ev_sci_xrupt_handler, //sci中断处理函数
 					      acpi_gbl_gpe_xrupt_list_head);
 	return_ACPI_STATUS(status);
 }

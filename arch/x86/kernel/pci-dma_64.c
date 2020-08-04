@@ -313,6 +313,13 @@ void __init pci_iommu_alloc(void)
 #endif
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pci_iommu_init()
+ */
 static int __init pci_iommu_init(void)
 {
 #ifdef CONFIG_CALGARY_IOMMU

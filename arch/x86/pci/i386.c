@@ -196,6 +196,16 @@ static void __init pcibios_allocate_resources(int pass)
 	}
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pcibios_assign_resources()
+ *
+ * 这个函数主要处理PCI设备使用的ROM空间和PCI设备使用的存储器和IO资源
+ *
+ */
 static int __init pcibios_assign_resources(void)
 {
 	struct pci_dev *dev = NULL;
@@ -219,11 +229,22 @@ static int __init pcibios_assign_resources(void)
 		}
 	}
 
+    //对pci设备使用的存储器和io资源进行设置
 	pci_assign_unassigned_resources();
 
 	return 0;
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pcibios_init()
+ *      pcibios_resource_survey()
+ *
+ * 检查pci设备使用的存储器以及I/0资源
+ */
 void __init pcibios_resource_survey(void)
 {
 	DBG("PCI: Allocating resources\n");

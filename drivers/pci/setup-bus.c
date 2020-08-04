@@ -527,6 +527,16 @@ void pci_bus_assign_resources(struct pci_bus *bus)
 }
 EXPORT_SYMBOL(pci_bus_assign_resources);
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pcibios_assign_resources()
+ *      pci_assign_unassigned_resources()
+ * 
+ * 对pci设备使用的存储器和io资源进行设置
+ */
 void __init
 pci_assign_unassigned_resources(void)
 {

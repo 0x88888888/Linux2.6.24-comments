@@ -88,6 +88,14 @@ const struct dma_mapping_ops nommu_dma_ops = {
 	.is_phys = 1,
 };
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pci_iommu_init()
+ *      no_iommu_init()
+ */
 void __init no_iommu_init(void)
 {
 	if (dma_ops)

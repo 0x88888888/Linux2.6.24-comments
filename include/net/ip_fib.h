@@ -249,6 +249,19 @@ static inline struct fib_table *fib_new_table(u32 id)
 }
 
 //查找路由项
+/*
+ * ip_rcv()
+ *  ip_rcv_finish()
+ *   ip_route_input()
+ *    ip_route_input_slow()
+ *     fib_lookup()
+ *
+ * ip_queue_xmit()
+ *  ip_route_output_flow()
+ *   __ip_route_output_key()
+ *    ip_route_output_slow()
+ *     fib_lookup()
+ */
 static inline int fib_lookup(const struct flowi *flp, struct fib_result *res)
 {
 

@@ -133,7 +133,7 @@ struct pci_cap_saved_state {
  * The pci_dev structure is used to describe PCI devices.
  *
  * 表示每个pci设备，包括pci桥本身也用这个pci_dev对象表示
- * 而pci总线则由pci_bus来表示
+ * 而pci桥则由pci_bus来表示
  */
 struct pci_dev {
 	struct list_head global_list;	/* 链接到pci_devices， node in list of all PCI devices */
@@ -259,7 +259,7 @@ static inline void pci_add_saved_cap(struct pci_dev *pci_dev,
 #define PCI_REGION_FLAG_MASK	0x0fU	/* These bits of resource flags tell us the PCI region flags */
 
 /* 
- * 表示pci总线则由pci_bus来表示,
+ * pci桥则由pci_bus来表示,
  * pci设备由pci_dev对象来表示
  *
  */

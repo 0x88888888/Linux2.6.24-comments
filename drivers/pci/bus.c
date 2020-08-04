@@ -76,6 +76,10 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
  *
  * This adds a single pci device to the global
  * device list and adds sysfs and procfs entries
+ *
+ * acpi_pci_root_start()
+ *  pci_bus_add_devices()
+ *   pci_bus_add_device()
  */
 int pci_bus_add_device(struct pci_dev *dev)
 {
@@ -104,6 +108,10 @@ int pci_bus_add_device(struct pci_dev *dev)
  * to be compatible with 2.4)
  *
  * Call hotplug for each new devices.
+ *
+ * acpi_pci_root_start()
+ *  pci_bus_add_devices()
+ *
  */
 void pci_bus_add_devices(struct pci_bus *bus)
 {
@@ -117,6 +125,7 @@ void pci_bus_add_devices(struct pci_bus *bus)
 		 */
 		if (!list_empty(&dev->global_list))
 			continue;
+		
 		retval = pci_bus_add_device(dev);
 		if (retval)
 			dev_err(&dev->dev, "Error adding device, continuing\n");
@@ -137,6 +146,7 @@ void pci_bus_add_devices(struct pci_bus *bus)
 					       &dev->bus->children);
 			       up_write(&pci_bus_sem);
 			}
+			// 递归起来
 			pci_bus_add_devices(dev->subordinate);
 			retval = sysfs_create_link(&dev->subordinate->class_dev.kobj,
 						   &dev->dev.kobj, "bridge");

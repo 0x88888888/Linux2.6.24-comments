@@ -336,6 +336,7 @@ static int acpi_device_uevent(struct device *dev, struct kobj_uevent_env *env)
 
 static int acpi_bus_driver_init(struct acpi_device *, struct acpi_driver *);
 static int acpi_start_single_object(struct acpi_device *);
+
 static int acpi_device_probe(struct device * dev)
 {
 	struct acpi_device *acpi_dev = to_acpi_device(dev);
@@ -503,6 +504,11 @@ static void acpi_device_unregister(struct acpi_device *device, int type)
  *
  * Used to initialize a device via its device driver.  Called whenever a 
  * driver is bound to a device.  Invokes the driver's add() ops.
+ *
+ *
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *
  */
 static int
 acpi_bus_driver_init(struct acpi_device *device, struct acpi_driver *driver)
@@ -516,6 +522,7 @@ acpi_bus_driver_init(struct acpi_device *device, struct acpi_driver *driver)
 	if (!driver->ops.add)
 		return -ENOSYS;
 
+    //driver==acpi_pci_root_driver的话,add就是 acpi_pci_root_add
 	result = driver->ops.add(device);
 	if (result) {
 		device->driver = NULL;

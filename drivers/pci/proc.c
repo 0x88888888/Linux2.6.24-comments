@@ -463,6 +463,15 @@ static const struct file_operations proc_bus_pci_dev_operations = {
 	.release	= seq_release,
 };
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pci_proc_init()
+ *
+ *创建 /proc/pci目录
+ */
 static int __init pci_proc_init(void)
 {
 	struct proc_dir_entry *entry;

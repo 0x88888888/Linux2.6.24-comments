@@ -1578,6 +1578,14 @@ static void __devinit pci_no_domains(void)
 #endif
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pci_init()
+ * 做一些对已经完成枚举的PCI设备进行修复的工作
+ */
 static int __devinit pci_init(void)
 {
 	struct pci_dev *dev = NULL;

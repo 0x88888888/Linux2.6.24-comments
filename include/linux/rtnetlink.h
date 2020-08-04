@@ -235,7 +235,7 @@ enum rt_scope_t
 #define RTM_F_PREFIX		0x800	/* Prefix addresses		*/
 
 /* Reserved table identifiers */
-
+//路由表类型，
 enum rt_class_t
 {
 	RT_TABLE_UNSPEC=0,
