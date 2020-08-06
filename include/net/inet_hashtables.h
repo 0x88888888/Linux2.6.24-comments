@@ -265,6 +265,17 @@ static inline void inet_listen_unlock(struct inet_hashinfo *hashinfo)
 		wake_up(&hashinfo->lhash_wait);
 }
 
+/*
+ * sys_socketcall()
+ *  sys_socket()
+ *   sock_create()
+ *    __sock_create() 
+ *     inet_create()
+ *      tcp_v4_hash()
+ *       inet_hash(hashinfo == tcp_hashinfo)
+ *        __inet_hash(hashinfo == tcp_hashinfo) 将sk存入tcp_hashinfo中
+ * 
+ */
 static inline void __inet_hash(struct inet_hashinfo *hashinfo,
 			       struct sock *sk, const int listen_possible)
 {
@@ -293,6 +304,15 @@ static inline void __inet_hash(struct inet_hashinfo *hashinfo,
 		wake_up(&hashinfo->lhash_wait);
 }
 
+/*
+ * sys_socketcall()
+ *  sys_socket()
+ *   sock_create()
+ *    __sock_create() 
+ *     inet_create()
+ *      tcp_v4_hash()
+ *       inet_hash(hashinfo == tcp_hashinfo)
+ */
 static inline void inet_hash(struct inet_hashinfo *hashinfo, struct sock *sk)
 {
 	if (sk->sk_state != TCP_CLOSE) {

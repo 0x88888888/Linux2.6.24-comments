@@ -492,6 +492,21 @@ static void tcp_syn_build_options(__be32 *ptr, int mss, int ts, int sack,
  * tcp_v4_connect()
  *  tcp_connect()
  *   tcp_transmit_skb()
+ *
+ * sys_sendto()
+ *  sock_sendmsg()
+ *   __sock_sendmsg()
+ *    tcp_sendmsg()
+ *     tcp_push_one()
+ *      tcp_transmit_skb()
+ *
+ * sys_sendto()
+ *  sock_sendmsg()
+ *   __sock_sendmsg()
+ *    tcp_sendmsg()
+ *     __tcp_push_pending_frames()
+ *      tcp_write_xmit()
+ *       tcp_transmit_skb()
  */
 static int tcp_transmit_skb(struct sock *sk, struct sk_buff *skb, int clone_it, gfp_t gfp_mask)
 {
@@ -1513,6 +1528,13 @@ static int tcp_mtu_probe(struct sock *sk)
  *
  * Returns 1, if no segments are in flight and we have queued segments, but
  * cannot send anything now because of SWS or another problem.
+ *
+ * sys_sendto()
+ *  sock_sendmsg()
+ *   __sock_sendmsg()
+ *    tcp_sendmsg()
+ *     __tcp_push_pending_frames()
+ *      tcp_write_xmit()
  */
 static int tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle)
 {
@@ -1614,6 +1636,19 @@ static int tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle)
 /* Push out any pending frames which were held back due to
  * TCP_CORK or attempt at coalescing tiny packets.
  * The socket must be locked by the caller.
+ *
+ * sys_sendto()
+ *  sock_sendmsg()
+ *   __sock_sendmsg()
+ *    tcp_sendmsg()
+ *     __tcp_push_pending_frames()
+ *
+ * sys_sendto()
+ *  sock_sendmsg()
+ *   __sock_sendmsg()
+ *    tcp_sendmsg()
+ *     tcp_push(, nonagle == TCP_NAGLE_PUSH)
+ *      __tcp_push_pending_frames()
  */
 void __tcp_push_pending_frames(struct sock *sk, unsigned int cur_mss,
 			       int nonagle)
@@ -1629,6 +1664,12 @@ void __tcp_push_pending_frames(struct sock *sk, unsigned int cur_mss,
 
 /* Send _single_ skb sitting at the send head. This function requires
  * true push pending frames to setup probe timer etc.
+ *
+ * sys_sendto()
+ *  sock_sendmsg()
+ *   __sock_sendmsg()
+ *    tcp_sendmsg()
+ *     tcp_push_one()
  */
 void tcp_push_one(struct sock *sk, unsigned int mss_now)
 {

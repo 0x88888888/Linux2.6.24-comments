@@ -949,7 +949,7 @@ e1000_probe(struct pci_dev *pdev,
 	}
 
     //设置一些函数
-	netdev->open = &e1000_open;
+	netdev->open = &e1000_open; //open函数中分配中断、buffer ring之类的
 	netdev->stop = &e1000_close;
 	netdev->hard_start_xmit = &e1000_xmit_frame;
 	netdev->get_stats = &e1000_get_stats;

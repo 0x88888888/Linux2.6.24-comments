@@ -1088,14 +1088,20 @@ int dev_open(struct net_device *dev)
 
 	/*
 	 *	Call device private open method
+	 *
+	 * 状态设置一下
 	 */
 	set_bit(__LINK_STATE_START, &dev->state);
 
 	if (dev->validate_addr)
 		ret = dev->validate_addr(dev);
 
-	if (!ret && dev->open)
-		ret = dev->open(dev); /* cs89x0.c 的net_open() */
+    /* cs89x0.c 的net_open()， e1000_open之类的 
+     *
+     * 在这些函数中分配irq和ring buffer
+	 */
+	if (!ret && dev->open) 
+		ret = dev->open(dev); 
 
 	/*
 	 *	If it went open OK then:

@@ -854,23 +854,25 @@ static void __init do_initcalls(void)
 	int count = preempt_count();
 
     /*
-     * buses_init, devices_init, genhd_device_init
-     * blk_dev_init, 
-     * net_ns_init,br_init(网桥功能的初始化)
-     * fib_rules_init,
+     * 4.subsys_initcall( genhd_device_init)
+     *  
+     * 0.pure_initcall( net_ns_init),
+     * br_init(网桥功能的初始化)
+     * 4.subsys_initcall( fib_rules_init),
      *
-     * 1.__initcall(pci_proc_init)
-     * 2. postcore_initcall(pcibus_class_init), 
-     * 2. postcore_initcall(pci_driver_init),
-     * 3. arch_initcall(pci_access_init)
+     * 1. __initcall( pci_proc_init)
+     * 2. postcore_initcall( pcibus_class_init), 
+     * 2. postcore_initcall( pci_driver_init),
+     * 3. arch_initcall( pci_access_init)
      *
-     * 4.subsys_initcall(pci_legacy_init), 
-     * 4.subsys_initcall(pcibios_init), 
-     * 4.subsys_initcall(acpi_pci_root_init)
-     * 4.subsys_initcall(pci_acpi_init)
-     * 5.fs_initcall(pci_iommu_init),
-     * 5.fs_initcall(pcibios_assign_resources), 
-     * 6.device_initcall(pci_init), 
+     * 4. subsys_initcall( pci_legacy_init), 
+     * 4. subsys_initcall( pcibios_init), 
+     * 4. subsys_initcall( acpi_pci_root_init)
+     * 4. subsys_initcall( pci_acpi_init)
+     * 5. fs_initcall( pci_iommu_init),
+     * 5. fs_initcall( pcibios_assign_resources), 
+     * 5. fs_initcall(inet_init)
+     * 6. device_initcall( pci_init), 
      *  
      * 
      */

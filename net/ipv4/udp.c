@@ -477,6 +477,10 @@ static void udp4_hwcsum_outgoing(struct sock *sk, struct sk_buff *skb,
  *
  * udp_sendmsg()
  *  udp_push_pending_frames()
+ *
+ * udp_setsockopt()
+ *  udp_lib_setsockopt( push_pending_frames==udp_push_pending_frames)
+ *   udp_push_pending_frames()
  */
 static int udp_push_pending_frames(struct sock *sk)
 {
@@ -506,7 +510,7 @@ static int udp_push_pending_frames(struct sock *sk)
 		csum  = udplite_csum_outgoing(sk, skb);
 
 	else if (sk->sk_no_check == UDP_CSUM_NOXMIT) {   /* UDP csum disabled */
-
+    //不需要计算check sum值
 		skb->ip_summed = CHECKSUM_NONE;
 		goto send;
 
@@ -516,7 +520,7 @@ static int udp_push_pending_frames(struct sock *sk)
 		goto send;
 
 	} else						 /*   `normal' UDP    */
-		csum = udp_csum_outgoing(sk, skb);
+		csum = udp_csum_outgoing(sk, skb); //计算check sum值
 
 	/* add protocol-dependent pseudo-header */
 	uh->check = csum_tcpudp_magic(fl->fl4_src, fl->fl4_dst, up->len,
@@ -578,7 +582,7 @@ int udp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	u8  tos;
 	int err, is_udplite = up->pcflag;
 
-	/*设置是否需要cork(阻塞)，通常由MSG_MORE标记控制*/
+	/*设置是否需要cork(阻塞)，通常由MSG_MORE标记控制,这个标志会传给ip_append_data */
 	int corkreq = up->corkflag || msg->msg_flags&MSG_MORE;
 	/*用户从用户态拷贝实际数据的接口*/
 	int (*getfrag)(void *, char *, int, int, int, struct sk_buff *);
@@ -647,6 +651,7 @@ int udp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	    /*
          * 如果msg中不带目的地址信息，则通常是用send调用进入，在send之前调用了
          * connect建立连接，建立连接后相应状态为TCP_ESTABLISHED
+         * 那么也会有地址信息，可以提取
          */
 		if (sk->sk_state != TCP_ESTABLISHED)
 			return -EDESTADDRREQ;
@@ -692,7 +697,7 @@ int udp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	if (ipc.opt && ipc.opt->srr) {
 		if (!daddr)
 			return -EINVAL;
-		faddr = ipc.opt->faddr;
+		faddr = ipc.opt->faddr;//下一站的ip地址
 		connected = 0;
 	}
 	
@@ -720,10 +725,14 @@ int udp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	}
 
 
-	/*选路相关处理，获取相应的路由缓存项*/
+	/*
+	 * 如果已经建立了链接了，就可以直接从sk-sk_dst_cache中得到路由
+	 * 选路相关处理，获取相应的路由缓存项
+	 */
 	if (connected)
 		rt = (struct rtable*)sk_dst_check(sk, 0);
 
+    //上一步没有得到路由项，需要从路由缓存或者路由表中查找路由
 	if (rt == NULL) {
 		struct flowi fl = { .oif = ipc.oif,
 				    .nl_u = { .ip4_u =
@@ -813,7 +822,9 @@ do_append_data:
      */	
 	getfrag  =  is_udplite ?  udplite_getfrag : ip_generic_getfrag;
 
-    /*
+    /* 
+     * 对UDP数据包进行分片处理，为ip层的分片处理做好准备
+     *
      * 调用IP层接口函数ip_append_data，进入IP层处理，主要工作为:
      * 将数据拷贝到适合的skb(利用发送队列中现有的或新创建)中，可能有两种情况: 1. 放入skb的线性
      * 区(skb->data)中，或者放入skb_shared_info的分片(frag)中，同时还需要考虑MTU对skb数据进行分割。
@@ -994,11 +1005,14 @@ int udp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		return ip_recv_error(sk, msg, len);
 
 try_again:
+    //从套接字sk的接收队列中取出套接字缓冲区skb
 	skb = skb_recv_datagram(sk, flags, noblock, &err);
 	if (!skb)
 		goto out;
 
+    //不需要udp头部
 	ulen = skb->len - sizeof(struct udphdr);
+	
 	copied = len;
 	if (copied > ulen)
 		copied = ulen;
@@ -1016,10 +1030,11 @@ try_again:
 			goto csum_copy_err;
 	}
 
-	if (skb_csum_unnecessary(skb))
+    //复制数据到msg->msg_iov
+	if (skb_csum_unnecessary(skb)) 
 		err = skb_copy_datagram_iovec(skb, sizeof(struct udphdr),
 					      msg->msg_iov, copied       );
-	else {
+	else { //复制数据到msg->msg_iov中，并且进行校验
 		err = skb_copy_and_csum_datagram_iovec(skb, sizeof(struct udphdr), msg->msg_iov);
 
 		if (err == -EINVAL)
@@ -1029,9 +1044,12 @@ try_again:
 	if (err)
 		goto out_free;
 
+    //记录接收的时间
 	sock_recv_timestamp(msg, sk, skb);
 
-	/* Copy the address. */
+	/* Copy the address. 
+	 * 复制地址信息
+	 */
 	if (sin)
 	{
 		sin->sin_family = AF_INET;
@@ -1094,14 +1112,14 @@ int udp_disconnect(struct sock *sk, int flags)
  *
  * 将skb插入到sk_receive_queue上,唤醒等待sk_sleep上的进程
  *
- *  ip_rcv
- *   ip_rcv_finish
- *	  dst_input
- *	   ip_local_deliver
- *		ip_local_deliver_finish
- *       udp_rcv
- *        __udp4_lib_rcv   
- *         udp_queue_rcv_skb()
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    ip_local_deliver
+ *     ip_local_deliver_finish
+ *      udp_rcv
+ *       __udp4_lib_rcv   
+ *        udp_queue_rcv_skb()
  */
 int udp_queue_rcv_skb(struct sock * sk, struct sk_buff *skb)
 {
@@ -1286,14 +1304,15 @@ static inline int udp4_csum_init(struct sk_buff *skb, struct udphdr *uh,
 }
 
 /*
- *	All we need to do is get the socket, and then do a checksum.
- *  ip_rcv
- *   ip_rcv_finish
- *	  dst_input
- *	   ip_local_deliver
- *		ip_local_deliver_finish
- *       udp_rcv
- *        __udp4_lib_rcv    
+ * All we need to do is get the socket, and then do a checksum.
+ *
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    ip_local_deliver
+ *	   ip_local_deliver_finish
+ *      udp_rcv
+ *       __udp4_lib_rcv    
  */
 
 int __udp4_lib_rcv(struct sk_buff *skb, struct hlist_head udptable[],
@@ -1308,6 +1327,7 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct hlist_head udptable[],
 
 	/*
 	 *  Validate the packet.
+	 * 判断skb是否中是否存在一个UDP头部长度的存储区
 	 */
 	if (!pskb_may_pull(skb, sizeof(struct udphdr)))
 		goto drop;		/* No space for header. */
@@ -1400,13 +1420,13 @@ drop:
 }
 
 /*
-*  ip_rcv
-*    ip_rcv_finish
-*	   dst_input
-*	     ip_local_deliver
-*		   ip_local_deliver_finish
-*            udp_rcv
-*/
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    ip_local_deliver
+ *	   ip_local_deliver_finish
+ *      udp_rcv
+ */
 
 int udp_rcv(struct sk_buff *skb)
 {
@@ -1423,6 +1443,9 @@ int udp_destroy_sock(struct sock *sk)
 
 /*
  *	Socket option code for UDP
+ *
+ * udp_setsockopt()
+ *  udp_lib_setsockopt( push_pending_frames==udp_push_pending_frames)
  */
 int udp_lib_setsockopt(struct sock *sk, int level, int optname,
 		       char __user *optval, int optlen,
@@ -1506,6 +1529,7 @@ int udp_setsockopt(struct sock *sk, int level, int optname,
 	if (level == SOL_UDP  ||  level == SOL_UDPLITE)
 		return udp_lib_setsockopt(sk, level, optname, optval, optlen,
 					  udp_push_pending_frames);
+	
 	return ip_setsockopt(sk, level, optname, optval, optlen);
 }
 

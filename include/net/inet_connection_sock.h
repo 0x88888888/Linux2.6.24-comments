@@ -93,9 +93,9 @@ struct inet_connection_sock {
 	struct request_sock_queue icsk_accept_queue;
 	struct inet_bind_bucket	  *icsk_bind_hash;
 	unsigned long		  icsk_timeout;
- 	struct timer_list	  icsk_retransmit_timer;
+ 	struct timer_list	  icsk_retransmit_timer; //处理函数tcp_write_timer
 	/* delay ack定时器*/
- 	struct timer_list	  icsk_delack_timer;
+ 	struct timer_list	  icsk_delack_timer;//处理函数tcp_delack_timer
 	/*超时时间*/
 	__u32			  icsk_rto;
 	__u32			  icsk_pmtu_cookie;

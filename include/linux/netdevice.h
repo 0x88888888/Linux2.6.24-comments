@@ -522,7 +522,7 @@ struct net_device
 	 *	I/O specific fields
 	 *	FIXME: Merge these and struct ifmap into one
 	 *
-	 * 下面两个描述网络设备共享内存的区间
+	 * 下面两个描述网络设备发送包所在的内存区域
 	 */
 	unsigned long		mem_end;	/* shared mem end	*/
 	unsigned long		mem_start;	/* shared mem start	*/

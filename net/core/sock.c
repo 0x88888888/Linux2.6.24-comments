@@ -297,6 +297,8 @@ int sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 
 	/* Cast skb->rcvbuf to unsigned... It's pointless, but reduces
 	   number of warnings when compiling with -W --ANK
+	 *
+	 * 接受缓存空间不够
 	 */
 	if (atomic_read(&sk->sk_rmem_alloc) + skb->truesize >=
 	    (unsigned)sk->sk_rcvbuf) {
@@ -322,7 +324,7 @@ int sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
     //将skb添加都sock中，应用层可以接受这些sk_buff中的数据
 	skb_queue_tail(&sk->sk_receive_queue, skb);
 
-	if (!sock_flag(sk, SOCK_DEAD)) //唤醒等待的进程
+	if (!sock_flag(sk, SOCK_DEAD)) //唤醒等待的进程，一般是等待在udp_recvmsg这个函数中
 		sk->sk_data_ready(sk, skb_len); //sock_def_readable
 out:
 	return err;

@@ -264,7 +264,7 @@ EXPORT_SYMBOL(build_ehash_secret);
  *    __sock_create() 
  *     inet_create()
  */
-static int inet_create(struct net *net, struct socket *sock, int protocol)
+static int inet_create(struct net *net, struct socket *sock /* 实际上是socket_alloc对象 */, int protocol)
 {
 	struct sock *sk;
 	struct list_head *p;
@@ -338,9 +338,9 @@ lookup_protocol:
 	if (answer->capability > 0 && !capable(answer->capability))
 		goto out_rcu_unlock;
 
-    //赋值proto_ops
+    //inet_stream_ops, inet_dgram_ops, inet_sockraw_ops
 	sock->ops = answer->ops;
-	//确定proto
+	//赋值proto_ops, 大概是tcp_proto,udp_prot,raw_prot
 	answer_prot = answer->prot;
 	answer_no_check = answer->no_check;
 	answer_flags = answer->flags;
@@ -349,7 +349,7 @@ lookup_protocol:
 	BUG_TRAP(answer_prot->slab != NULL);
 
 	err = -ENOBUFS;
-	//分配sock对象
+	//分配sock对象,是inet_sock对象
 	sk = sk_alloc(net, PF_INET, GFP_KERNEL, answer_prot);
 	if (sk == NULL)
 		goto out;
@@ -401,10 +401,24 @@ lookup_protocol:
 		 * 并把sk加到hash表中——对于UDP，不会执行这个
 		 */
 		inet->sport = htons(inet->num);
-		/* Add to protocol hash chains. */
+		/* Add to protocol hash chains. 
+		 *
+		 * tcp_prot
+         * tcpv6_prot
+         * udp_prot
+         * udpv6_prot
+         * raw_prot
+		 * 如果是raw套接字，hash函数把sk记录到raw_v4_htable中
+		 * 在接受原始数据包时,可访问raw_v4_htable得到raw套接字
+		 *
+		 * 如果是tcp套接字，将sk存入tcp_hashinfo中
+		 *
+		 * raw_v4_hash, tcp_v4_hash, udp_lib_hash 
+	     */
 		sk->sk_prot->hash(sk);
 	}
 
+    //初始化tcp的一些设置
 	if (sk->sk_prot->init) { //tcp_v4_init_sock，raw_init,upd没有对应的函数
 		err = sk->sk_prot->init(sk);
 		if (err)
@@ -838,6 +852,7 @@ int inet_getname(struct socket *sock, struct sockaddr *uaddr,
 int inet_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 		 size_t size)
 {
+    //得到socket在L4层的sock对象
 	struct sock *sk = sock->sk;
 
 	/* We may need to bind the socket. 
@@ -1618,14 +1633,15 @@ static int __init inet_init(void)
 
 	/*
 	 *	Set the ARP module up
+	 * 初始化 arp_tbl
+	 * 添加 arp_packet_type
 	 */
-
 	arp_init();
 
 	/*
 	 *	Set the IP module up
+	 * 初始化路由模块
 	 */
-
 	ip_init();
 
 	tcp_v4_init(&inet_family_ops);
@@ -1657,6 +1673,7 @@ static int __init inet_init(void)
 
 	ipv4_proc_init();
 
+    //初始化ip4_frags对象
 	ipfrag_init();
 
 	/* 加入ip协议处理程序,在process_backlog中调用 */

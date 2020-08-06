@@ -83,13 +83,21 @@
 struct hlist_head raw_v4_htable[RAWV4_HTABLE_SIZE];
 DEFINE_RWLOCK(raw_v4_lock);
 
+/*
+ * sys_socketcall()
+ *  sys_socket()
+ *   sock_create()
+ *    __sock_create() 
+ *     inet_create()
+ *      raw_v4_hash()
+ */
 static void raw_v4_hash(struct sock *sk)
 {
 	struct hlist_head *head = &raw_v4_htable[inet_sk(sk)->num &
 						 (RAWV4_HTABLE_SIZE - 1)];
 
 	write_lock_bh(&raw_v4_lock);
-	sk_add_node(sk, head);
+	sk_add_node(sk, head);//添加到hash表中
 	sock_prot_inc_use(sk->sk_prot);
 	write_unlock_bh(&raw_v4_lock);
 }
@@ -698,6 +706,14 @@ out:
 	return copied;
 }
 
+/*
+ * sys_socketcall()
+ *  sys_socket()
+ *   sock_create()
+ *    __sock_create() 
+ *     inet_create()
+ *      raw_init()
+ */
 static int raw_init(struct sock *sk)
 {
 	struct raw_sock *rp = raw_sk(sk);

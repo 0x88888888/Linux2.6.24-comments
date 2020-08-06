@@ -43,7 +43,7 @@
  * 定义支持的传输层协议以及传输层报文接受函数
  * 这个结构是网络层与传输层的桥梁
  * 
- * 在ip_local_deliver_finish 用 net_protocol->handler 分派
+ * 在ip_local_deliver_finish 用 net_protocol->handler 分派L4层协议
  *
  * icmp_protocol,
  * udp_protocol,tcp_protocol,
@@ -121,6 +121,7 @@ struct inet_protosw {
 	 * 套接口传输层接口,inet_stream_ops, inet_dgram_ops, inet_sockraw_ops
 	 *
 	 * 比较通用socket函数结构,比如udp和ping都是使用inet_dgram_ops
+	 * 
 	 */
 	const struct proto_ops *ops;
   

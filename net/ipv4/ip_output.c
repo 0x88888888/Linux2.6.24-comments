@@ -1096,6 +1096,12 @@ static inline int ip_ufo_append_data(struct sock *sk,
  * L4层协议可以多次调用ip_append_data来存储要发送的数据，而不实际传输任何东西
  *
  * 这个函数变种为ip_append_page,主要有udp协议使用
+ *
+ *
+ * 书: ip_append_data的主要任务是创建sk_buff，为ip层数据分片做好准备.
+ * 该函数根据路由查询得到的接口MTU，把超过MTU长度的数据分片保存在多个套接字缓冲区中，
+ * 并插入到sk_write_queue中。对于较大的数据包，可能要循环多次
+ *
  */
 int ip_append_data(struct sock *sk,
 		   int getfrag(void *from, char *to, int offset, int len,
@@ -1145,13 +1151,18 @@ int ip_append_data(struct sock *sk,
 		// dst引用计数+1
 		dst_hold(&rt->u.dst);
 
-		//得到mtu值
+		//得到用来分片的mtu值
 		inet->cork.fragsize = mtu = inet->pmtudisc == IP_PMTUDISC_PROBE ?
 					    rt->u.dst.dev->mtu :
 					    dst_mtu(rt->u.dst.path); //dst->metrics[index]
 		//路由				
 		inet->cork.rt = rt;
 		inet->cork.length = 0;
+		/*
+		 * 初始化分片位置信息:
+		 * sk_sndmsg_page指向分片首地址
+		 * sk_sndmsg_off是下一个分片的存放位置
+		 */
 		sk->sk_sndmsg_page = NULL;
 		sk->sk_sndmsg_off = 0;
 		
@@ -1168,6 +1179,7 @@ int ip_append_data(struct sock *sk,
 		if (inet->cork.flags & IPCORK_OPT)
 			opt = inet->cork.opt;
 
+        //书:如果不是第一个分片，则套接字缓冲区的data内容中没有头部格式信息
 		transhdrlen = 0;
 		exthdrlen = 0;
 		//得到mtu值
@@ -1176,7 +1188,7 @@ int ip_append_data(struct sock *sk,
 	
 	/*获取链路层首部的长度*/
 	hh_len = LL_RESERVED_SPACE(rt->u.dst.dev);
-    //获取IP首部的长度
+    //获取IP首部(分片首部)的长度
 	fragheaderlen = sizeof(struct iphdr) + (opt ? opt->optlen : 0);
 	// IP数据包中数据的最大长度，通过mtu计算，并进行8字节对齐，目的是提升计算效率
 	maxfraglen = ((mtu - fragheaderlen) & ~7) + fragheaderlen;
@@ -1188,6 +1200,7 @@ int ip_append_data(struct sock *sk,
 	}
 
 	/*
+	 * transhdrlen >0 表示这是第一个分片
 	 * transhdrlen > 0 means that this is the first fragment and we wish
 	 * it won't be fragmented in the future.
 	 *
@@ -1200,7 +1213,7 @@ int ip_append_data(struct sock *sk,
 		csummode = CHECKSUM_PARTIAL;
 
 	/*
-	 * 增加cork阻塞的长度
+	 * 累计分片数据的总长度
 	 */
 	inet->cork.length += length;
 
@@ -1232,7 +1245,9 @@ int ip_append_data(struct sock *sk,
 	 * adding appropriate IP header.
 	 */
 
-	//获取输出队列末尾的SKB,如果获取不到，说明输出队列为空，则需要分配一个新的SKB用于复制数据
+	/*
+	 * 如果sk->sk_write_queue为空，是第一次分片，需要分配一个新的套接字缓冲区
+	 */
 	if ((skb = skb_peek_tail(&sk->sk_write_queue)) == NULL)
 		goto alloc_new_skb;
 
@@ -1241,6 +1256,9 @@ int ip_append_data(struct sock *sk,
      * UDP层的分段实际是在这里完成的。当length 大于该skb中剩余的空间大小(copy)时，则需要分配新
      * 的skb中来存放length中剩余的数据，新分配的skb会也被链入sock的发送队列链表中，最后会通过
      * ip_make_skb，将sock发送链表中的skb中都链入到skb->frag_list中
+     *
+     * 书:把尚未插入队列的数据插入套接字发送队列中
+     * length > 0 说明还有数据剩下,需要继续分片并插入队列中
      */
 	while (length > 0) {
 		/* Check if the remaining data fits into current packet. */
@@ -1300,13 +1318,16 @@ alloc_new_skb:
 			 * Note, with MSG_MORE we overallocate on fragments,
 			 * because we have no idea what fragment will be
 			 * the last.
+			 *
+			 * 为最后一个碎片分配更多的空间
 			 */
 			if (datalen == length + fraggap)
 				alloclen += rt->u.dst.trailer_len;
 
             /*
              * 根据是否存在传输层首部，确定分配skb的方法:
-             * 如果存在，则说明该分片为分片组中的第一个分片，那就需要考虑更多的情况，比如:发送是否超时、是否发生未处理的致命错误、
+             * 如果存在，则说明该分片为分片组中的第一个分片，那就需要考虑更多的情况，
+             * 比如:发送是否超时、是否发生未处理的致命错误、
              * 发送通道是否已经关闭等；当不存在传输层首部时，说明不是第一个分片，则不需考虑这些情况。
              */
 			if (transhdrlen) {
@@ -1669,6 +1690,8 @@ int ip_push_pending_frames(struct sock *sk)
 	struct sk_buff **tail_skb;
 	struct inet_sock *inet = inet_sk(sk);
 	struct ip_options *opt = NULL;
+
+	//路由缓存
 	struct rtable *rt = inet->cork.rt;
 	struct iphdr *iph;
 	__be16 df = 0;
@@ -1689,16 +1712,22 @@ int ip_push_pending_frames(struct sock *sk)
 
 	/*
 	 * 除去SKB中的ip首部后,链接到第一个skb的fraglist上,组成一个分片，为后续的分片做准备
+	 *
+	 * 将sk->sk_write_queue上所有的skb对象弹出来，放到tail_skb上去
 	 */
 	while ((tmp_skb = __skb_dequeue(&sk->sk_write_queue)) != NULL) {
-		
+
+	    //去掉ip首部
 		__skb_pull(tmp_skb, skb_network_header_len(skb));
-		
+
+	    //链接起来
 		*tail_skb = tmp_skb;
 		tail_skb = &(tmp_skb->next);
+		
 		skb->len += tmp_skb->len;
 		skb->data_len += tmp_skb->len;
 		skb->truesize += tmp_skb->truesize;
+		
 		__sock_put(tmp_skb->sk);
 		tmp_skb->destructor = NULL;
 		tmp_skb->sk = NULL;
@@ -1791,6 +1820,7 @@ error:
 
 /*
  *	Throw away all pending data on the socket.
+ * 释放sock->sk_write_queue中的数据
  */
 void ip_flush_pending_frames(struct sock *sk)
 {

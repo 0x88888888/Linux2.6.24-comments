@@ -126,7 +126,7 @@ struct sock_common {
 	 * udp_prot
 	 * udpv6_prot
 	 * raw_prot
-	 *
+	 * 传输层的操作集合
 	 */
 	struct proto		*skc_prot;
 	struct net	 	*skc_net;
@@ -193,7 +193,6 @@ struct sock_common {
   *
   * 作为inet_sock的成员存在,socket->sk指向这个对象
   * 
-  * sock是网络访问层的接口，socket是到用户层的接口
   *
   * 在sock_init_data中初始化成员
   *
@@ -203,6 +202,9 @@ struct sock_common {
   * udp_hash[]:__udp4_lib_lookup()中查找
   * raw_v4_htable[]: raw_v4_input() 中查找
   * nl_table[]: netlink_insert() 中插入
+  *
+  * L4层的套接字对象，不同的协议，L4层的套接字对象是不一样的，
+  * 有tcp_sock, udp_sock, raw_sock
  */
 struct sock {
 	/*
@@ -221,11 +223,11 @@ struct sock {
 #define sk_prot			__sk_common.skc_prot
 #define sk_net			__sk_common.skc_net
 	unsigned char		sk_shutdown : 2,
-				sk_no_check : 2,
-				sk_userlocks : 4;
+				sk_no_check : 2,  //SO_NO_CHECK设置
+				sk_userlocks : 4; 
     /*TCP接收缓冲区的锁标志*/
 	unsigned char		sk_protocol;
-	unsigned short		sk_type;
+	unsigned short		sk_type; //SOCK_STREAM,SOCK_DGRAM, SOCK_RAW之类的
 	/* TCP接收缓冲区的大小*/
 	int			sk_rcvbuf;
 	socket_lock_t		sk_lock;
@@ -238,13 +240,16 @@ struct sock {
 		struct sk_buff *head;
 		struct sk_buff *tail;
 	} sk_backlog;
-	wait_queue_head_t	*sk_sleep;
-	struct dst_entry	*sk_dst_cache;
-	struct xfrm_policy	*sk_policy[2];
-	rwlock_t		sk_dst_lock;
+	
+	wait_queue_head_t	*sk_sleep; //等待进程
+	struct dst_entry	*sk_dst_cache; //路由缓存指针
+	struct xfrm_policy	*sk_policy[2]; //流控制策略
+	rwlock_t		sk_dst_lock; 
+	//接受缓冲队列分配计数
 	atomic_t		sk_rmem_alloc;
 	/* 发送队列中，skb数据区的总大小 */
 	atomic_t		sk_wmem_alloc;
+	//其他缓冲队列分配计数
 	atomic_t		sk_omem_alloc;
 	/*  TCP发送缓冲区大小 */
 	int			sk_sndbuf;
@@ -263,8 +268,8 @@ struct sock {
 	//表示GSO的类型,SKB_GSO_TCPV4之类的
 	int			sk_gso_type;
 	int			sk_rcvlowat;
-	unsigned long 		sk_flags;
-	unsigned long	        sk_lingertime;
+	unsigned long 		sk_flags; //标志,值都在枚举sock_flags中
+	unsigned long	        sk_lingertime; //SO_LINGER设置
 	/*
 	 * 当ICMP收到差错信息，或者UDP套接口和RAW套接口输出报文出错时，
 	 * 会产生描述错误的SKB添加到该队列上。
@@ -277,27 +282,30 @@ struct sock {
 	rwlock_t		sk_callback_lock;
 	int			sk_err,
 				sk_err_soft;
-	/* 当前的backlog，当前全连接队列长度 */
+	/* 当前的backlog，当前侦听队列长度 */
 	unsigned short		sk_ack_backlog;
-	/* 最大的backlog，最大全连接队列长度 */
+	/* 最大的backlog，最大全侦听队列长度 */
 	unsigned short		sk_max_ack_backlog;
 	__u32			sk_priority;
-	struct ucred		sk_peercred;
+	struct ucred		sk_peercred; //SO_PEERCRED设置
 	/*
 	 * accept,recv之类的超时时间
 	 */
 	long			sk_rcvtimeo;
 	long			sk_sndtimeo;
+	//过滤器
 	struct sk_filter      	*sk_filter;
+	//私有数据，描述协议族
 	void			*sk_protinfo;
-	struct timer_list	sk_timer;
+	struct timer_list	sk_timer; //处理函数 tcp_keepalive_timer
 	ktime_t			sk_stamp;
+	//所属的socket对象
 	struct socket		*sk_socket;
-	void			*sk_user_data;
-	struct page		*sk_sndmsg_page;
-	struct sk_buff		*sk_send_head;
-	__u32			sk_sndmsg_off;
-	int			sk_write_pending;
+	void			*sk_user_data; //RPC私有数据
+	struct page		*sk_sndmsg_page; //分片的页记录
+	struct sk_buff		*sk_send_head; 
+	__u32			sk_sndmsg_off;//分片的偏移信息
+	int			sk_write_pending; //发送过程等待
 	void			*sk_security;
 	/*
      * sock状态改变时调用，比如从TCP_SYN_SENT或TCP_SYN_RECV变为TCP_ESTABLISHED，
@@ -313,6 +321,8 @@ struct sock {
 	void			(*sk_data_ready)(struct sock *sk, int bytes);
 	/*
 	 * sock上有发送空间可写时调用，比如发送缓存变得足够大了。
+	 * 套接字的发送队列可用时调用该函数，
+	 *
 	 * tcp时为sock_def_write_space，更新为sk_stream_write_space
 	 */
 	void			(*sk_write_space)(struct sock *sk);
@@ -579,7 +589,7 @@ struct timewait_sock_ops;
  * socket层转到L4层使用
  *
  *
- * proto_ops包含通用的socket操作
+ * proto_ops包含通用的socket操作(协议族)
  * proto包含协议的独特操作
  * 数组inet_protosw inetsw[]成员 
  *

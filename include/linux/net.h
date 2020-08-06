@@ -118,15 +118,18 @@ struct socket {
 	socket_state		state;
 	unsigned long		flags;
 	/*
+	 * INET协议族的情况: 
 	 * inet_stream_ops  (TCP)
 	 * inet_dgram_ops   (UDP)
 	 * inet_sockraw_ops (RAW)
+	 * 其余的协议族，不管它先
 	 */
 	const struct proto_ops	*ops;
 	struct fasync_struct	*fasync_list;
 	struct file		*file;
 	/*
 	 * tcp_sock, udp_sock, raw_sock.
+	 * sk表示L4层的套接字结构,不同的协议，L4层的套接字也不一样
 	 */
 	struct sock		*sk;
 	wait_queue_head_t	wait;
@@ -148,6 +151,10 @@ struct module;
  *
  * inet_stream_ops, inet_dgram_ops
  * netlink_ops, inet_sockraw_ops
+ *
+ * proto_ops协议族的套接字操作集合
+ * proto是L4层协议的操作集合
+ * 看inet_protosw和inetsw_array
  */
 struct proto_ops {
 	int		family;

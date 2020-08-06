@@ -97,7 +97,15 @@ static inline __wsum udp_csum_outgoing(struct sock *sk, struct sk_buff *skb)
 	return csum;
 }
 
-/* hash routines shared between UDPv4/6 and UDP-Litev4/6 */
+/* hash routines shared between UDPv4/6 and UDP-Litev4/6 
+ *
+ * sys_socketcall()
+ *  sys_socket()
+ *   sock_create()
+ *    __sock_create() 
+ *     inet_create()
+ *      udp_lib_hash()
+ */
 static inline void udp_lib_hash(struct sock *sk)
 {
 	BUG();

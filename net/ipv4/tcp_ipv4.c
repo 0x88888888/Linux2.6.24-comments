@@ -120,11 +120,24 @@ static int tcp_v4_get_port(struct sock *sk, unsigned short snum)
 				 inet_csk_bind_conflict);
 }
 
+/*
+ * sys_socketcall()
+ *  sys_socket()
+ *   sock_create()
+ *    __sock_create() 
+ *     inet_create()
+ *      tcp_v4_hash() 将sk存入tcp_hashinfo中
+ */
 static void tcp_v4_hash(struct sock *sk)
 {
 	inet_hash(&tcp_hashinfo, sk);
 }
 
+/*
+ * 看tcp_v4_hash是如何存的，
+ * 然后这个函数取出来
+ * 
+ */
 void tcp_unhash(struct sock *sk)
 {
 	inet_unhash(&tcp_hashinfo, sk);
@@ -1933,6 +1946,15 @@ static struct tcp_sock_af_ops tcp_sock_ipv4_specific = {
 
 /* NOTE: A lot of things set to zero explicitly by call to
  *       sk_alloc() so need not be done here.
+ *
+ * sys_socketcall()
+ *  sys_socket()
+ *   sock_create()
+ *    __sock_create() 
+ *     inet_create()
+ *      tcp_v4_init_sock()
+ *
+ * 初始化拥塞控制有关的字段，缓冲区，队列有关的字段
  */
 static int tcp_v4_init_sock(struct sock *sk)
 {
@@ -1940,9 +1962,12 @@ static int tcp_v4_init_sock(struct sock *sk)
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	skb_queue_head_init(&tp->out_of_order_queue);
+
+	//初始化传输时到时的定时器
 	tcp_init_xmit_timers(sk);
 	tcp_prequeue_init(tp);
 
+    // 初始化超时时间    
 	icsk->icsk_rto = TCP_TIMEOUT_INIT;
 	tp->mdev = TCP_TIMEOUT_INIT;
 
@@ -1950,21 +1975,29 @@ static int tcp_v4_init_sock(struct sock *sk)
 	 * initial SYN frame in their delayed-ACK and congestion control
 	 * algorithms that we must have the following bandaid to talk
 	 * efficiently to them.  -DaveM
+	 *
+	 * 初始化发送窗口 初始值为2
 	 */
 	tp->snd_cwnd = 2;
 
 	/* See draft-stevens-tcpca-spec-01 for discussion of the
 	 * initialization of these values.
+	 *
+	 * 设置慢启动窗口
 	 */
 	tp->snd_ssthresh = 0x7fffffff;	/* Infinity */
-	tp->snd_cwnd_clamp = ~0;
+	//拥塞窗口控制
+	tp->snd_cwnd_clamp = ~0;
+	//设置tcp数据包最小长度
 	tp->mss_cache = 536;
 
 	tp->reordering = sysctl_tcp_reordering;
 	icsk->icsk_ca_ops = &tcp_init_congestion_ops;
 
+    //套接字初始为关闭状态
 	sk->sk_state = TCP_CLOSE;
 
+    //套接字的发送队列可用时调用该函数
 	sk->sk_write_space = sk_stream_write_space;
 	sock_set_flag(sk, SOCK_USE_WRITE_QUEUE);
 
@@ -1974,6 +2007,7 @@ static int tcp_v4_init_sock(struct sock *sk)
 	tp->af_specific = &tcp_sock_ipv4_specific;
 #endif
 
+    //发送和接受缓冲区的大小
 	sk->sk_sndbuf = sysctl_tcp_wmem[1];
 	sk->sk_rcvbuf = sysctl_tcp_rmem[1];
 

@@ -54,6 +54,7 @@ struct udp_sock {
 	/* inet_sock has to be the first member */
 	struct inet_sock inet;
 	int		 pending;	/* Any pending frames ? */
+	//是否设置UDP_CORK
 	unsigned int	 corkflag;	/* Cork is required */
   	__u16		 encap_type;	/* Is this an Encapsulation socket? */
 	/*

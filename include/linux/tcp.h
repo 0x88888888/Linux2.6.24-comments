@@ -309,7 +309,9 @@ struct tcp_sock {
 	u32	snd_wnd;	/* The window we expect to receive	*/
 	/* 记录来自对方通告的窗口的最大值 */
 	u32	max_window;	/* Maximal window ever seen from peer	*/
-	/* 本端当前有效的发送MSS。显然不能超过对端接收的上限 */
+	/* 本端当前有效的发送MSS。显然不能超过对端接收的上限 
+	 * tcp数据包最小长度
+	 */
 	u32	mss_cache;	/* Cached effective mss, not including SACKS */
 
 	u32	window_clamp;	/* Maximal window to advertise,接收窗口的最大值，这个值也会动态调整		*/
@@ -349,10 +351,13 @@ struct tcp_sock {
 /*
  *	Slow start and congestion control (see also Nagle, and Karn & Partridge)
  */
+    //设置慢启动窗口
  	u32	snd_ssthresh;	/* Slow start size threshold		*/
+    //发送窗口
  	u32	snd_cwnd;	/* Sending congestion window		*/
 	/*表示在当前的拥塞控制窗口中已经发送的数据段的个数*/
 	u32	snd_cwnd_cnt;	/* Linear increase counter		*/
+	//拥塞窗口
 	u32	snd_cwnd_clamp; /* Do not allow snd_cwnd to grow above this */
 	u32	snd_cwnd_used;
 	u32	snd_cwnd_stamp;

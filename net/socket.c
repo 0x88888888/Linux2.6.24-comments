@@ -1263,6 +1263,7 @@ static int __sock_create(struct net *net, int family, int type, int protocol,
 	 *	Allocate the socket and allow the family to set things up. if
 	 *	the protocol is 0, the family is instructed to select an appropriate
 	 *	default.
+	 * 分配socket_alloc对象，返回socket对象
 	 */
 	sock = sock_alloc();
 	if (!sock) {
@@ -1609,7 +1610,7 @@ asmlinkage long sys_accept(int fd, struct sockaddr __user *upeer_sockaddr,
 		goto out;
 
 	err = -ENFILE;
-	/* 创建一个新的inode和socket */
+	/* 创建一个新的inode和socket ,socket_inode对象 */
 	if (!(newsock = sock_alloc()))
 		goto out_put;
 
@@ -1826,9 +1827,11 @@ asmlinkage long sys_sendto(int fd, void __user *buff, size_t len,
 	if (!sock_file)
 		goto out;
 
+    //得到socket对象,实际上是socket_alloc对象
 	sock = sock_from_file(sock_file, &err);
 	if (!sock)
 		goto out_put;
+	//要发送的数据
 	iov.iov_base = buff;
 	iov.iov_len = len;
 	msg.msg_name = NULL;

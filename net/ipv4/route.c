@@ -2668,6 +2668,15 @@ static int ipv4_dst_blackhole(struct rtable **rp, struct flowi *flp, struct sock
  * inet_rtm_getroute()
  *  ip_route_output_key()
  *   ip_route_output_flow()
+ *
+ * sys_socketcall()
+ *  sys_send()
+ *   sys_sendto()
+ *    sock_sendmsg()
+ *     __sock_sendmsg() ; socket->ops->sendmsg
+ *      inet_sendmsg()
+ *       udp_sendmsg()
+ *        ip_route_output_flow()
  */
 int ip_route_output_flow(struct rtable **rp /* 参数rp带出查询结果 */ , 
                                  struct flowi *flp, 

@@ -486,6 +486,13 @@ static inline void tcp_mark_urg(struct tcp_sock *tp, int flags,
 	}
 }
 
+/*
+ * sys_sendto()
+ *  sock_sendmsg()
+ *   __sock_sendmsg()
+ *    tcp_sendmsg()
+ *     tcp_push(, nonagle == TCP_NAGLE_PUSH)
+ */
 static inline void tcp_push(struct sock *sk, int flags, int mss_now,
 			    int nonagle)
 {
@@ -496,6 +503,7 @@ static inline void tcp_push(struct sock *sk, int flags, int mss_now,
 		if (!(flags & MSG_MORE) || forced_push(tp))
 			tcp_mark_push(tp, skb);
 		tcp_mark_urg(tp, flags, skb);
+		
 		__tcp_push_pending_frames(sk, mss_now,
 					  (flags & MSG_MORE) ? TCP_NAGLE_CORK : nonagle);
 	}
