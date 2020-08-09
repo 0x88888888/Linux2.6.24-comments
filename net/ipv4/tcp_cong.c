@@ -82,7 +82,20 @@ void tcp_unregister_congestion_control(struct tcp_congestion_ops *ca)
 }
 EXPORT_SYMBOL_GPL(tcp_unregister_congestion_control);
 
-/* Assign choice of congestion control. */
+/* Assign choice of congestion control.
+ *
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         tcp_v4_do_rcv
+ *          tcp_rcv_state_process()  TCP_SYN_RECV状态
+ *           tcp_init_congestion_control()
+ */
 void tcp_init_congestion_control(struct sock *sk)
 {
 	struct inet_connection_sock *icsk = inet_csk(sk);

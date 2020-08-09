@@ -351,6 +351,17 @@ extern struct sock *__inet_lookup_listener(struct inet_hashinfo *hashinfo,
 					   const unsigned short hnum,
 					   const int dif);
 
+/*
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv 
+ *         inet_lookup_listener()
+ */
 static inline struct sock *inet_lookup_listener(struct inet_hashinfo *hashinfo,
 						__be32 daddr, __be16 dport, int dif)
 {

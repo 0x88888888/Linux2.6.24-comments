@@ -143,6 +143,11 @@ static inline int handle_dev_cpu_collision(struct sk_buff *skb,
  *            __qdisc_run()
  *             qdisc_restart()
  *
+ * net_tx_action() NET_TX_SOFTIRQ 软中断处理函数
+ *  qdisc_run()
+ *   __qdisc_run()
+ *    qdisc_restart()
+ *
  * 从网络设备的队列中获取下一个数据包
  * QoS
  *
@@ -164,6 +169,8 @@ static inline int qdisc_restart(struct net_device *dev)
 
     /* 将数据包发送出去 */
 	HARD_TX_LOCK(dev, smp_processor_id());
+
+	//发送掉
 	if (!netif_subqueue_stopped(dev, skb))
 		ret = dev_hard_start_xmit(skb, dev);
 	
@@ -202,18 +209,22 @@ static inline int qdisc_restart(struct net_device *dev)
 
 
 /*
- *   ip_rcv
- *	  ip_rcv_finish
- *     dst_input
- *      ip_forward
- *       ip_forward_finish
- *        dst_output
- *         ip_output  ip路由转发路径
- *          ip_finish_output
- *           ip_finish_output2
- *            dev_queue_xmit
- *             qdisc_run()
- *              __qdisc_run()
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    ip_forward
+ *     ip_forward_finish
+ *      dst_output
+ *       ip_output  ip路由转发路径
+ *        ip_finish_output
+ *         ip_finish_output2
+ *          dev_queue_xmit
+ *           qdisc_run()
+ *            __qdisc_run()
+ *
+ * net_tx_action() NET_TX_SOFTIRQ 软中断处理函数
+ *  qdisc_run()
+ *   __qdisc_run()
  *
  * QoS
  *
@@ -530,6 +541,7 @@ struct Qdisc * qdisc_create_dflt(struct net_device *dev, struct Qdisc_ops *ops,
 {
 	struct Qdisc *sch;
 
+    //创建Qdisc对象
 	sch = qdisc_alloc(dev, ops);
 	if (IS_ERR(sch))
 		goto errout;
@@ -587,8 +599,12 @@ void qdisc_destroy(struct Qdisc *qdisc)
 
 /*
  * 创建QoS队列规则 
- * dev_open()
- *  dev_activate()
+ *
+ * inet_ioctl()
+ *  devinet_ioctl()
+ *   dev_change_flags()
+ *    dev_open()
+ *     dev_activate()
  *   
  */
 void dev_activate(struct net_device *dev)
@@ -599,7 +615,8 @@ void dev_activate(struct net_device *dev)
 	   virtual interfaces
 	 */
 
-	if (dev->qdisc_sleeping == &noop_qdisc) {
+	if (dev->qdisc_sleeping == &noop_qdisc) {  //在dev_init_scheduler中设置为noop_qdisc
+		
 		struct Qdisc *qdisc;
 		if (dev->tx_queue_len) {
 			/* 创建默认的排队规则 */
@@ -614,6 +631,7 @@ void dev_activate(struct net_device *dev)
 		} else {
 			qdisc =  &noqueue_qdisc;
 		}
+		
 		dev->qdisc_sleeping = qdisc;
 	}
 
@@ -638,6 +656,7 @@ void dev_deactivate(struct net_device *dev)
 
 	spin_lock_bh(&dev->queue_lock);
 	qdisc = dev->qdisc;
+	
 	dev->qdisc = &noop_qdisc;
 
 	qdisc_reset(qdisc);
@@ -687,6 +706,7 @@ void dev_init_scheduler(struct net_device *dev)
 {
 	qdisc_lock_tree(dev);
 	dev->qdisc = &noop_qdisc;
+	
 	dev->qdisc_sleeping = &noop_qdisc;
 	INIT_LIST_HEAD(&dev->qdisc_list);
 	qdisc_unlock_tree(dev);

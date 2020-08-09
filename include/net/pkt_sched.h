@@ -96,7 +96,7 @@ extern void __qdisc_run(struct net_device *dev);
  *            dev_queue_xmit
  *             qdisc_run()
  *
- * net_tx_action()
+ * net_tx_action() NET_TX_SOFTIRQ 软中断处理函数
  *  qdisc_run()
  *
  * QoS

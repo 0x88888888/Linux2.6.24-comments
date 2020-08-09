@@ -36,8 +36,10 @@ struct tcp_congestion_ops;
  * Pointers to address related TCP functions
  * (i.e. things that depend on the address family)
  *
- * dccp_ipv4_af_ops, dccp_ipv6_mapped,
- * ipv4_specific, ipv6_mapped
+ * dccp_ipv4_af_ops,
+ * dccp_ipv6_mapped,
+ * ipv4_specific, 
+ * ipv6_mapped
  */
 struct inet_connection_sock_af_ops {
     //几个对象的queue_xmit都是 ip_queue_xmit
@@ -84,6 +86,11 @@ struct inet_connection_sock_af_ops {
  * @icsk_ext_hdr_len:	   Network protocol overhead (IP/IPv6 options)
  * @icsk_ack:		   Delayed ACK control data
  * @icsk_mtup;		   MTU probing control data
+ *
+ *
+ * 这个里面的成员基本上和拥塞控制有关系,是tcp_sock的成员
+ * 
+ * 
  */
 struct inet_connection_sock {
 	/* inet_sock has to be the first member! */
@@ -100,8 +107,8 @@ struct inet_connection_sock {
 	__u32			  icsk_rto;
 	__u32			  icsk_pmtu_cookie;
 	/*拥塞控制算法*/
-	const struct tcp_congestion_ops *icsk_ca_ops;
-	const struct inet_connection_sock_af_ops *icsk_af_ops;
+	const struct tcp_congestion_ops *icsk_ca_ops;// tcp_init_congestion_ops
+	const struct inet_connection_sock_af_ops *icsk_af_ops; // 为ipv4_specific
 	unsigned int		  (*icsk_sync_mss)(struct sock *sk, u32 pmtu);
 	/*所处拥塞状态*/
 	__u8			  icsk_ca_state;

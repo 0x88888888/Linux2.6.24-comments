@@ -199,6 +199,8 @@ int raw_v4_input(struct sk_buff *skb, struct iphdr *iph, int hash)
 	while (sk) {
 		delivered = 1;
 		/*
+		 * 如果是icmp数据包，就过滤掉，不接收该数据包
+		 *
 		 raw_sock有一个成员struct icmp_filter filter，它实际上是一个无符
 		 号数，如果某位为零表明某种type的ICMP数据报文不需要接收，
 		 用户态可以用setsockopt设置例如：		 
@@ -210,11 +212,11 @@ int raw_v4_input(struct sk_buff *skb, struct iphdr *iph, int hash)
 			struct sk_buff *clone = skb_clone(skb, GFP_ATOMIC);
 
 			/* Not releasing hash table! */
-			if (clone)
+			if (clone) //用clone出来的数据包，去处理
 				raw_rcv(sk, clone);
 		}
 		
-		//再查找是否有其他符合条件的sock
+		//再查找是否有其他符合条件的sock,各个raw sock都要处理这个数据包
 		sk = __raw_v4_lookup(sk_next(sk), iph->protocol,
 				     iph->saddr, iph->daddr,
 				     skb->dev->ifindex);
@@ -279,14 +281,16 @@ void raw_err (struct sock *sk, struct sk_buff *skb, u32 info)
 }
 
 /*
- *  ip_rcv
- *	 ip_rcv_finish
- *	  dst_input
- *	   ip_local_deliver
- *      ip_local_deliver_finish
- *       raw_v4_input()
- *        raw_rcv()
- *         raw_rcv_skb()
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    ip_local_deliver
+ *     ip_local_deliver_finish
+ *      raw_v4_input()
+ *       raw_rcv()
+ *        raw_rcv_skb()
+ *
+ *  把skb放入到 sk->sk_receive_queu中
  */
 static int raw_rcv_skb(struct sock * sk, struct sk_buff * skb)
 {
@@ -309,6 +313,8 @@ static int raw_rcv_skb(struct sock * sk, struct sk_buff * skb)
  *      ip_local_deliver_finish
  *       raw_v4_input()
  *        raw_rcv()
+ *
+ * skb是在raw_v4_input中clone 出来的
  */
 int raw_rcv(struct sock *sk, struct sk_buff *skb)
 {
@@ -318,12 +324,26 @@ int raw_rcv(struct sock *sk, struct sk_buff *skb)
 	}
 	nf_reset(skb);
 
+    //
 	skb_push(skb, skb->data - skb_network_header(skb));
 
+    //把数据放到sk->sk_receive_queue中
 	raw_rcv_skb(sk, skb);
 	return 0;
 }
 
+/*
+ * sys_send()
+ *  sys_sendto()
+ *   sock_sendmsg()
+ *    __sock_sendmsg() ; socket->ops->sendmsg
+ *     inet_sendmsg()
+ *      raw_sendmsg()
+ *       raw_send_hdrinc()
+ *
+ * 把自定义的ip头部信息复制到IP协议字段位置，修正ip协议信息后
+ * 该函数把数据交给ip层发送模块
+ */
 static int raw_send_hdrinc(struct sock *sk, void *from, size_t length,
 			struct rtable *rt,
 			unsigned int flags)
@@ -335,52 +355,68 @@ static int raw_send_hdrinc(struct sock *sk, void *from, size_t length,
 	unsigned int iphlen;
 	int err;
 
+	//数据长度不能待遇MTU
 	if (length > rt->u.dst.dev->mtu) {
 		ip_local_error(sk, EMSGSIZE, rt->rt_dst, inet->dport,
 			       rt->u.dst.dev->mtu);
 		return -EMSGSIZE;
 	}
-	if (flags&MSG_PROBE)
+	if (flags&MSG_PROBE) //只是probe而已，不是真正的发送
 		goto out;
 
+    //链路层头部的长度
 	hh_len = LL_RESERVED_SPACE(rt->u.dst.dev);
 
+    //分配套接字缓冲区
 	skb = sock_alloc_send_skb(sk, length+hh_len+15,
 				  flags&MSG_DONTWAIT, &err);
+	
 	if (skb == NULL)
 		goto error;
 	skb_reserve(skb, hh_len);
 
 	skb->priority = sk->sk_priority;
+
+	//增加路由项的引用计数
 	skb->dst = dst_clone(&rt->u.dst);
 
+    //设置ip头部位置
 	skb_reset_network_header(skb);
 	iph = ip_hdr(skb);
 	skb_put(skb, length);
 
+    //
 	skb->ip_summed = CHECKSUM_NONE;
 
 	skb->transport_header = skb->network_header;
+
+	//复制自定义的IP头部信息(from 指向起始地址)
+	//到套接字缓冲区指定的头部位置
 	err = memcpy_fromiovecend((void *)iph, from, 0, length);
 	if (err)
 		goto error_fault;
 
 	/* We don't modify invalid header */
 	iphlen = iph->ihl * 4;
+	//修正源地址
 	if (iphlen >= sizeof(*iph) && iphlen <= length) {
 		if (!iph->saddr)
 			iph->saddr = rt->rt_src;
 		iph->check   = 0;
+		//修正总长度
 		iph->tot_len = htons(length);
+		//修正id号
 		if (!iph->id)
 			ip_select_ident(iph, &rt->u.dst, NULL);
 
+        //修正校验和
 		iph->check = ip_fast_csum((unsigned char *)iph, iph->ihl);
 	}
 	if (iph->protocol == IPPROTO_ICMP)
 		icmp_out_count(((struct icmphdr *)
 			skb_transport_header(skb))->type);
 
+    //netfilter后，通过dst_output发送出去
 	err = NF_HOOK(PF_INET, NF_IP_LOCAL_OUT, skb, NULL, rt->u.dst.dev,
 		      dst_output);
 	if (err > 0)
@@ -445,6 +481,14 @@ static int raw_probe_proto_opt(struct flowi *fl, struct msghdr *msg)
 	return 0;
 }
 
+/*
+ * sys_send()
+ *  sys_sendto()
+ *   sock_sendmsg()
+ *    __sock_sendmsg() ; socket->ops->sendmsg
+ *     inet_sendmsg()
+ *      raw_sendmsg()
+ */
 static int raw_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		       size_t len)
 {
@@ -465,12 +509,15 @@ static int raw_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	 *	Check the flags.
 	 */
 
+    // 检查是否有带外标志MSG_OOB,原始套接字不支持该标志
 	err = -EOPNOTSUPP;
 	if (msg->msg_flags & MSG_OOB)	/* Mirror BSD error message */
 		goto out;               /* compatibility */
 
 	/*
 	 *	Get and verify the address.
+	 *
+	 * 根据地址长度，协议族来检查合法性
 	 */
 
 	if (msg->msg_namelen) {
@@ -500,6 +547,7 @@ static int raw_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		daddr = inet->daddr;
 	}
 
+    
 	ipc.addr = inet->saddr;
 	ipc.opt = NULL;
 	ipc.oif = sk->sk_bound_dev_if;
@@ -522,6 +570,8 @@ static int raw_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		err = -EINVAL;
 		/* Linux does not mangle headers on raw sockets,
 		 * so that IP options + IP_HDRINCL is non-sense.
+		 *
+		 * 如果设置了IP_HDRINCL选项，则不能设置其他选项
 		 */
 		if (inet->hdrincl)
 			goto done;
@@ -543,6 +593,7 @@ static int raw_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	}
 
 	{
+	    //路由查找
 		struct flowi fl = { .oif = ipc.oif,
 				    .nl_u = { .ip4_u =
 					      { .daddr = daddr,
@@ -571,7 +622,7 @@ static int raw_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		goto do_confirm;
 back_from_confirm:
 
-	if (inet->hdrincl)
+	if (inet->hdrincl) //如果msg结构中封装了自定义的IP头部，则不再需要IP层的协议封装，直接调用raw_send_hdrinc发送数据
 		err = raw_send_hdrinc(sk, msg->msg_iov, len,
 					rt, msg->msg_flags);
 
@@ -579,11 +630,12 @@ back_from_confirm:
 		if (!ipc.addr)
 			ipc.addr = rt->rt_dst;
 		lock_sock(sk);
+		//对数据进行分片，准备IP层发送
 		err = ip_append_data(sk, ip_generic_getfrag, msg->msg_iov, len, 0,
 					&ipc, rt, msg->msg_flags);
 		if (err)
 			ip_flush_pending_frames(sk);
-		else if (!(msg->msg_flags & MSG_MORE))
+		else if (!(msg->msg_flags & MSG_MORE)) // 直接进入IP协议模块，封装IP包头部协议信息
 			err = ip_push_pending_frames(sk);
 		release_sock(sk);
 	}
@@ -666,11 +718,13 @@ static int raw_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	if (addr_len)
 		*addr_len = sizeof(*sin);
 
+    //是否有错误信息
 	if (flags & MSG_ERRQUEUE) {
 		err = ip_recv_error(sk, msg, len);
 		goto out;
 	}
 
+    //从sk->sk_receive_queue中得到sk_buff对象，看flags是否需要从队列中删除
 	skb = skb_recv_datagram(sk, flags, noblock, &err);
 	if (!skb)
 		goto out;
@@ -681,10 +735,12 @@ static int raw_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		copied = len;
 	}
 
+    //数据复制到 msg->msg_iov中
 	err = skb_copy_datagram_iovec(skb, 0, msg->msg_iov, copied);
 	if (err)
 		goto done;
 
+    //记录接收时间
 	sock_recv_timestamp(msg, sk, skb);
 
 	/* Copy the address. */
@@ -694,8 +750,10 @@ static int raw_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		sin->sin_port = 0;
 		memset(&sin->sin_zero, 0, sizeof(sin->sin_zero));
 	}
+	
 	if (inet->cmsg_flags)
 		ip_cmsg_recv(msg, skb);
+	
 	if (flags & MSG_TRUNC)
 		copied = skb->len;
 done:

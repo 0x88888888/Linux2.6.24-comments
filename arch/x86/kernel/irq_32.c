@@ -145,7 +145,10 @@ fastcall unsigned int do_IRQ(struct pt_regs *regs)
 			(irqctx->tinfo.preempt_count & ~SOFTIRQ_MASK) |
 			(curctx->tinfo.preempt_count & SOFTIRQ_MASK);
 
-       /*edi = desc->handle_irq */
+       /*
+        * edi = desc->handle_irq 
+        * 如果是PCI设备，这个handle_irq是handle_fasteoi_irq
+	    */
 		asm volatile(
 			"       xchgl  %%ebx,%%esp      \n"
 			"       call   *%%edi           \n"

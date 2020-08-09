@@ -495,6 +495,19 @@ static inline void __tcp_fast_path_on(struct tcp_sock *tp, u32 snd_wnd)
 			       snd_wnd);
 }
 
+/*
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         tcp_v4_do_rcv
+ *          tcp_rcv_state_process()  TCP_SYN_RECV状态
+ *           tcp_fast_path_on()
+ */
 static inline void tcp_fast_path_on(struct tcp_sock *tp)
 {
 	__tcp_fast_path_on(tp, tp->snd_wnd >> tp->rx_opt.snd_wscale);

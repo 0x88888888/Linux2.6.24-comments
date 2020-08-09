@@ -1681,6 +1681,12 @@ static int dev_gso_segment(struct sk_buff *skb)
  *            __qdisc_run()
  *             qdisc_restart() 
  *
+ * net_tx_action() NET_TX_SOFTIRQ 软中断处理函数
+ *  qdisc_run()
+ *   __qdisc_run()
+ *    qdisc_restart()
+ *     dev_hard_start_xmit()
+ *
  * 将待输出的数据包提交给网络设备的输出接口，完成数据包的输出
  */
 int dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)

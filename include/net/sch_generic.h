@@ -39,6 +39,9 @@ struct Qdisc
 #define TCQ_F_INGRESS	4
 	int			padded;
 
+    /*
+     * 激活之而后用 pfifo_fast_ops 这个
+     */
 	struct Qdisc_ops	*ops;
 	/*
 	 * 排队规则、类和过滤器都有一个32位的标识，称为句柄。

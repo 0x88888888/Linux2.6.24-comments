@@ -261,6 +261,14 @@ static inline void dst_set_expires(struct dst_entry *dst, int timeout)
  *    ip_push_pending_frames()
  *     dst_output()
  *
+ * sys_send()
+ *  sys_sendto()
+ *   sock_sendmsg()
+ *    __sock_sendmsg() ; socket->ops->sendmsg
+ *     inet_sendmsg()
+ *      raw_sendmsg()
+ *       raw_send_hdrinc()
+ *        dst_output()
  * igmp和raw ip都直接使用这个函数
  */
 static inline int dst_output(struct sk_buff *skb)

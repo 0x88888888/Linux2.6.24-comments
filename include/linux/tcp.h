@@ -22,21 +22,21 @@
 #include <linux/socket.h>
 
 struct tcphdr {
-	__be16	source;
-	__be16	dest;
-	__be32	seq;
-	__be32	ack_seq;
+	__be16	source; //源端口
+	__be16	dest; //目的端口
+	__be32	seq; //序号
+	__be32	ack_seq; //确认序号
 #if defined(__LITTLE_ENDIAN_BITFIELD)
-	__u16	res1:4,
-		doff:4,
-		fin:1,
+	__u16	res1:4, //保留
+		doff:4, // 头部长度,4字节为单位,所以4*15=60，tcp头部最长为60字节，包括选项数据了
+		fin:1, //F
 		syn:1,
 		rst:1,
-		psh:1,
-		ack:1,
-		urg:1,
-		ece:1,
-		cwr:1;
+		psh:1, // 是否需要 马上PUSH给上层application
+		ack:1, //
+		urg:1, // 紧急指针是否有效
+		ece:1, // 拥塞控制
+		cwr:1; // 拥塞控制
 #elif defined(__BIG_ENDIAN_BITFIELD)
 	__u16	doff:4,
 		res1:4,
@@ -51,9 +51,9 @@ struct tcphdr {
 #else
 #error	"Adjust your <asm/byteorder.h> defines"
 #endif	
-	__be16	window;
-	__sum16	check;
-	__be16	urg_ptr;
+	__be16	window; // 接收窗口
+	__sum16	check;  // 校验和
+	__be16	urg_ptr; // 紧急指针
 };
 
 /*
@@ -271,11 +271,11 @@ struct tcp_sock {
  *	read the code and the spec side by side (and laugh ...)
  *	See RFC793 and RFC1122. The RFC writes these in capitals.
  */
- 	u32	rcv_nxt;	/* What we want to receive next , 希望接收的下一个序列号	*/
+ 	u32	rcv_nxt;	/* What we want to receive next , 希望接收的下一个序列号，填写到tcp头部的ack_seq中	*/
 	u32	copied_seq;	/* Head of yet unread data,应用程序下次从这里复制数据		*/
 	/* 最早接收但未确认的段的序号，即当前接收窗口的左端*/
 	u32	rcv_wup;	/* rcv_nxt on last window update sent	*/
- 	u32	snd_nxt;	/* Next sequence we send		*/
+ 	u32	snd_nxt;	/* Next sequence we send,下一次发送数据包时，用这个sequence 值		*/
 
     /* 发送窗口的左边沿 */
  	u32	snd_una;	/* First byte we want an ack for	*/
@@ -309,6 +309,7 @@ struct tcp_sock {
 	u32	snd_wnd;	/* The window we expect to receive	*/
 	/* 记录来自对方通告的窗口的最大值 */
 	u32	max_window;	/* Maximal window ever seen from peer	*/
+	
 	/* 本端当前有效的发送MSS。显然不能超过对端接收的上限 
 	 * tcp数据包最小长度
 	 */
@@ -345,6 +346,7 @@ struct tcp_sock {
 	u32	retrans_out;	/* Retransmitted packets out		*/
     /*
     *      Options received (usually on last packet, some only on SYN packets).
+    * 收到的tcp数据包的tcp选项数据
     */
 	struct tcp_options_received rx_opt;
 

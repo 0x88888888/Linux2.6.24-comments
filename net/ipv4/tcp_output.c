@@ -507,6 +507,10 @@ static void tcp_syn_build_options(__be32 *ptr, int mss, int ts, int sack,
  *     __tcp_push_pending_frames()
  *      tcp_write_xmit()
  *       tcp_transmit_skb()
+ *
+ * tcp_transmit_skb执行实际上的传输工作，主要包括两项:
+ * 1,为数据包准备TCP协议头部信息,包括序号，源地址，目的地址，校验和
+ * 2,调用ip_queue_xmit函数，把数据交给ip模块
  */
 static int tcp_transmit_skb(struct sock *sk, struct sk_buff *skb, int clone_it, gfp_t gfp_mask)
 {
@@ -542,6 +546,7 @@ static int tcp_transmit_skb(struct sock *sk, struct sk_buff *skb, int clone_it, 
 
 	inet = inet_sk(sk);
 	tp = tcp_sk(sk);
+	//选项数据，根据这个数据来填写tcp头部
 	tcb = TCP_SKB_CB(skb);
 	tcp_header_size = tp->tcp_header_len;
 
@@ -592,7 +597,7 @@ static int tcp_transmit_skb(struct sock *sk, struct sk_buff *skb, int clone_it, 
 	skb_set_owner_w(skb, sk);
 
 	/* Build TCP header and checksum it. 以下是TCP头的赋值
-	 *
+	 * 构建tcp头部
 	 */
 	th = tcp_hdr(skb);
 	th->source		= inet->sport;
@@ -623,8 +628,9 @@ static int tcp_transmit_skb(struct sock *sk, struct sk_buff *skb, int clone_it, 
 		th->urg			= 1;
 	}
 
+    //为有SYN标记的TCP头构建tcp选项数据
 	if (unlikely(tcb->flags & TCPCB_FLAG_SYN)) {
-		tcp_syn_build_options((__be32 *)(th + 1),
+		tcp_syn_build_options((__be32 *)(th + 1) /* tcp选项数据开始的位置 */,
 				      tcp_advertise_mss(sk),
 				      (sysctl_flags & SYSCTL_FLAG_TSTAMPS),
 				      (sysctl_flags & SYSCTL_FLAG_SACK),
@@ -638,7 +644,8 @@ static int tcp_transmit_skb(struct sock *sk, struct sk_buff *skb, int clone_it, 
 #endif
 				      NULL);
 	} else {
-		tcp_build_and_update_options((__be32 *)(th + 1),
+		
+		tcp_build_and_update_options((__be32 *)(th + 1) /* tcp选项数据开始的位置 */,
 					     tp, tcb->when,
 #ifdef CONFIG_TCP_MD5SIG
 					     md5 ? &md5_hash_location :
@@ -659,8 +666,11 @@ static int tcp_transmit_skb(struct sock *sk, struct sk_buff *skb, int clone_it, 
 	}
 #endif
 
+    //tcp初始化时，令send_check == tcp_v4_send_check,计算tcp的check sum
+    //icsk->icsk_af_ops在tcp_v4_init_sock中初始化
 	icsk->icsk_af_ops->send_check(sk, skb->len, skb);
 
+    
 	if (likely(tcb->flags & TCPCB_FLAG_ACK))
 		tcp_event_ack_sent(sk, tcp_skb_pcount(skb));
 
@@ -757,6 +767,12 @@ static void tcp_adjust_fackets_out(struct tcp_sock *tp, struct sk_buff *skb,
  * to the specified size and appends a new segment with the rest of the
  * packet to the list.  This won't be called frequently, I hope.
  * Remember, these are still headerless SKBs at this point.
+ *
+ * tcp_sendmsg()
+ *  __tcp_push_pending_frames()
+ *   tcp_write_xmit()
+ *    tso_fragment()
+ *     tcp_fragment()
  */
 int tcp_fragment(struct sock *sk, struct sk_buff *skb, u32 len, unsigned int mss_now)
 {
@@ -967,6 +983,19 @@ int tcp_mss_to_mtu(struct sock *sk, int mss)
 	return mtu;
 }
 
+/*
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         tcp_v4_do_rcv
+ *          tcp_rcv_state_process()  TCP_SYN_RECV状态
+ *           tcp_mtup_init()
+ */
 void tcp_mtup_init(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -1269,6 +1298,12 @@ int tcp_may_send_now(struct sock *sk)
  * in order to speed up the splitting operation.  In particular, we
  * know that all the data is in scatter-gather pages, and that the
  * packet has never been sent out before (and thus is not cloned).
+ *
+ * tcp_sendmsg()
+ *  __tcp_push_pending_frames()
+ *   tcp_write_xmit()
+ *    tso_fragment()
+ *
  */
 static int tso_fragment(struct sock *sk, struct sk_buff *skb, unsigned int len, unsigned int mss_now)
 {
@@ -1567,7 +1602,9 @@ static int tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle)
 	while ((skb = tcp_send_head(sk))) {
 		unsigned int limit;
 
+        //根据mss_now,skb可以分为几个segment
 		tso_segs = tcp_init_tso_segs(sk, skb, mss_now);
+	
 		BUG_ON(!tso_segs);
 
         /* 检查congestion windows， 可以发送几个segment */
@@ -1606,6 +1643,7 @@ static int tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle)
 			}
 		}
 
+        //根据MSS来进行tcp层的分片
 		if (skb->len > limit &&
 		    unlikely(tso_fragment(sk, skb, limit, mss_now)))
 			break;
@@ -2488,8 +2526,11 @@ static void tcp_connect_init(struct sock *sk)
  * Build a SYN and send it off.
  * 发送syn请求 ,创建一个定时器，在规定的时间内，没有得到回复，就重发
  *
- * tcp_v4_connect()
- *  tcp_connect()
+ * sys_socketcall()
+ *  sys_connect()
+ *   inet_stream_connect()
+ *    tcp_v4_connect()
+ *     tcp_connect()
  */
 int tcp_connect(struct sock *sk)
 {
@@ -2503,15 +2544,21 @@ int tcp_connect(struct sock *sk)
 	 */
 	tcp_connect_init(sk);
 
+    //分配一个缓冲区，用于发送SYN请求
 	buff = alloc_skb_fclone(MAX_TCP_HEADER + 15, sk->sk_allocation);
 	if (unlikely(buff == NULL))
 		return -ENOBUFS;
 
-	/* Reserve space for headers. */
+	/* Reserve space for headers. 
+	 * 预留tcp头部空间
+	 */
 	skb_reserve(buff, MAX_TCP_HEADER);
 
+    //为马上要发送的链接请求设置SYN标志，并记录在套接字缓冲区中
 	TCP_SKB_CB(buff)->flags = TCPCB_FLAG_SYN;
+	//设置链接请求包的TCP协议信息
 	TCP_ECN_send_syn(sk, buff);
+	
 	TCP_SKB_CB(buff)->sacked = 0;
 	skb_shinfo(buff)->gso_segs = 1;
 	skb_shinfo(buff)->gso_size = 0;
@@ -2525,6 +2572,7 @@ int tcp_connect(struct sock *sk)
 	TCP_SKB_CB(buff)->when = tcp_time_stamp;
 	tp->retrans_stamp = TCP_SKB_CB(buff)->when;
 	skb_header_release(buff);
+	//将数据包添加到sk->sk_write_queue队列尾部
 	__tcp_add_write_queue_tail(sk, buff);
 	sk_charge_skb(sk, buff);
 	tp->packets_out += tcp_skb_pcount(buff);

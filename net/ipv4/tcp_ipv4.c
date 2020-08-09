@@ -195,6 +195,7 @@ EXPORT_SYMBOL_GPL(tcp_twsk_unique);
 int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 {
 	struct inet_sock *inet = inet_sk(sk);
+	
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct sockaddr_in *usin = (struct sockaddr_in *)uaddr;
 	struct rtable *rt;
@@ -208,14 +209,15 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	if (usin->sin_family != AF_INET)
 		return -EAFNOSUPPORT;
 
+    //确定下一跳地址，这个nexthop 是 目标地址啊
  	nexthop = daddr = usin->sin_addr.s_addr;
-	if (inet->opt && inet->opt->srr) {
+	if (inet->opt && inet->opt->srr) { // strict route选项
 		if (!daddr)
 			return -EINVAL;
 		nexthop = inet->opt->faddr;
 	}
 
-    //路由查找了？
+    //查找路由表项，并且通过rt记录下来
 	tmp = ip_route_connect(&rt, nexthop, inet->saddr,
 			       RT_CONN_FLAGS(sk), sk->sk_bound_dev_if,
 			       IPPROTO_TCP,
@@ -232,13 +234,16 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 		return -ENETUNREACH;
 	}
 
+    //
 	if (!inet->opt || !inet->opt->srr)
 		daddr = rt->rt_dst;
 
 	if (!inet->saddr)
 		inet->saddr = rt->rt_src;
+	
 	inet->rcv_saddr = inet->saddr;
 
+    //初始化tcp选项
 	if (tp->rx_opt.ts_recent_stamp && inet->daddr != daddr) {
 		/* Reset inherited state */
 		tp->rx_opt.ts_recent	   = 0;
@@ -275,8 +280,11 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	 * However we set state to SYN-SENT and not releasing socket
 	 * lock select source port, enter ourselves into the hash tables and
 	 * complete initialization after this.
+	 *
+	 * sk的状态改变为TCP_SYN_SENT
 	 */
 	tcp_set_state(sk, TCP_SYN_SENT);
+	//为套接字绑定一个端口，并且记录在tcp_death_row->hashinfo这个hash表中
 	err = inet_hash_connect(&tcp_death_row, sk);
 	if (err)
 		goto failure;
@@ -288,8 +296,10 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 
 	/* OK, now commit destination to socket.  */
 	sk->sk_gso_type = SKB_GSO_TCPV4;
+	//设置套接字的出口路由信息
 	sk_setup_caps(sk, &rt->u.dst);
 
+    //生成一个序号
 	if (!tp->write_seq)
 		tp->write_seq = secure_tcp_sequence_number(inet->saddr,
 							   inet->daddr,
@@ -310,6 +320,8 @@ failure:
 	/*
 	 * This unhashes the socket and releases the local port,
 	 * if necessary.
+	 *
+	 * 上一步的tcp_connect失败了
 	 */
 	tcp_set_state(sk, TCP_CLOSE);
 	ip_rt_put(rt);
@@ -532,7 +544,16 @@ out:
 	sock_put(sk);
 }
 
-/* This routine computes an IPv4 TCP checksum. */
+/* This routine computes an IPv4 TCP checksum. 
+ *
+ * tcp_sendmsg()
+ *  __tcp_push_pending_frames()
+ *   tcp_write_xmit()
+ *    tcp_transmit_skb()
+ *     tcp_v4_send_check()
+ *
+ * 计算tcp的check sum值
+ */
 void tcp_v4_send_check(struct sock *sk, int len, struct sk_buff *skb)
 {
 	struct inet_sock *inet = inet_sk(sk);
@@ -1646,7 +1667,7 @@ int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 	if (sk->sk_state == TCP_ESTABLISHED) { /* Fast path */
 		TCP_CHECK_TIMER(sk);
 		/*
-		 * 和对端链接已经建立
+		 * 和对端链接已经建立了，
 		 */
 		if (tcp_rcv_established(sk, skb, tcp_hdr(skb), skb->len)) {
 			rsk = sk;
@@ -1723,19 +1744,23 @@ int tcp_v4_rcv(struct sk_buff *skb)
 	struct sock *sk;
 	int ret;
 
+    //数据包必须是发送给本机的
 	if (skb->pkt_type != PACKET_HOST)
 		goto discard_it;
 
 	/* Count it even if it's bad */
 	TCP_INC_STATS_BH(TCP_MIB_INSEGS);
 
+    //确保套接字缓冲区可容纳一个TCP头部
 	if (!pskb_may_pull(skb, sizeof(struct tcphdr)))
 		goto discard_it;
 
+    //获得TCP头部位置
 	th = tcp_hdr(skb);
 
 	if (th->doff < sizeof(struct tcphdr) / 4)
 		goto bad_packet;
+	
 	if (!pskb_may_pull(skb, th->doff * 4))
 		goto discard_it;
 
@@ -1748,7 +1773,8 @@ int tcp_v4_rcv(struct sk_buff *skb)
 
 	th = tcp_hdr(skb);
 	iph = ip_hdr(skb);
-	
+
+	//得到TCP协议处理的控制信息
 	TCP_SKB_CB(skb)->seq = ntohl(th->seq);
 	TCP_SKB_CB(skb)->end_seq = (TCP_SKB_CB(skb)->seq + th->syn + th->fin +
 				    skb->len - th->doff * 4);
@@ -1766,20 +1792,25 @@ int tcp_v4_rcv(struct sk_buff *skb)
 		goto no_tcp_socket;
 
 process:
-	if (sk->sk_state == TCP_TIME_WAIT)
+	if (sk->sk_state == TCP_TIME_WAIT) //处于等待状态，这个sk等待被回收了，不接收数据了
 		goto do_time_wait;
 
 	if (!xfrm4_policy_check(sk, XFRM_POLICY_IN, skb))
 		goto discard_and_relse;
 	nf_reset(skb);
 
-	if (sk_filter(sk, skb))
+	if (sk_filter(sk, skb)) //bpf,高版本就是ebpf了
 		goto discard_and_relse;
 
 	skb->dev = NULL;
 
 	bh_lock_sock_nested(sk);
 	ret = 0;
+
+	/*
+	 * 套接字是否使用
+	 * 如果没有关联的用户任务,则调用tcp_v4_do_rcv接收数据包
+	*/
 	if (!sock_owned_by_user(sk)) {
 #ifdef CONFIG_NET_DMA
 		struct tcp_sock *tp = tcp_sk(sk);
@@ -1795,8 +1826,8 @@ process:
 			if (!tcp_prequeue(sk, skb))
 			ret = tcp_v4_do_rcv(sk, skb);
 		}
-	} else
-		sk_add_backlog(sk, skb);
+	} else//如果套接字正在被加锁使用
+		sk_add_backlog(sk, skb); //添加到sk->sk_backlog
 
 	bh_unlock_sock(sk);
 
@@ -1811,7 +1842,7 @@ no_tcp_socket:
 	if (skb->len < (th->doff << 2) || tcp_checksum_complete(skb)) {
 bad_packet:
 		TCP_INC_STATS_BH(TCP_MIB_INERRS);
-	} else {
+	} else { //发送RST标志的数据包，同志对方连接不存在
 		tcp_v4_send_reset(NULL, skb);
 	}
 

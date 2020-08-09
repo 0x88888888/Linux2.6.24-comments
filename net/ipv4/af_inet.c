@@ -590,6 +590,11 @@ out:
 	return err;
 }
 
+/*
+ * sys_socketcall()
+ *  sys_connect()
+ *   inet_dgram_connect()
+ */
 int inet_dgram_connect(struct socket *sock, struct sockaddr * uaddr,
 		       int addr_len, int flags)
 {
@@ -600,6 +605,7 @@ int inet_dgram_connect(struct socket *sock, struct sockaddr * uaddr,
 
 	if (!inet_sk(sk)->num && inet_autobind(sk))
 		return -EAGAIN;
+	//ip4_datagram_connect
 	return sk->sk_prot->connect(sk, (struct sockaddr *)uaddr, addr_len);
 }
 
@@ -847,7 +853,7 @@ int inet_getname(struct socket *sock, struct sockaddr *uaddr,
  *     __sock_sendmsg() ; socket->ops->sendmsg
  *      inet_sendmsg()
  *     
- *  UDP socket时
+ *  UDP和RAW socket时
  */
 int inet_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 		 size_t size)
@@ -863,7 +869,9 @@ int inet_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 	if (!inet_sk(sk)->num && inet_autobind(sk))
 		return -EAGAIN;
 
-    /* 如果传输层使用的是UDP，则sk_prot为udp_prot，sendmsg指向udp_sendmsg() */
+    /* 如果传输层使用的是UDP，则sk_prot为udp_prot，sendmsg指向udp_sendmsg()
+     * raw: raw_sendmsg  
+     */
 	return sk->sk_prot->sendmsg(iocb, sk, msg, size);
 }
 
@@ -1259,6 +1267,19 @@ static int inet_sk_reselect_saddr(struct sock *sk)
 	return 0;
 }
 
+/*
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         tcp_v4_do_rcv
+ *          tcp_rcv_state_process()
+ *           inet_sk_rebuild_header()
+ */
 int inet_sk_rebuild_header(struct sock *sk)
 {
 	struct inet_sock *inet = inet_sk(sk);
@@ -1272,8 +1293,11 @@ int inet_sk_rebuild_header(struct sock *sk)
 
 	/* Reroute. */
 	daddr = inet->daddr;
+	
 	if (inet->opt && inet->opt->srr)
 		daddr = inet->opt->faddr;
+
+	//查找路由
 {
 	struct flowi fl = {
 		.oif = sk->sk_bound_dev_if,

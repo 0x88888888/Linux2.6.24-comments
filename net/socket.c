@@ -623,8 +623,8 @@ static inline int __sock_sendmsg(struct kiocb *iocb, struct socket *sock,
 	if (err)
 		return err;
 
-    /* 调用Socket层的操作函数，如果是SOCK_STREAM，则proto_ops为inet_stream_ops，inet_dgram_ops
-     * 函数指针指向inet_sendmsg   [UDP] , tcp_sendmsg[TCP]。
+    /* 调用Socket层的操作函数，如果是SOCK_STREAM，则proto_ops为inet_stream_ops，inet_dgram_ops,inet_sockraw_ops
+     * 函数指针指向inet_sendmsg   [UDP, RAW] , tcp_sendmsg[TCP],。
      */
 
 	return sock->ops->sendmsg(iocb, sock, msg, size);

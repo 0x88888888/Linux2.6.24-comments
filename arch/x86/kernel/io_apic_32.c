@@ -1258,11 +1258,24 @@ static struct irq_chip ioapic_chip;
 #define IOAPIC_EDGE	0
 #define IOAPIC_LEVEL	1
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *	  smp_prepare_cpus()
+ *	   native_smp_prepare_cpus()
+ *	    smp_boot_cpus()
+ *	     APIC_init_uniprocessor()
+ *		  setup_IO_APIC()
+ *         setup_IO_APIC_irqs()
+ *          ioapic_register_intr(, trigger = IOAPIC_AUTO)
+ */
 static void ioapic_register_intr(int irq, int vector, unsigned long trigger)
 {
 	if ((trigger == IOAPIC_AUTO && IO_APIC_irq_trigger(irq)) ||
 	    trigger == IOAPIC_LEVEL) {
 		irq_desc[irq].status |= IRQ_LEVEL;
+		//注册中断处理函数
 		set_irq_chip_and_handler_name(irq, &ioapic_chip,
 					 handle_fasteoi_irq, "fasteoi");
 	} else {

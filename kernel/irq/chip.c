@@ -393,6 +393,9 @@ out_unlock:
  *	call when the interrupt has been serviced. This enables support
  *	for modern forms of interrupt handlers, which handle the flow
  *	details in hardware, transparently.
+ *
+ * do_IRQ()
+ *  handle_fasteoi_irq()
  */
 void fastcall
 handle_fasteoi_irq(unsigned int irq, struct irq_desc *desc)

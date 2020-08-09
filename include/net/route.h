@@ -146,6 +146,15 @@ static inline char rt_tos2priority(u8 tos)
 	return ip_tos2prio[IPTOS_TOS(tos)>>1];
 }
 
+/*
+ * sys_socketcall()
+ *  sys_connect()
+ *   inet_stream_connect()
+ *    tcp_v4_connect()
+ *     ip_route_connect()
+ *
+ * 查询路由表项，通过参数rp返回
+ */
 static inline int ip_route_connect(struct rtable **rp, __be32 dst,
 				   __be32 src, u32 tos, int oif, u8 protocol,
 				   __be16 sport, __be16 dport, struct sock *sk,
@@ -162,15 +171,17 @@ static inline int ip_route_connect(struct rtable **rp, __be32 dst,
 
 	int err;
 	if (!dst || !src) {
-		err = __ip_route_output_key(rp, &fl);
-		if (err)
+		err = __ip_route_output_key(rp, &fl); //路由缓存和路由表中查找
+		if (err)  //查找失败
 			return err;
+		
 		fl.fl4_dst = (*rp)->rt_dst;
 		fl.fl4_src = (*rp)->rt_src;
 		ip_rt_put(*rp);
 		*rp = NULL;
 	}
 	security_sk_classify_flow(sk, &fl);
+	//上一步查找失败，又查找
 	return ip_route_output_flow(rp, &fl, sk, flags);
 }
 

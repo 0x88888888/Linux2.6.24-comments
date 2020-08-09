@@ -348,6 +348,19 @@ static void tcp_fixup_rcvbuf(struct sock *sk)
 
 /* 4. Try to fixup all. It is made immediately after connection enters
  *    established state.
+ *
+ *
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         tcp_v4_do_rcv
+ *          tcp_rcv_state_process()  TCP_SYN_RECV状态
+ *           tcp_init_buffer_space()
  */
 static void tcp_init_buffer_space(struct sock *sk)
 {
@@ -408,6 +421,19 @@ static void tcp_clamp_window(struct sock *sk)
  * It's better to underestimate the RCV_MSS rather than overestimate.
  * Overestimations make us ACKing less frequently than needed.
  * Underestimations are more easy to detect and fix by tcp_measure_rcv_mss().
+ *
+ *
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         tcp_v4_do_rcv
+ *          tcp_rcv_state_process()  TCP_SYN_RECV状态
+ *           tcp_initialize_rcv_mss()
  */
 void tcp_initialize_rcv_mss(struct sock *sk)
 {
@@ -924,7 +950,19 @@ static void tcp_dsack_seen(struct tcp_sock *tp)
 }
 
 /* Initialize metrics on socket. */
-
+/*
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         tcp_v4_do_rcv
+ *          tcp_rcv_state_process() TCP_SYN_RECV状态
+ *           tcp_init_metrics()
+ */
 static void tcp_init_metrics(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -2753,7 +2791,7 @@ static void tcp_ack_no_tstamp(struct sock *sk, u32 seq_rtt, int flag)
 	 * I.e. Karn's algorithm. (SIGCOMM '87, p5.)
 	 */
     /*
-     * 如果ACK确认的是重传的数据包，则不进行RTT采样
+     * 如果ACK确认的是重传的数据包的ACK，则不进行RTT采样
      */
 	if (flag & FLAG_RETRANS_DATA_ACKED)
 		return;
@@ -2778,8 +2816,8 @@ static inline void tcp_ack_update_rtt(struct sock *sk, const int flag,
 	/* Note that peer MAY send zero echo. In this case it is ignored. (rfc1323) */
 	if (tp->rx_opt.saw_tstamp && tp->rx_opt.rcv_tsecr)
 		tcp_ack_saw_tstamp(sk, flag); //根据TCP timestamp来测量RTT
-	else if (seq_rtt >= 0)
-		tcp_ack_no_tstamp(sk, seq_rtt, flag); // 根据sk->when来测量RTT
+	else if (seq_rtt >= 0)//不能是重传数据包的ACK
+		tcp_ack_no_tstamp(sk, seq_rtt, flag); 
 }
 
 static void tcp_cong_avoid(struct sock *sk, u32 ack,
@@ -2831,6 +2869,8 @@ static u32 tcp_tso_acked(struct sock *sk, struct sk_buff *skb)
 /* Remove acknowledged frames from the retransmission queue. If our packet
  * is before the ack sequence we can discard it as it's confirmed to have
  * arrived at the other end.
+ *
+ * 从重传队列移除sk_buff对象，更新RTT和RTO之类的
  *
  * tcp_ack()
  *  tcp_clean_rtx_queue()
@@ -3389,6 +3429,8 @@ static int tcp_ack(struct sock *sk, struct sk_buff *skb, int flag)
 
 	/* See if we can take anything off of the retransmit queue. 
 	 * 删除重传队列中已经确认的数据段，并进行时延采样。
+	 *
+	 * 这个函数调用很重要
 	 */
 	flag |= tcp_clean_rtx_queue(sk, &seq_rtt, prior_fackets);
 
@@ -3553,6 +3595,19 @@ void tcp_parse_options(struct sk_buff *skb, struct tcp_options_received *opt_rx,
 
 /* Fast parse options. This hopes to only see timestamps.
  * If it is wrong it falls back on tcp_parse_options().
+ *
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         tcp_v4_do_rcv
+ *          tcp_rcv_state_process()
+ *   
+ * 处理高数网络传输中的重复序号
  */
 static int tcp_fast_parse_options(struct sk_buff *skb, struct tcphdr *th,
 				  struct tcp_sock *tp)
@@ -3999,6 +4054,19 @@ static void tcp_ofo_queue(struct sock *sk)
 
 static int tcp_prune_queue(struct sock *sk);
 
+/*
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         tcp_v4_do_rcv
+ *          tcp_rcv_state_process()
+ *           tcp_data_queue()
+ */
 static void tcp_data_queue(struct sock *sk, struct sk_buff *skb)
 {
 	struct tcphdr *th = tcp_hdr(skb);
@@ -4517,9 +4585,25 @@ static void tcp_check_space(struct sock *sk)
 	}
 }
 
+/*
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         tcp_v4_do_rcv
+ *          tcp_rcv_established
+ *           tcp_data_snd_check()
+ */
 static inline void tcp_data_snd_check(struct sock *sk)
 {
+    //发出去
 	tcp_push_pending_frames(sk);
+
+	//如果发送缓冲区有空闲了，唤醒等待进程
 	tcp_check_space(sk);
 }
 
@@ -4634,7 +4718,20 @@ static void tcp_check_urg(struct sock * sk, struct tcphdr * th)
 	tp->pred_flags = 0;
 }
 
-/* This is the 'fast' part of urgent handling. */
+/* This is the 'fast' part of urgent handling. 
+ *
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         tcp_v4_do_rcv
+ *          tcp_rcv_state_process()
+ *           tcp_urg()
+ */
 static void tcp_urg(struct sock *sk, struct sk_buff *skb, struct tcphdr *th)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -4655,7 +4752,7 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, struct tcphdr *th)
 				BUG();
 			tp->urg_data = TCP_URG_VALID | tmp;
 			if (!sock_flag(sk, SOCK_DEAD))
-				sk->sk_data_ready(sk, 0);
+				sk->sk_data_ready(sk, 0); //唤醒进程
 		}
 	}
 }
@@ -4770,11 +4867,15 @@ out:
  *	the rest is checked inline. Fast processing is turned on in
  *	tcp_data_queue when everything is OK.
  *
- *  把数据tcp数据包区分为容易处理和难以处理的
- *  在established状态的socket中，以下种类为易处理的包
- *  1,分组只包含ack信息
- *  2，分组只包含预期将接受的信息
- *  此外，分组不能设置SYN,URG,RST,FIN标记
+ * 书:分为fast path和slow path,出如下情况，均采用fast path
+ * 1,到来的数据包告知对方接收窗口为0
+ * 2,到来的数据发送错序
+ * 3,没有剩余的缓冲空间来接收数据
+ * 4,数据包有无效的标志，窗口值和头部长度
+ * 5,同时进行双向数据传输
+ * 6,TCP选项无效
+ *
+ * 这个函数的最核心的功能就是将把存放数据的套接字缓冲区插入到sk->sk_receive_queue中
  *
  *
  * ip_rcv
@@ -4868,9 +4969,13 @@ int tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
 
 				/* We know that such packets are checksummed
 				 * on entry.
+				 *
+				 * 处理有ACK标记的数据包
 				 */
 				tcp_ack(sk, skb, 0);
 				__kfree_skb(skb);
+
+				//发出ACK包，确认接收的情况
 				tcp_data_snd_check(sk);
 				return 0;
 			} else { /* Header too small */
@@ -4935,8 +5040,11 @@ int tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
 
 				NET_INC_STATS_BH(LINUX_MIB_TCPHPHITS);
 
-				/* Bulk data transfer: receiver */
+				/* Bulk data transfer: receiver 
+				 * 把头部从套接字缓冲区中取出
+				 */
 				__skb_pull(skb,tcp_header_len);
+				//存放到接收缓冲区中
 				__skb_queue_tail(&sk->sk_receive_queue, skb);
 				sk_stream_set_owner_r(skb, sk);
 				tp->rcv_nxt = TCP_SKB_CB(skb)->end_seq;
@@ -5053,7 +5161,9 @@ discard:
  *        tcp_v4_rcv
  *         tcp_v4_do_rcv
  *          tcp_rcv_state_process()
- *           tcp_rcv_synsent_state_process()
+ *           tcp_rcv_synsent_state_process() TCP_SYN_SENT状态下的处理
+ *
+ * 这个函数检查数据包是否有ACK和SYN标记，如果有，则表示连接建立成功
  */
 static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 					 struct tcphdr *th, unsigned len)
@@ -5064,6 +5174,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 
 	tcp_parse_options(skb, &tp->rx_opt, 0);
 
+    //有ACK标记
 	if (th->ack) {
 		/* rfc793:
 		 * "If the state is SYN-SENT then
@@ -5093,7 +5204,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		 *    connection reset", drop the segment, enter CLOSED state,
 		 *    delete TCB, and return."
 		 */
-
+        //有RST标记，就要丢弃了
 		if (th->rst) {
 			tcp_reset(sk);
 			goto discard;
@@ -5106,6 +5217,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		 *    See note below!
 		 *                                        --ANK(990513)
 		 */
+		//同时有ACI,SYN标记，才可以建立连接
 		if (!th->syn)
 			goto discard_and_undo;
 
@@ -5334,13 +5446,14 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 	case TCP_CLOSE:
 		goto discard;
 
-	case TCP_LISTEN:
-		if (th->ack)
+	case TCP_LISTEN: //监听套接字
+		if (th->ack) //如果当前接收的包有ACK标记，则reset掉
 			return 1;
 
-		if (th->rst)
+		if (th->rst) //有RST标记的包,则丢弃这个数据包
 			goto discard;
 
+        //有SYN标记的包，表明对方请求建立连接
 		if (th->syn) { //下面这个函数指针是tcp_v4_conn_request
 			if (icsk->icsk_af_ops->conn_request(sk, skb) < 0)
 				return 1;
@@ -5367,7 +5480,9 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 		}
 		goto discard;
 
-	case TCP_SYN_SENT:
+	case TCP_SYN_SENT://SYN_SENT状态下的处理
+
+	    //这个函数检查数据包是否有ACK和SYN标记，如果有，则表示连接建立成功
 		queued = tcp_rcv_synsent_state_process(sk, skb, th, len);
 		if (queued >= 0)
 			return queued;
@@ -5379,6 +5494,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 		return 0;
 	}
 
+    //处理高数网络传输中的重复序号
 	if (tcp_fast_parse_options(skb, th, tp) && tp->rx_opt.saw_tstamp &&
 	    tcp_paws_discard(sk, skb)) {
 		if (!th->rst) {
@@ -5409,6 +5525,8 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 	/*	step 4:
 	 *
 	 *	Check for a SYN in window.
+	 *
+	 * 检查当前窗口中数据包的SYN标志，如果存在就复位连接
 	 */
 	if (th->syn && !before(TCP_SKB_CB(skb)->seq, tp->rcv_nxt)) {
 		NET_INC_STATS_BH(LINUX_MIB_TCPABORTONSYN);
@@ -5416,10 +5534,16 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 		return 1;
 	}
 
-	/* step 5: check the ACK field */
+	/* step 5: check the ACK field 
+	 *
+	 * 接收ACK时的处理
+	 */
 	if (th->ack) {
+
+	    //acceptable表示是否接收连接请求
 		int acceptable = tcp_ack(sk, skb, FLAG_SLOWPATH);
 
+        //根据当前状态，切换到下一个状态
 		switch (sk->sk_state) {
 		case TCP_SYN_RECV:
 			if (acceptable) {
@@ -5460,6 +5584,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 				/* Make sure socket is routed, for
 				 * correct metrics.
 				 */
+				//为数据传输做准备 , inet_sk_rebuild_header,查找路由
 				icsk->icsk_af_ops->rebuild_header(sk);
 
 				tcp_init_metrics(sk);
@@ -5472,7 +5597,10 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 				tp->lsndtime = tcp_time_stamp;
 
 				tcp_mtup_init(sk);
+
+				//确定MSS
 				tcp_initialize_rcv_mss(sk);
+				//确认接收缓存和发送缓存的大小
 				tcp_init_buffer_space(sk);
 				tcp_fast_path_on(tp);
 			} else {
@@ -5482,7 +5610,10 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 
 		case TCP_FIN_WAIT1:
 			if (tp->snd_una == tp->write_seq) {
+
+			    // 切换到状态TCP_FIN_WAIT2
 				tcp_set_state(sk, TCP_FIN_WAIT2);
+				//SEND_SHUTDOWN了，不会在发送数据了
 				sk->sk_shutdown |= SEND_SHUTDOWN;
 				dst_confirm(sk->sk_dst_cache);
 
@@ -5500,7 +5631,9 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 						return 1;
 					}
 
+                    //设置保留FIN_WAIT2状态的时间
 					tmo = tcp_fin_time(sk);
+						 
 					if (tmo > TCP_TIMEWAIT_LEN) {
 						inet_csk_reset_keepalive_timer(sk, tmo - TCP_TIMEWAIT_LEN);
 					} else if (th->fin || sock_owned_by_user(sk)) {
@@ -5519,7 +5652,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 			}
 			break;
 
-		case TCP_CLOSING:
+		case TCP_CLOSING://未收到数据包，就转为TCP_TIME_WAIT状态
 			if (tp->snd_una == tp->write_seq) {
 				tcp_time_wait(sk, TCP_TIME_WAIT, 0);
 				goto discard;
@@ -5527,6 +5660,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 			break;
 
 		case TCP_LAST_ACK:
+			
 			if (tp->snd_una == tp->write_seq) {
 				tcp_update_metrics(sk);
 				tcp_done(sk);
@@ -5538,9 +5672,11 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 		goto discard;
 
 	/* step 6: check the URG bit */
+	//检查URG位，并且进行紧急数据处理
 	tcp_urg(sk, skb, th);
 
 	/* step 7: process the segment text */
+	//收到的数据段处理
 	switch (sk->sk_state) {
 	case TCP_CLOSE_WAIT:
 	case TCP_CLOSING:
@@ -5562,7 +5698,8 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 			}
 		}
 		/* Fall through */
-	case TCP_ESTABLISHED:
+	case TCP_ESTABLISHED: 
+		//把数据放入sk->sk_receive_queue
 		tcp_data_queue(sk, skb);
 		queued = 1;
 		break;

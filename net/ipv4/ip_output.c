@@ -1688,6 +1688,8 @@ int ip_push_pending_frames(struct sock *sk)
 {
 	struct sk_buff *skb, *tmp_skb;
 	struct sk_buff **tail_skb;
+
+	//转成inet_sock对象
 	struct inet_sock *inet = inet_sk(sk);
 	struct ip_options *opt = NULL;
 
@@ -1723,7 +1725,8 @@ int ip_push_pending_frames(struct sock *sk)
 	    //链接起来
 		*tail_skb = tmp_skb;
 		tail_skb = &(tmp_skb->next);
-		
+
+		//数据总长度
 		skb->len += tmp_skb->len;
 		skb->data_len += tmp_skb->len;
 		skb->truesize += tmp_skb->truesize;
@@ -1771,6 +1774,7 @@ int ip_push_pending_frames(struct sock *sk)
 	iph = (struct iphdr *)skb->data;
 	iph->version = 4;
 	iph->ihl = 5;
+	
 	//构建ip option值
 	if (opt) {
 		iph->ihl += opt->optlen>>2;

@@ -22,8 +22,8 @@ struct ifaddrmsg
 enum
 {
 	IFA_UNSPEC,
-	IFA_ADDRESS,
-	IFA_LOCAL,
+	IFA_ADDRESS, // IFA_ADDRESS
+	IFA_LOCAL,   // 本地ip地址
 	IFA_LABEL,
 	IFA_BROADCAST,
 	IFA_ANYCAST,

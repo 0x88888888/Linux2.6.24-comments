@@ -281,15 +281,21 @@ static void __inet_del_ifa(struct in_device *in_dev, struct in_ifaddr **ifap,
 	/* 1. Deleting primary ifaddr forces deletion all secondaries
 	 * unless alias promotion is set
 	 **/
-
+    //要删除的地址为主地址
 	if (!(ifa1->ifa_flags & IFA_F_SECONDARY)) {
+		
 		struct in_ifaddr **ifap1 = &ifa1->ifa_next;
 
+        //遍历地址链表
 		while ((ifa = *ifap1) != NULL) {
 			if (!(ifa->ifa_flags & IFA_F_SECONDARY) &&
 			    ifa1->ifa_scope <= ifa->ifa_scope)
 				last_prim = ifa;
 
+			//如果是主地址
+			//掩码不同
+			//不在同一子网
+			//记录这个从地址，继续查找
 			if (!(ifa->ifa_flags & IFA_F_SECONDARY) ||
 			    ifa1->ifa_mask != ifa->ifa_mask ||
 			    !inet_ifa_match(ifa1->ifa_address, ifa)) {
@@ -298,14 +304,18 @@ static void __inet_del_ifa(struct in_device *in_dev, struct in_ifaddr **ifap,
 				continue;
 			}
 
+		    //与ip在同一子网的从地址
+
+            //如果没有从地址提升，则删除之
 			if (!do_promote) {
 				*ifap1 = ifa->ifa_next;
 
+                //通知删除地址
 				rtmsg_ifa(RTM_DELADDR, ifa, nlh, pid);
 				blocking_notifier_call_chain(&inetaddr_chain,
 						NETDEV_DOWN, ifa);
 				inet_free_ifa(ifa);
-			} else {
+			} else { //有从地址提升，则记录从地址，跳出
 				promote = ifa;
 				break;
 			}
@@ -313,7 +323,7 @@ static void __inet_del_ifa(struct in_device *in_dev, struct in_ifaddr **ifap,
 	}
 
 	/* 2. Unlink it */
-
+    //从链表中删除目标地址
 	*ifap = ifa1->ifa_next;
 
 	/* 3. Announce address deletion */
@@ -341,10 +351,14 @@ static void __inet_del_ifa(struct in_device *in_dev, struct in_ifaddr **ifap,
 		rtmsg_ifa(RTM_NEWADDR, promote, nlh, pid);
 		blocking_notifier_call_chain(&inetaddr_chain,
 				NETDEV_UP, promote);
+
+	    //继续遍历从地址		
 		for (ifa = promote->ifa_next; ifa; ifa = ifa->ifa_next) {
 			if (ifa1->ifa_mask != ifa->ifa_mask ||
 			    !inet_ifa_match(ifa1->ifa_address, ifa))
 					continue;
+
+		    //与删除地址在同一子网的地址添加fib表项			
 			fib_add_ifaddr(ifa);
 		}
 
@@ -376,40 +390,58 @@ static int __inet_insert_ifa(struct in_ifaddr *ifa, struct nlmsghdr *nlh,
 
 	ASSERT_RTNL();
 
+    //ifa_local地址不存在
 	if (!ifa->ifa_local) {
 		inet_free_ifa(ifa);
 		return 0;
 	}
 
+    //去除从地址标志
 	ifa->ifa_flags &= ~IFA_F_SECONDARY;
+	//获取地址列表
 	last_primary = &in_dev->ifa_list;
 
     //遍历设备上所有的ip地址，不能与ifa重复
 	for (ifap = &in_dev->ifa_list; (ifa1 = *ifap) != NULL;
 	     ifap = &ifa1->ifa_next) {
-		if (!(ifa1->ifa_flags & IFA_F_SECONDARY) &&
-		    ifa->ifa_scope <= ifa1->ifa_scope)
-			last_primary = &ifa1->ifa_next;
+		 	
+		//查找合适插入主地址的位置 	
+		if (!(ifa1->ifa_flags & IFA_F_SECONDARY) && //主地址
+		    ifa->ifa_scope <= ifa1->ifa_scope) //ifa范围小于主地址范围
+			last_primary = &ifa1->ifa_next; //记录插入位置
+
+		//掩码相同并且在同一子网	
 		if (ifa1->ifa_mask == ifa->ifa_mask &&
 		    inet_ifa_match(ifa1->ifa_address, ifa)) {
+
+			//地址也相同，则地址已存在
 			if (ifa1->ifa_local == ifa->ifa_local) {
 				inet_free_ifa(ifa);
 				return -EEXIST;
 			}
+
+			//范围不同，非法地址
 			if (ifa1->ifa_scope != ifa->ifa_scope) {
 				inet_free_ifa(ifa);
 				return -EINVAL;
 			}
+
+			//在同一子网，ip地址不同，范围相同，则为从地址
+
+			//地址打从地址标志
 			ifa->ifa_flags |= IFA_F_SECONDARY;
 		}
 	}
 
+    //为主地址
 	if (!(ifa->ifa_flags & IFA_F_SECONDARY)) {
 		net_srandom(ifa->ifa_local);
 		ifap = last_primary;
 	}
 
-    //插入到链表
+    //将ifa节点添加到ifa_list链表的合适位置
+    //主地址添加符合范围的最后一个primary之后
+    //从地址添加到链表尾
 	ifa->ifa_next = *ifap;
 	*ifap = ifa;
 

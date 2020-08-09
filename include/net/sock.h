@@ -1019,6 +1019,13 @@ extern void sock_init_data(struct socket *sock, struct sock *sk);
  * wrapper to sk_run_filter. It returns 0 if the packet should
  * be accepted or -EPERM if the packet should be tossed.
  *
+ * bpf,高版本就是ebpf了
+ *
+ * tcp_v4_rcv()
+ * sk_receive_skb()
+ * sock_queue_rcv_skb()
+ *  sk_filter()
+ *
  */
 
 static inline int sk_filter(struct sock *sk, struct sk_buff *skb)

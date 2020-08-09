@@ -126,6 +126,20 @@ EXPORT_SYMBOL(inet_listen_wlock);
  * BSD API does not allow a listening sock to specify the remote port nor the
  * remote address for the connection. So always assume those are both
  * wildcarded during the search since they can never be otherwise.
+ *
+ *
+ * ip_rcv
+ *  ip_rcv_finish
+ *   dst_input
+ *    skb->dst->input(skb)=ip_local_deliver或ip_forward
+ *     ip_local_deliver
+ *      ip_local_deliver_finish
+ *       ipprot->handler(skb)=tcp_v4_rcv
+ *        tcp_v4_rcv
+ *         __inet_lookup( hashinfo == tcp_hashinfo)
+ *          inet_lookup_listener(hashinfo == tcp_hashinfo)
+ *           __inet_lookup_listener( hashinfo == tcp_hashinfo)
+ *            inet_lookup_listener_slow()
  */
 static struct sock *inet_lookup_listener_slow(const struct hlist_head *head,
 					      const __be32 daddr,
@@ -175,7 +189,8 @@ static struct sock *inet_lookup_listener_slow(const struct hlist_head *head,
  *       ipprot->handler(skb)=tcp_v4_rcv
  *        tcp_v4_rcv
  *         __inet_lookup( hashinfo == tcp_hashinfo)
- *          __inet_lookup_listener( hashinfo == tcp_hashinfo)
+ *          inet_lookup_listener(hashinfo == tcp_hashinfo)
+ *           __inet_lookup_listener( hashinfo == tcp_hashinfo)
  */
 struct sock *__inet_lookup_listener(struct inet_hashinfo *hashinfo,
 				    const __be32 daddr, const unsigned short hnum,
@@ -194,6 +209,7 @@ struct sock *__inet_lookup_listener(struct inet_hashinfo *hashinfo,
 		    (sk->sk_family == PF_INET || !ipv6_only_sock(sk)) &&
 		    !sk->sk_bound_dev_if)
 			goto sherry_cache;
+		
 		sk = inet_lookup_listener_slow(head, daddr, hnum, dif);
 	}
 	if (sk) {
@@ -284,6 +300,12 @@ static inline u32 inet_sk_port_offset(const struct sock *sk)
 
 /*
  * Bind a port for a connect operation and hash it.
+ *
+ * sys_socketcall()
+ *  sys_connect()
+ *   inet_stream_connect()
+ *    tcp_v4_connect()
+ *     inet_hash_connect(death_row ==tcp_death_row)
  */
 int inet_hash_connect(struct inet_timewait_death_row *death_row,
 		      struct sock *sk)

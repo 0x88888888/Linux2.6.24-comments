@@ -85,18 +85,18 @@
 /* ip头部 */
 struct iphdr {
 #if defined(__LITTLE_ENDIAN_BITFIELD)
-	__u8	ihl:4,
+	__u8	ihl:4, //4字节为单位，ip头部长度，包括选项数据 4*15 =60字节
 		version:4;
 #elif defined (__BIG_ENDIAN_BITFIELD)
 	__u8	version:4,
-  		ihl:4;
+  		ihl:4; 
 #else
 #error	"Please fix <asm/byteorder.h>"
 #endif
 	__u8	tos;
-	__be16	tot_len;
-	__be16	id;
-	__be16	frag_off;
+	__be16	tot_len; //总长度，包括ip头长度和数据长度
+	__be16	id;//在fragment时会用到
+	__be16	frag_off; // 分片偏移量，在id内的偏移量
 	__u8	ttl;
 	__u8	protocol;
 	__sum16	check;

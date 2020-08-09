@@ -375,6 +375,7 @@ dev_graft_qdisc(struct net_device *dev, struct Qdisc *qdisc)
 		/* ... and graft new one */
 		if (qdisc == NULL)
 			qdisc = &noop_qdisc;
+		
 		dev->qdisc_sleeping = qdisc;
 		dev->qdisc = &noop_qdisc;
 	}

@@ -492,6 +492,8 @@ static inline void tcp_mark_urg(struct tcp_sock *tp, int flags,
  *   __sock_sendmsg()
  *    tcp_sendmsg()
  *     tcp_push(, nonagle == TCP_NAGLE_PUSH)
+ *
+ * 设置PUSH标记后，走到__tcp_push_pending_frames去
  */
 static inline void tcp_push(struct sock *sk, int flags, int mss_now,
 			    int nonagle)
@@ -501,8 +503,9 @@ static inline void tcp_push(struct sock *sk, int flags, int mss_now,
 	if (tcp_send_head(sk)) {
 		struct sk_buff *skb = tcp_write_queue_tail(sk);
 		if (!(flags & MSG_MORE) || forced_push(tp))
-			tcp_mark_push(tp, skb);
-		tcp_mark_urg(tp, flags, skb);
+			tcp_mark_push(tp, skb); //设置TCPCB_FLAG_PSH标记
+			
+		tcp_mark_urg(tp, flags, skb);//设置TCPCB_URG标记
 		
 		__tcp_push_pending_frames(sk, mss_now,
 					  (flags & MSG_MORE) ? TCP_NAGLE_CORK : nonagle);
@@ -693,6 +696,8 @@ int tcp_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 	lock_sock(sk);
 	TCP_CHECK_TIMER(sk);
 
+    //根据应用程序设置的标志，确定是否为MSG_DONTWAIT(非阻塞模式)
+    //如果数据包没有MSG_DONTWAIT标志，则设置发送超时时间
 	flags = msg->msg_flags;
     /* 
        设置发送等待时间，如果设置了DONTWAIT，则timeo为0. 
@@ -701,7 +706,7 @@ int tcp_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 
 	/* Wait for a connection to finish. 
-	 * 连接还没有完整建立，则等待，直到完成
+	 * 连接过程还没有结束，则等待，直到完成
 	*/
 	if ((1 << sk->sk_state) & ~(TCPF_ESTABLISHED | TCPF_CLOSE_WAIT))
 		if ((err = sk_stream_wait_connect(sk, &timeo)) != 0) //等待
@@ -720,6 +725,8 @@ int tcp_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 	copied = 0;
 
 	err = -EPIPE;
+
+	//如果发送过程已经结束(有SEND_SHUTDOWN标记或者出错了)，则返回
 	if (sk->sk_err || (sk->sk_shutdown & SEND_SHUTDOWN))
 		goto do_error;
 
@@ -733,6 +740,7 @@ int tcp_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 		while (seglen > 0) {
 			int copy;
 
+            //从套接字的发送缓冲区中取出一个数据
 			skb = tcp_write_queue_tail(sk);
 
 			if (!tcp_send_head(sk) ||
@@ -746,7 +754,7 @@ new_segment:
 				if (!sk_stream_memory_free(sk))
 					goto wait_for_sndbuf;
 
-                /* 申请新的sk_buff */
+                /* 申请新的sk_buff，用来发送数据 */
 				skb = sk_stream_alloc_pskb(sk, select_size(sk),
 							   0, sk->sk_allocation);
 				/* 若分配失败，则跳转到wait_for_memory */
@@ -755,11 +763,12 @@ new_segment:
 
 				/*
 				 * Check whether we can use HW checksum.
+				 * 
 				 */
 				if (sk->sk_route_caps & NETIF_F_ALL_CSUM)
 					skb->ip_summed = CHECKSUM_PARTIAL;
 
-                /* 将新分配的skb添加到sk上 */
+                /* 将新分配的skb添加到sk->sk_write_queue上 */
 				skb_entail(sk, skb);
 				copy = size_goal;
 			}
@@ -782,6 +791,8 @@ new_segment:
 					goto do_fault;
 			} else {
 			    /* skb中没有空闲空间了 */
+
+				//tcp的分段处理，与udp调用ip_append_data类似
 			
 				int merge = 0;
 				int i = skb_shinfo(skb)->nr_frags;
@@ -890,21 +901,25 @@ new_segment:
 			if ((seglen -= copy) == 0 && iovlen == 0)
 				goto out;
 
+             //如果有OOB数据，则退出循环，通过tcp_push发送数据
 			if (skb->len < mss_now || (flags & MSG_OOB))
 				continue;
 
 			if (forced_push(tp)) {
 				/* 强制push， 即强制发送数据*/
 				tcp_mark_push(tp, skb);
+
+			    //开启NAGLE算法开始发送数据
 				__tcp_push_pending_frames(sk, mss_now, TCP_NAGLE_PUSH);
 			} else if (skb == tcp_send_head(sk)) //需要发送该skb
+			    //如果套接字缓冲区刚好装下数据，则发送该缓冲区的数据
 				tcp_push_one(sk, mss_now);
 			continue;
 
 wait_for_sndbuf:
 			set_bit(SOCK_NOSPACE, &sk->sk_socket->flags);
 wait_for_memory:
-			if (copied)
+			if (copied) //努力把NAGLE算法缓存的数据发送出去
 				tcp_push(sk, flags & ~MSG_MORE, mss_now, TCP_NAGLE_PUSH);
 
 			if ((err = sk_stream_wait_memory(sk, &timeo)) != 0)
@@ -917,7 +932,9 @@ wait_for_memory:
 	}
 
 out:
-	if (copied)
+    //根据tp->nonagle确定是否有nagle设置，
+    //如果设置了，按nagle算法处理,否则，立即把数据发送出去
+	if (copied) 
 		tcp_push(sk, flags, mss_now, tp->nonagle);
 	TCP_CHECK_TIMER(sk);
 	release_sock(sk);
@@ -1202,8 +1219,10 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	TCP_CHECK_TIMER(sk);
 
 	err = -ENOTCONN;
-	if (sk->sk_state == TCP_LISTEN)
+	if (sk->sk_state == TCP_LISTEN) //用于listen的套接字，不能接收数据
 		goto out;
+
+	// 根据nonblock确定是否为阻塞模式，并返回等待时间
 	//获取延迟，假设用户设置为非堵塞，那么timeo ==0000 0000 0000 0000
 	//假设用户使用默认recv系统调用
 	//则为堵塞，此时timeo ==0111 1111 1111 1111
@@ -1211,7 +1230,7 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	timeo = sock_rcvtimeo(sk, nonblock);
 
 	/* Urgent data needs to be handled specially. */
-	if (flags & MSG_OOB)
+	if (flags & MSG_OOB)//要接收OOB数据先
 		goto recv_urg;
 
     
@@ -1231,6 +1250,8 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 #ifdef CONFIG_NET_DMA
 	tp->ucopy.dma_chan = NULL;
 	preempt_disable();
+
+	//从接收队列中取出一个数据
 	skb = skb_peek_tail(&sk->sk_receive_queue);
 	{
 		int available = 0;

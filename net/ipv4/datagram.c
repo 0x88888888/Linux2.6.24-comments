@@ -23,6 +23,11 @@
 /*
  * udp协议模块建立链接的目的是获取目的地址的路由信息，
  * 并且把它保存在路由缓存中.
+ *
+ * sys_socketcall()
+ *  sys_connect()
+ *   inet_dgram_connect()
+ *    ip4_datagram_connect()
  */ 
 int ip4_datagram_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 {
