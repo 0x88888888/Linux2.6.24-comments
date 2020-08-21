@@ -187,7 +187,14 @@ out:
 	return dev;
 }
 
-//得到IP地址类型
+/*
+ *  sys_socketcall()
+ *   sys_bind()
+ *    inet_bind()
+ *     inet_addr_type()
+ *
+ * 得到IP地址类型
+ */
 unsigned inet_addr_type(__be32 addr)
 {
 	struct flowi		fl = { .nl_u = { .ip4_u = { .daddr = addr } } };
@@ -196,8 +203,9 @@ unsigned inet_addr_type(__be32 addr)
 	struct fib_table *local_table;
 
 	if (ZERONET(addr) || BADCLASS(addr))
-		return RTN_BROADCAST;
-	if (MULTICAST(addr))
+		return RTN_BROADCAST; //广播地址
+	
+	if (MULTICAST(addr)) //多播地址
 		return RTN_MULTICAST;
 
 #ifdef CONFIG_IP_MULTIPLE_TABLES
@@ -205,13 +213,16 @@ unsigned inet_addr_type(__be32 addr)
 #endif
 
 	local_table = fib_get_table(RT_TABLE_LOCAL);
-	if (local_table) {
-		ret = RTN_UNICAST;
+
+	if (local_table) { //单播地址
+		ret = RTN_UNICAST; 
+		//fn_hash_lookup
 		if (!local_table->tb_lookup(local_table, &fl, &res)) {
 			ret = res.type;
 			fib_res_put(&res);
 		}
 	}
+	
 	return ret;
 }
 

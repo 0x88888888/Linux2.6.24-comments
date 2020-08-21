@@ -282,6 +282,8 @@ fn_new_zone(struct fn_hash *table, int z)
 /*
  * fib_lookup()
  *  fn_hash_looku()
+ *
+ * 查找
  */
 static int
 fn_hash_lookup(struct fib_table *tb, const struct flowi *flp, struct fib_result *res)

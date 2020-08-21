@@ -220,7 +220,7 @@ struct fib_table {
 	u32		tb_id;
 	unsigned	tb_stamp;
 	/*
-	 * 指向查询路由表的函数，一般指向fib_lookup
+	 * 指向查询路由表的函数，一般指向fn_hash_lookup
 	 */
 	int		(*tb_lookup)(struct fib_table *tb, const struct flowi *flp, struct fib_result *res);
 	/*
