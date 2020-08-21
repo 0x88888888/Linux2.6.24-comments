@@ -856,10 +856,12 @@ static void __init do_initcalls(void)
     /*
      * 4.subsys_initcall( genhd_device_init)
      *  
-     * 0.pure_initcall( net_ns_init),
+     * 0. pure_initcall( net_ns_init),
+     * 
      * br_init(网桥功能的初始化)
-     * 4.subsys_initcall( fib_rules_init),
+     * 
      *
+     * 1. core_initcall(sock_init), socket文件系统初始化 
      * 1. __initcall( pci_proc_init)
      * 2. postcore_initcall( pcibus_class_init), 
      * 2. postcore_initcall( pci_driver_init),
@@ -869,11 +871,16 @@ static void __init do_initcalls(void)
      * 4. subsys_initcall( pcibios_init), 
      * 4. subsys_initcall( acpi_pci_root_init)
      * 4. subsys_initcall( pci_acpi_init)
+     * 4.subsys_initcall( fib_rules_init), //路由规则
+     *
      * 5. fs_initcall( pci_iommu_init),
      * 5. fs_initcall( pcibios_assign_resources), 
-     * 5. fs_initcall(inet_init)
+     * 5. fs_initcall( inet_init),  tcp/ip 网络协议初始化
      * 6. device_initcall( pci_init), 
-     *  
+     *
+     * 7. late_initcall( tcp_congestion_default) //tcp拥塞控制默认参数
+     *
+     * 
      * 
      */
 	for (call = __initcall_start; call < __initcall_end; call++) {

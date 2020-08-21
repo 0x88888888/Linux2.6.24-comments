@@ -20,6 +20,7 @@ struct flowi {
 	int	iif;
 	__u32	mark;
 
+    // 各个字段可用于指定L3层参数取值的结构
 	union {
 		struct {
 			__be32			daddr;
@@ -51,6 +52,7 @@ struct flowi {
 #define fl4_tos		nl_u.ip4_u.tos
 #define fl4_scope	nl_u.ip4_u.scope
 
+    // L4层协议
 	__u8	proto;
 	__u8	flags;
 #define FLOWI_FLAG_MULTIPATHOLDROUTE 0x01

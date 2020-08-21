@@ -688,7 +688,11 @@ struct inode {
 	struct rw_semaphore	i_alloc_sem;
 	// 指向索引结点操作结构体的指针；
 	const struct inode_operations	*i_op;
-	// 指向文件操作结构体的指针，这个字段用来初始化文件结构体（struct file）中的f_op字段；
+	
+	/*
+	 * 指向文件操作结构体的指针，这个字段用来初始化文件结构体（struct file）中的f_op字段；
+	 * socket_file_ops
+	 */
 	const struct file_operations	*i_fop;	/* former ->i_op->default_file_ops */
 	// 指向inode所属文件系统的超级块的指针；
 	struct super_block	*i_sb;
@@ -904,7 +908,7 @@ struct file {
 	void			*f_security;
 #endif
 	/* needed for tty driver, and maybe others 
-	 * 存放struct socket对象, 在do_sock_read中取出
+	 * 存放struct socket对象, 在do_sock_read中取出,在sock_attach_fd中设置
      */
 	void			*private_data;
 

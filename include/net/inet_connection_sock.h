@@ -114,7 +114,7 @@ struct inet_connection_sock {
 	__u8			  icsk_ca_state;
 	/*还没恢复的timeout个数*/
 	__u8			  icsk_retransmits;
-	/* 等待的定时器事件*/
+	/* 等待的定时器事件,这个值在inet_csk_reset_xmit_timer中设置*/
 	__u8			  icsk_pending;
 	__u8			  icsk_backoff;
 	__u8			  icsk_syn_retries;

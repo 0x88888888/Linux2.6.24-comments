@@ -329,6 +329,10 @@ errout:
 
 /* Return the first fib alias matching TOS with
  * priority less than or equal to PRIO.
+ *
+ * fib_flush()
+ *  fn_hash_delete()
+ *   fib_find_alias()
  */
 struct fib_alias *fib_find_alias(struct list_head *fah, u8 tos, u32 prio)
 {
@@ -678,6 +682,12 @@ static void fib_hash_move(struct hlist_head *new_info_hash,
 	fib_hash_free(old_laddrhash, bytes);
 }
 
+/*
+ * inet_ioctl()
+ *  ip_rt_ioctl()
+ *   fn_hash_insert()
+ *    fib_create_info
+ */
 struct fib_info *fib_create_info(struct fib_config *cfg)
 {
 	int err;
@@ -864,8 +874,9 @@ failure:
 /* Note! fib_semantic_match intentionally uses  RCU list functions. 
  *
  * 根据flp，从路由表中得到路由条目信息：下一跳，接口等。
- * fn_hash_lookup()
- *  fib_semantic_match()
+ * fib_lookup()
+ *  fn_hash_looku()
+ *   fib_semantic_match()
  */
 int fib_semantic_match(struct list_head *head, const struct flowi *flp,
 		       struct fib_result *res, __be32 zone, __be32 mask,

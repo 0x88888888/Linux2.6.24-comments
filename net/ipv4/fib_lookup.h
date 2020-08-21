@@ -10,8 +10,10 @@
  * 不同的路由是通过fib_alias来区分的
  */
 struct fib_alias {
+    //链接与同一个fib_node结构相关联的所有fib_alias是咧
 	struct list_head	fa_list;
 	struct rcu_head rcu;
+	//fa_info存储着如何处理与该路由相匹配封包的信息
 	struct fib_info		*fa_info;
 	u8			fa_tos;
 	u8			fa_type;

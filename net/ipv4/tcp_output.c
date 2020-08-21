@@ -198,6 +198,14 @@ static inline void tcp_event_ack_sent(struct sock *sk, unsigned int pkts)
  * NOTE: for smooth operation initial space offering should
  * be a multiple of mss if possible. We assume here that mss >= 1.
  * This MUST be enforced by all callers.
+ *
+ *
+ * tcp_v4_connect()
+ *  tcp_connect()
+ *   tcp_connect_init()
+ *    tcp_select_initial_window()
+ *
+ * 初始化接收窗口tp->rcv_wnd,和接收窗口的扩大因子
  */
 void tcp_select_initial_window(int __space, __u32 mss,
 			       __u32 *rcv_wnd, __u32 *window_clamp,
@@ -277,11 +285,23 @@ void tcp_select_initial_window(int __space, __u32 mss,
  * socket, and return result with RFC1323 scaling applied.  The return
  * value can be stuffed directly into th->window for an outgoing
  * frame.
+ *
+ * tcp_sendmsg()
+ *  __tcp_push_pending_frames()
+ *   tcp_write_xmit()
+ *    tcp_transmit_skb()
+ *     tcp_select_window()
+ *
+ * 更新接收窗口
  */
 static u16 tcp_select_window(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
+
+	//当前窗口的空闲空间的大小
 	u32 cur_win = tcp_receive_window(tp);
+
+	//新窗口的空闲空间的大小
 	u32 new_win = __tcp_select_window(sk);
 
 	/* Never shrink the offered window */
@@ -1029,6 +1049,11 @@ void tcp_mtup_init(struct sock *sk)
 
    NOTE2. inet_csk(sk)->icsk_pmtu_cookie and tp->mss_cache
    are READ ONLY outside this function.		--ANK (980731)
+ *
+ * tcp_v4_connect()
+ *  tcp_connect()
+ *   tcp_connect_init()
+ *    tcp_sync_mss()
  */
 
 unsigned int tcp_sync_mss(struct sock *sk, u32 pmtu)
@@ -1050,6 +1075,7 @@ unsigned int tcp_sync_mss(struct sock *sk, u32 pmtu)
 	icsk->icsk_pmtu_cookie = pmtu;
 	if (icsk->icsk_mtup.enabled)
 		mss_now = min(mss_now, tcp_mtu_to_mss(sk, icsk->icsk_mtup.search_low));
+	//确定mss_cache
 	tp->mss_cache = mss_now;
 
 	return mss_now;
@@ -1804,6 +1830,15 @@ void tcp_push_one(struct sock *sk, unsigned int mss_now)
  *
  * Note, we don't "adjust" for TIMESTAMP or SACK option bytes.
  * Regular options like TIMESTAMP are taken into account.
+ *
+ * tcp_sendmsg()
+ *  __tcp_push_pending_frames()
+ *   tcp_write_xmit()
+ *    tcp_transmit_skb()
+ *     tcp_select_window()
+ *      __tcp_select_window()
+ *
+ * 新窗口的空闲空间的大小
  */
 u32 __tcp_select_window(struct sock *sk)
 {
@@ -2126,6 +2161,11 @@ int tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
  * If doing SACK, the first ACK which comes back for a timeout
  * based retransmit packet might feed us FACK information again.
  * If so, we use it to avoid unnecessarily retransmissions.
+ *
+ * tcp_rcv_state_process()
+ *  tcp_ack()
+ *   tcp_fastretrans_alert()
+ *    tcp_xmit_retransmit_queue()
  */
 void tcp_xmit_retransmit_queue(struct sock *sk)
 {
@@ -2361,6 +2401,11 @@ int tcp_send_synack(struct sock *sk)
 
 /*
  * Prepare a SYN-ACK.
+ *
+ * tcp_rcv_state_process()
+ *  tcp_v4_conn_request() 
+ *   tcp_v4_send_synack()
+ *    tcp_make_synack()
  */
 struct sk_buff * tcp_make_synack(struct sock *sk, struct dst_entry *dst,
 				 struct request_sock *req)
@@ -2419,6 +2464,7 @@ struct sk_buff * tcp_make_synack(struct sock *sk, struct dst_entry *dst,
 		/* Set this up on the first call only */
 		req->window_clamp = tp->window_clamp ? : dst_metric(dst, RTAX_WINDOW);
 		/* tcp_full_space because it is guaranteed to be the first packet */
+		//初始化接收窗口tp->rcv_wnd,和接收窗口的扩大因子
 		tcp_select_initial_window(tcp_full_space(sk),
 			dst_metric(dst, RTAX_ADVMSS) - (ireq->tstamp_ok ? TCPOLEN_TSTAMP_ALIGNED : 0),
 			&req->rcv_wnd,
@@ -2490,6 +2536,7 @@ static void tcp_connect_init(struct sock *sk)
 		tp->rx_opt.mss_clamp = tp->rx_opt.user_mss;
 	tp->max_window = 0;
 	tcp_mtup_init(sk);
+	//确定tcp_sock->mss_cache
 	tcp_sync_mss(sk, dst_mtu(dst));
 
 	if (!tp->window_clamp)
@@ -2497,6 +2544,7 @@ static void tcp_connect_init(struct sock *sk)
 	tp->advmss = dst_metric(dst, RTAX_ADVMSS);
 	tcp_initialize_rcv_mss(sk);
 
+    //初始化接收窗口tp->rcv_wnd,和接收窗口的扩大因子
 	tcp_select_initial_window(tcp_full_space(sk),
 				  tp->advmss - (tp->rx_opt.ts_recent_stamp ? tp->tcp_header_len - sizeof(struct tcphdr) : 0),
 				  &tp->rcv_wnd,
@@ -2505,11 +2553,13 @@ static void tcp_connect_init(struct sock *sk)
 				  &rcv_wscale);
 
 	tp->rx_opt.rcv_wscale = rcv_wscale;
+	//确定slow start thresh
 	tp->rcv_ssthresh = tp->rcv_wnd;
 
 	sk->sk_err = 0;
 	sock_reset_flag(sk, SOCK_DONE);
 	tp->snd_wnd = 0;
+	//设置tp->snd_wl1 == tp->write_seq
 	tcp_init_wl(tp, tp->write_seq, 0);
 	tp->snd_una = tp->write_seq;
 	tp->snd_sml = tp->write_seq;
@@ -2517,6 +2567,7 @@ static void tcp_connect_init(struct sock *sk)
 	tp->rcv_wup = 0;
 	tp->copied_seq = 0;
 
+    //确定retransmit time out
 	inet_csk(sk)->icsk_rto = TCP_TIMEOUT_INIT;
 	inet_csk(sk)->icsk_retransmits = 0;
 	tcp_clear_retrans(tp);

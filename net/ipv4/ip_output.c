@@ -123,8 +123,10 @@ static inline int ip_select_ttl(struct inet_sock *inet, struct dst_entry *dst)
  *
  * 构造报文的IP头，并发送给链路层。
  *
- * tcp_v4_send_synack()
- *  ip_build_and_send_pkt()
+ * tcp_rcv_state_process()
+ *  tcp_v4_conn_request() 
+ *   tcp_v4_send_synack()
+ *    ip_build_and_send_pkt()
  */
 int ip_build_and_send_pkt(struct sk_buff *skb, struct sock *sk,
 			  __be32 saddr, __be32 daddr, struct ip_options *opt)

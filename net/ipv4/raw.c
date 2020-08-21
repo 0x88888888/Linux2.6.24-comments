@@ -667,7 +667,13 @@ static void raw_close(struct sock *sk, long timeout)
 	sk_common_release(sk);
 }
 
-/* This gets rid of all the nasties in af_inet. -DaveM */
+/* This gets rid of all the nasties in af_inet. -DaveM 
+ *
+ * sys_socketcall()
+ *  sys_bind()
+ *   inet_bind()
+ *    raw_bind()
+ */
 static int raw_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 {
 	struct inet_sock *inet = inet_sk(sk);
@@ -677,6 +683,7 @@ static int raw_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 
 	if (sk->sk_state != TCP_CLOSE || addr_len < sizeof(struct sockaddr_in))
 		goto out;
+	
 	chk_addr_ret = inet_addr_type(addr->sin_addr.s_addr);
 	ret = -EADDRNOTAVAIL;
 	if (addr->sin_addr.s_addr && chk_addr_ret != RTN_LOCAL &&

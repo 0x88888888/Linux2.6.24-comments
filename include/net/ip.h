@@ -271,8 +271,13 @@ static inline void ip_select_ident_more(struct iphdr *iph, struct dst_entry *dst
 
 /*
  *	Map a multicast IP onto multicast MAC for type ethernet.
+ *
+ * neigh_create()
+ *  arp_constructor()
+ *   ip_eth_mc_map()
+ *
+ * 链路层多播地址
  */
-
 static inline void ip_eth_mc_map(__be32 naddr, char *buf)
 {
 	__u32 addr=ntohl(naddr);

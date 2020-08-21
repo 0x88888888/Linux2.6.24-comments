@@ -84,6 +84,9 @@ static struct hlist_head fib_table_hash[FIB_TABLE_HASHSZ];
  * fib_magic()
  *  fib_new_table()
  *
+ * inet_ioctl()
+ *  ip_rt_ioctl()
+ *   fib_new_table()
  */
 struct fib_table *fib_new_table(u32 id)
 {
@@ -104,6 +107,14 @@ struct fib_table *fib_new_table(u32 id)
 	return tb;
 }
 
+/*
+ * inet_ioctl()
+ *  ip_rt_ioctl()
+ *   fib_new_table()
+ *    fib_get_table()
+ *
+ * 从 fib_table_hash中获取fib_table
+ */
 struct fib_table *fib_get_table(u32 id)
 {
 	struct fib_table *tb;
@@ -137,9 +148,10 @@ static void fib_flush(void)
 	struct hlist_node *node;
 	unsigned int h;
 
+    //256个策略路由表
 	for (h = 0; h < FIB_TABLE_HASHSZ; h++) {
 		hlist_for_each_entry(tb, node, &fib_table_hash[h], tb_hlist)
-			flushed += tb->tb_flush(tb);
+			flushed += tb->tb_flush(tb);//fn_hash_delete
 	}
 
 	if (flushed)
@@ -428,6 +440,9 @@ static int rtentry_to_fib_config(int cmd, struct rtentry *rt,
 
 /*
  *	Handle IP routing ioctl calls. These are used to manipulate the routing tables
+ *
+ * inet_ioctl()
+ *  ip_rt_ioctl()
  */
 
 int ip_rt_ioctl(unsigned int cmd, void __user *arg)
@@ -436,7 +451,7 @@ int ip_rt_ioctl(unsigned int cmd, void __user *arg)
 	struct rtentry rt;
 	int err;
 
-	switch (cmd) {
+	switch (cmd) { //添加删除 route
 	case SIOCADDRT:		/* Add a route */
 	case SIOCDELRT:		/* Delete a route */
 		if (!capable(CAP_NET_ADMIN))
@@ -452,13 +467,13 @@ int ip_rt_ioctl(unsigned int cmd, void __user *arg)
 
 			if (cmd == SIOCDELRT) {
 				tb = fib_get_table(cfg.fc_table);
-				if (tb)
+				if (tb) //fn_hash_delete
 					err = tb->tb_delete(tb, &cfg);
 				else
 					err = -ESRCH;
 			} else {
 				tb = fib_new_table(cfg.fc_table);
-				if (tb)
+				if (tb)  //fn_hash_insert
 					err = tb->tb_insert(tb, &cfg);
 				else
 					err = -ENOBUFS;
@@ -578,6 +593,7 @@ errout:
 	return err;
 }
 
+//添加路由项
 static int inet_rtm_newroute(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 {
 	struct fib_config cfg;
@@ -594,6 +610,7 @@ static int inet_rtm_newroute(struct sk_buff *skb, struct nlmsghdr* nlh, void *ar
 		goto errout;
 	}
 
+    // fn_hash_insert
 	err = tb->tb_insert(tb, &cfg);
 errout:
 	return err;
@@ -972,6 +989,7 @@ void __init ip_fib_init(void)
 	for (i = 0; i < FIB_TABLE_HASHSZ; i++)
 		INIT_HLIST_HEAD(&fib_table_hash[i]);
 
+    //LOCAL, MAIN两张路由表(策略路由)初始化，
 	fib4_rules_init();
 
     /*register a network notifier block，主要是设备状态改变*/

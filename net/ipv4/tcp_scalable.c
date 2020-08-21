@@ -24,8 +24,9 @@ static void tcp_scalable_cong_avoid(struct sock *sk, u32 ack,
 		return;
 
 	if (tp->snd_cwnd <= tp->snd_ssthresh)
-		tcp_slow_start(tp);
+		tcp_slow_start(tp); //慢启动算法
 	else {
+	 	//拥塞避免
 		tp->snd_cwnd_cnt++;
 		if (tp->snd_cwnd_cnt > min(tp->snd_cwnd, TCP_SCALABLE_AI_CNT)){
 			if (tp->snd_cwnd < tp->snd_cwnd_clamp)

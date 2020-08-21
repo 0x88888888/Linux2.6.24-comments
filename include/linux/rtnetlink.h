@@ -157,7 +157,10 @@ struct rtmsg
 };
 
 /* rtm_type */
-//路由动作
+/*
+ * 路由动作
+ * rtable->rt_flags的值
+ */
 enum
 {
 	RTN_UNSPEC,

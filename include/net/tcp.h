@@ -527,10 +527,21 @@ static inline void tcp_fast_path_check(struct sock *sk)
 /* Compute the actual receive window we are currently advertising.
  * Rcv_nxt can be after the window if our peer push more data
  * than the offered window.
+ *
+ * tcp_sendmsg()
+ *  __tcp_push_pending_frames()
+ *   tcp_write_xmit()
+ *    tcp_transmit_skb()
+ *     tcp_select_window()
+ *      tcp_receive_window()
+ *
+ * 当前窗口的空闲空间的大小
  */
 static inline u32 tcp_receive_window(const struct tcp_sock *tp)
 {
-	s32 win = tp->rcv_wup + tp->rcv_wnd - tp->rcv_nxt;
+	s32 win = tp->rcv_wup /* 接收窗口的起始位置 */ 
+		      + tp->rcv_wnd /* 接收窗口的大小 */ 
+		      - tp->rcv_nxt; /* 下一个接收序号 */
 
 	if (win < 0)
 		win = 0;
@@ -654,26 +665,70 @@ enum tcp_ca_event {
 #define TCP_CONG_NON_RESTRICTED 0x1
 #define TCP_CONG_RTT_STAMP	0x2
 
+/*
+ * tcp_reno
+ * tcp_init_congestion_ops,
+ * bictcp, 默认使用这个来进行拥塞控制
+ * cubictcp,  
+ * tcp_highspeed,
+ * htcp,
+ * tcp_hybla,
+ * tcp_lp,
+ * tcp_scalable,
+ * tcp_vegas,
+ * tcp_veno,
+ * tcp_westwood,
+ * tcp_yeah
+ *
+ * 所有的tcp_congestion_ops对象都在tcp_cong_list链表上
+ * 用于tcp拥塞控制
+ */
 struct tcp_congestion_ops {
 	struct list_head	list;
 	unsigned long flags;
 
-	/* initialize private data (optional) */
+	/* initialize private data (optional) 
+	 *
+	 * tcp_init_congestion_control
+	 * tcp_set_congestion_control 
+	 * 这两个函数中调用
+	 */
 	void (*init)(struct sock *sk);
 	/* cleanup private data  (optional) */
 	void (*release)(struct sock *sk);
 
-	/* return slow start threshold (required) */
+	/* return slow start threshold (required) 
+     * 下面的两个slow start thresh和 cong_avoid函数一定要实现的
+	 *
+	 * tcp_fastretrans_alert 中调用
+	 */
 	u32 (*ssthresh)(struct sock *sk);
-	/* lower bound for congestion window (optional) */
-	u32 (*min_cwnd)(const struct sock *sk);
-	/* do new cwnd calculation (required) */
+
+	/* do new cwnd calculation (required)
+	 * tcp_cong_avoid中调用
+	 */
 	void (*cong_avoid)(struct sock *sk, u32 ack, u32 in_flight, int good_ack);
-	/* call before changing ca_state (optional) */
+
+	/* lower bound for congestion window (optional)
+	 * tcp_cwnd_min中调用
+	 */
+	u32 (*min_cwnd)(const struct sock *sk);
+	
+	/* call before changing ca_state (optional) 
+	 * tcp_set_ca_state中调用
+	 */
 	void (*set_state)(struct sock *sk, u8 new_state);
-	/* call when cwnd event occurs (optional) */
+	
+	/* call when cwnd event occurs (optional) 
+	 *
+	 * tcp_ca_event中调用
+	 */
 	void (*cwnd_event)(struct sock *sk, enum tcp_ca_event ev);
-	/* new value of cwnd after loss (optional) */
+	
+	/* new value of cwnd after loss (optional) 
+	 *
+	 * tcp_undo_cwr中调用
+	 */
 	u32  (*undo_cwnd)(struct sock *sk);
 	/* hook for packet ack accounting (optional) */
 	void (*pkts_acked)(struct sock *sk, u32 num_acked, s32 rtt_us);
@@ -888,8 +943,16 @@ static inline int tcp_checksum_complete(struct sk_buff *skb)
 		__tcp_checksum_complete(skb);
 }
 
-/* Prequeue for VJ style copy to user, combined with checksumming. */
-
+/* Prequeue for VJ style copy to user, combined with checksumming. 
+ *
+ * sys_socketcall()
+ *  sys_socket()
+ *   sock_create()
+ *    __sock_create() 
+ *     inet_create()
+ *      tcp_v4_init_sock()
+ *       tcp_prequeue_init()
+ */
 static inline void tcp_prequeue_init(struct tcp_sock *tp)
 {
 	tp->ucopy.task = NULL;

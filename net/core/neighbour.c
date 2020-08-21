@@ -370,6 +370,11 @@ static void neigh_hash_grow(struct neigh_table *tbl, unsigned long new_entries)
 	neigh_hash_free(old_hash, old_entries);
 }
 
+/*
+ * arp_process(tbl = arp_tbl)
+ *  __neigh_lookup()
+ *   neigh_lookup()
+ */
 struct neighbour *neigh_lookup(struct neigh_table *tbl, 
                                      const void *pkey /* pkeykey 是 L3 地址  */,
 			       struct net_device *dev)
@@ -416,6 +421,15 @@ struct neighbour *neigh_lookup_nodev(struct neigh_table *tbl, const void *pkey)
 	return n;
 }
 
+/*
+ * arp_find()
+ *  __neigh_lookup()
+ *   neigh_create()
+ *
+ * arp_process(tbl = arp_tbl)
+ *  __neigh_lookup()
+ *   neigh_create()
+ */ 
 struct neighbour *neigh_create(struct neigh_table *tbl, 
                                      const void *pkey /* pkey是L3的地址 */,
                                      struct net_device *dev)
@@ -437,13 +451,17 @@ struct neighbour *neigh_create(struct neigh_table *tbl,
 
 	/* Protocol specific setup. 
 	 *  tbl->constructor == arp_constructor
+	 * 
+	 * 初始化neighbour对象
 	 */
 	if (tbl->constructor &&	(error = tbl->constructor(n)) < 0) {
 		rc = ERR_PTR(error);
 		goto out_neigh_release;
 	}
 
-	/* Device specific setup. */
+	/* Device specific setup. 
+	 * 用默认参数去设置neighbour对象
+	 */
 	if (n->parms->neigh_setup &&
 	    (error = n->parms->neigh_setup(n)) < 0) {
 		rc = ERR_PTR(error);
@@ -510,6 +528,7 @@ struct pneigh_entry * pneigh_lookup(struct neigh_table *tbl, const void *pkey,
 
 	read_lock_bh(&tbl->lock);
 
+    //遍历
 	for (n = tbl->phash_buckets[hash_val]; n; n = n->next) {
 		if (!memcmp(n->key, pkey, key_len) &&
 		    (n->dev == dev || !n->dev)) {
@@ -650,6 +669,12 @@ void neigh_destroy(struct neighbour *neigh)
    disable fast path.
 
    Called with write_locked neigh.
+ *
+ * arp_process()
+ *  neigh_update()
+ *   neigh_suspect()
+ *
+ * 修改neigh->outpu t和hh_cache->hh_output函数
  */
 static void neigh_suspect(struct neighbour *neigh)
 {
@@ -667,6 +692,13 @@ static void neigh_suspect(struct neighbour *neigh)
    enable fast path.
 
    Called with write_locked neigh.
+ *
+ *
+ * arp_process()
+ *  neigh_update()
+ *   neigh_connect()
+ *
+ * 改变neigh->output
  */
 static void neigh_connect(struct neighbour *neigh)
 {
@@ -676,8 +708,9 @@ static void neigh_connect(struct neighbour *neigh)
 
 	neigh->output = neigh->ops->connected_output;
 
+    //每个hh_cache->hh_output都得修改
 	for (hh = neigh->hh; hh; hh = hh->hh_next)
-		hh->hh_output = neigh->ops->hh_output;
+		hh->hh_output = neigh->ops->hh_output; 
 }
 
 //定期回收NUD_FAILED状态的neighbour对象
@@ -870,6 +903,7 @@ static void neigh_timer_handler(unsigned long arg)
 		if (skb)
 			skb_get(skb);
 		write_unlock(&neigh->lock);
+		//发送ARP请求
 		neigh->ops->solicit(neigh, skb);
 		atomic_inc(&neigh->probes);
 		if (skb)
@@ -952,6 +986,10 @@ out_unlock_bh:
 	return rc;
 }
 
+/*
+ * neigh_update()
+ *  neigh_update_hhs()
+ */
 static void neigh_update_hhs(struct neighbour *neigh)
 {
 	struct hh_cache *hh;
@@ -997,7 +1035,9 @@ static void neigh_update_hhs(struct neighbour *neigh)
  *  neigh_event_ns()
  *   neigh_update()
  *
- * 改变neigh->nud_state状态值和函数
+ * 改变neigh->nud_state状态值和neigh->output的值
+ *
+ * 所有用于改变链路层地址 和链接状态 的管理接口都使用neigh_update函数
  */
 
 int neigh_update(struct neighbour *neigh, const u8 *lladdr /* 新的链路层地址 */, 
@@ -1092,8 +1132,10 @@ int neigh_update(struct neighbour *neigh, const u8 *lladdr /* 新的链路层地
 		neigh->nud_state = new;
 	}
 
+    //修改链路层地址了
 	if (lladdr != neigh->ha) {
 		memcpy(&neigh->ha, lladdr, dev->addr_len);
+		//通知所有的缓存帧头的头部要更新
 		neigh_update_hhs(neigh);
 		if (!(new & NUD_CONNECTED))
 			neigh->confirmed = jiffies -
@@ -1151,12 +1193,17 @@ struct neighbour *neigh_event_ns(struct neigh_table *tbl,
 {
 	struct neighbour *neigh = __neigh_lookup(tbl, saddr, dev,
 						 lladdr || !dev->addr_len);
-	if (neigh)
+	if (neigh) //更新
 		neigh_update(neigh, lladdr, NUD_STALE,
 			     NEIGH_UPDATE_F_OVERRIDE);
+	
 	return neigh;
 }
 
+/*
+ * neigh_resolve_output()
+ *  neigh_hh_init()
+ */
 static void neigh_hh_init(struct neighbour *n, struct dst_entry *dst,
 			  __be16 protocol)
 {
@@ -1180,6 +1227,7 @@ static void neigh_hh_init(struct neighbour *n, struct dst_entry *dst,
 			atomic_inc(&hh->hh_refcnt);
 			hh->hh_next = n->hh;
 			n->hh	    = hh;
+			
 			if (n->nud_state & NUD_CONNECTED)
 				hh->hh_output = n->ops->hh_output;
 			else
@@ -1370,6 +1418,13 @@ static void neigh_proxy_process(unsigned long arg)
 	spin_unlock(&tbl->proxy_queue.lock);
 }
 
+/*
+ * netif_receive_skb()
+ *  deliver_skb()
+ *   arp_rcv()
+ *    arp_process()
+ *     pneigh_enqueue(tbl == arp_tbl)
+ */
 void pneigh_enqueue(struct neigh_table *tbl, struct neigh_parms *p,
 		    struct sk_buff *skb)
 {

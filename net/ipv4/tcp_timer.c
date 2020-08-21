@@ -349,7 +349,7 @@ static void tcp_retransmit_timer(struct sock *sk)
 			tcp_write_err(sk); //最终通过ICMP报文上报错误到应用层
 			goto out;
 		}
-		//报文丢失，要进行拥塞处理和标识丢失数据段
+		//进入拥塞和流量控制
 		tcp_enter_loss(sk, 0);
 		/* 重传发送队列里的第一个数据段 */
 		tcp_retransmit_skb(sk, tcp_write_queue_head(sk));
@@ -431,7 +431,7 @@ out:;
 }
 
 /*
- *  设置重传超时定时器
+ *  设置的重传超时定时器
  */
 static void tcp_write_timer(unsigned long data)
 {
@@ -457,13 +457,14 @@ static void tcp_write_timer(unsigned long data)
 		goto out;
 	}
 
+    //事件，这个值在inet_csk_reset_xmit_timer中设置
 	event = icsk->icsk_pending;
 	icsk->icsk_pending = 0;
 
 	switch (event) {
-	case ICSK_TIME_RETRANS:
+	case ICSK_TIME_RETRANS: //真正的重传定时器处理
 		tcp_retransmit_timer(sk);
-		break;
+		break; //0窗口处理
 	case ICSK_TIME_PROBE0:
 		tcp_probe_timer(sk);
 		break;

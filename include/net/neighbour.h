@@ -88,6 +88,7 @@ struct neigh_parms
 	int	anycast_delay;
 	int	proxy_delay;
 	int	proxy_qlen;
+	//neighbour两次更新状态时，需要经历的时间间隔
 	int	locktime;
 };
 
@@ -128,16 +129,21 @@ struct neigh_statistics
 struct neighbour
 {
 	struct neighbour	*next;     // 链接到下一个邻节点
-	struct neigh_table	*tbl;      // 指向邻居表
+	struct neigh_table	*tbl;      // 指向邻居表,通常是arp_tbl 或者nd_tbl
 	
 	struct neigh_parms	*parms;    // 控制neighbor协议行为的参数
 	struct net_device		*dev;  // 网络设备
 	unsigned long		used;      // 使用标志
 	unsigned long		confirmed; // 确认标志 就是jiffies的值
 	unsigned long		updated;   // 更新标志
+	//NTF_PROXY, NTF_ROUTER
 	__u8			flags;         // 标志字段
+	
+	//output的设置根据nud_state的情况来
 	__u8			nud_state;     // 邻节点的状态
 	/*
+	 * L3层的地址类型,单播、广播、多播三种
+	 *
 	 * RTN_UNICAST, RTN_LOCAL, RTN_BROADCAST, RTN_ANYCAST, RTN_MULTICAST
 	 */
 	__u8			type; 
@@ -151,6 +157,8 @@ struct neighbour
 
 	/* 一般是指向 dev_queue_xmit 
 	 * neigh->output会被设置为neigh->ops->connected_output或 neigh->ops->output，具体取决于邻居的状态
+	 *
+	 *　output的设置根据nud_state的情况来
 	 *
 	 * 这个值在arp_constructor(),dn_neigh_construct(),
 	 * ndisc_constructor(), neigh_connect()
@@ -220,6 +228,9 @@ struct pneigh_entry
  * 全局变量neigh_tables
  *
  * neigh_table代表的是一种邻居协议的接口(比如 ARP)。
+ *
+ * 全局对象 arp_tbl, clip_tbl_hook, 
+ * clip_tbl, dn_neigh_table, nd_tbl
  */
 
 struct neigh_table
@@ -256,12 +267,12 @@ struct neigh_table
 	unsigned long		last_rand;    // 用于parms操作的时间记录
 	struct kmem_cache		*kmem_cachep; // 内核缓存记录
 	struct neigh_statistics	*stats;
-	/* 同一个ip子网中的邻居项 */
+	/* 同一个ip子网中的邻居项，会过期的 */
 	struct neighbour	**hash_buckets;
 	unsigned int		hash_mask;
 	__u32			hash_rnd;
 	unsigned int		hash_chain_gc;
-	// 管理代理时的邻节点的哈希表
+	// 管理代理时的邻节点的哈希表,不会过期的
 	struct pneigh_entry	**phash_buckets;
 #ifdef CONFIG_PROC_FS
 	struct proc_dir_entry	*pde;
@@ -428,14 +439,24 @@ static inline int neigh_hh_output(struct hh_cache *hh, struct sk_buff *skb)
 	return hh->hh_output(skb);  //dev_queue_xmit
 }
 
+/*
+ * arp_find()
+ *  __neigh_lookup()
+ *
+ * arp_process(tbl = arp_tbl)
+ *  __neigh_lookup()
+ *
+ */
 static inline struct neighbour *
 __neigh_lookup(struct neigh_table *tbl, const void *pkey, struct net_device *dev, int creat)
-{
+{
+    //查找neighbour对象
 	struct neighbour *n = neigh_lookup(tbl, pkey, dev);
 
 	if (n || !creat)
 		return n;
 
+    //创建 neighbour对象
 	n = neigh_create(tbl, pkey, dev);
 	return IS_ERR(n) ? NULL : n;
 }

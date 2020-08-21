@@ -792,6 +792,10 @@ static void tcp_v4_reqsk_send_ack(struct sk_buff *skb,
  *	Send a SYN-ACK after having received an ACK.
  *	This still operates on a request_sock only, not on a big
  *	socket.
+ *
+ * tcp_rcv_state_process()
+ *  tcp_v4_conn_request() 
+ *   tcp_v4_send_synack()
  */
 static int tcp_v4_send_synack(struct sock *sk, struct request_sock *req,
 			      struct dst_entry *dst)
@@ -1465,6 +1469,7 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 	}
 	tcp_rsk(req)->snt_isn = isn;
 
+    //发送SYN ACK包
 	if (tcp_v4_send_synack(sk, req, dst))
 		goto drop_and_free;
 
@@ -2025,7 +2030,7 @@ static int tcp_v4_init_sock(struct sock *sk)
 	tp->reordering = sysctl_tcp_reordering;
 	icsk->icsk_ca_ops = &tcp_init_congestion_ops;
 
-    //套接字初始为关闭状态
+    //套接字初始为close状态
 	sk->sk_state = TCP_CLOSE;
 
     //套接字的发送队列可用时调用该函数

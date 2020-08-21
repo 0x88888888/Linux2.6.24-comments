@@ -12,13 +12,13 @@
  */
 struct fib_rule
 {
-	struct list_head	list;
+	struct list_head	list;// 链接到fib_rules_ops->rule_lists
 	atomic_t		refcnt;
 	int			ifindex; //网络接口索引
-	char			ifname[IFNAMSIZ];
+	char		ifname[IFNAMSIZ];
 	u32			mark; //mark 值  
 	u32			mark_mask; //mark 掩 码 值 
-	u32			pref; //优先级， 值越小优先级越大
+	u32			pref; //路由规则优先级， 值越小优先级越大
 	u32			flags;
 	u32			table; //路由表id  
 	/*

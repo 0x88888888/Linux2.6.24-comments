@@ -50,6 +50,7 @@ struct fib_nh;
 struct inet_peer;
 
 /* 路由缓存信息,每个rtable实例对应着一个不同的ip地址
+ * 路由项对象为fib_node
  *
  * rt_hash_bucket中的成员
  */
@@ -64,12 +65,17 @@ struct rtable
 	struct flowi		fl;
 
 	struct in_device	*idev;
-	
+
+	//RTN_UNREACHABLE之类的
 	unsigned		rt_flags;
+	/*
+	 * RTN_NAT之类的
+	 */
 	__u16			rt_type;
 
 	__be32			rt_dst;	/* Path destination	*/
 	__be32			rt_src;	/* Path source		*/
+	// 入口设备标识符
 	int			rt_iif;
 
 	/* Info on neighbour */

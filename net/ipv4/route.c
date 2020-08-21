@@ -245,7 +245,7 @@ static spinlock_t	*rt_hash_locks;
 # define rt_hash_lock_init()
 #endif
 
-//路由缓存hash表，
+//路由缓存hash表，存放rtable对象
 static struct rt_hash_bucket 	*rt_hash_table;
 //确定rt_hash_table中的容量
 static unsigned			rt_hash_mask;
@@ -2677,6 +2677,11 @@ static int ipv4_dst_blackhole(struct rtable **rp, struct flowi *flp, struct sock
  *      inet_sendmsg()
  *       udp_sendmsg()
  *        ip_route_output_flow()
+ *
+ * arp_process()
+ *  arp_filter()
+ *   ip_route_output_key()
+ *    ip_route_output_flow()
  */
 int ip_route_output_flow(struct rtable **rp /* 参数rp带出查询结果 */ , 
                                  struct flowi *flp, 
@@ -2711,6 +2716,10 @@ EXPORT_SYMBOL_GPL(ip_route_output_flow);
 /*
  * inet_rtm_getroute()
  *  ip_route_output_key()
+ *
+ * arp_process()
+ *  arp_filter()
+ *   ip_route_output_key()
  */
 int ip_route_output_key(struct rtable **rp, struct flowi *flp)
 {

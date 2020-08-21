@@ -115,6 +115,7 @@ void tcp_init_congestion_control(struct sock *sk)
 		rcu_read_unlock();
 	}
 
+    //bictcp->init == bictcp_init
 	if (icsk->icsk_ca_ops->init)
 		icsk->icsk_ca_ops->init(sk);
 }
@@ -157,9 +158,17 @@ int tcp_set_default_congestion_control(const char *name)
 	return ret;
 }
 
-/* Set default value from kernel configuration at bootup */
+/* Set default value from kernel configuration at bootup
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     tcp_congestion_default()
+ */
 static int __init tcp_congestion_default(void)
 {
+                                             //bictcp对象
 	return tcp_set_default_congestion_control(CONFIG_DEFAULT_TCP_CONG);
 }
 late_initcall(tcp_congestion_default);
@@ -288,6 +297,7 @@ int tcp_set_congestion_control(struct sock *sk, const char *name)
 		tcp_cleanup_congestion_control(sk);
 		icsk->icsk_ca_ops = ca;
 
+        //bictcp->init == bictcp_init
 		if (sk->sk_state != TCP_CLOSE && icsk->icsk_ca_ops->init)
 			icsk->icsk_ca_ops->init(sk);
 	}
@@ -309,9 +319,12 @@ int tcp_set_congestion_control(struct sock *sk, const char *name)
  * tcp_vegas_cong_avoid()
  *  tcp_slow_start()
  *
+ * bictcp_cong_avoid()
+ *  tcp_slow_start()
  */
 void tcp_slow_start(struct tcp_sock *tp)
 {
+    //报文数目
 	int cnt; /* increase in packets */
 
 	/* RFC3465: ABC Slow start
@@ -323,14 +336,14 @@ void tcp_slow_start(struct tcp_sock *tp)
 	 */
 	 /* ack的数据少于MSS */
 	if (sysctl_tcp_abc && tp->bytes_acked < tp->mss_cache)
-		return;
+		return; //ack接收完毕
 
     
     /* 此时不是应该进入拥塞避免？*/
 	if (sysctl_tcp_max_ssthresh > 0 && tp->snd_cwnd > sysctl_tcp_max_ssthresh)
-		cnt = sysctl_tcp_max_ssthresh >> 1;	/* limited slow start */
+		cnt = sysctl_tcp_max_ssthresh >> 1;	/* limited slow start,受限慢启动 */
 	else
-		cnt = tp->snd_cwnd;			/* exponential increase */
+		cnt = tp->snd_cwnd;			/* exponential increase,指数递增 */
 
 	/* RFC3465: ABC
 	 * We MAY increase by 2 if discovered delayed ack
@@ -366,7 +379,7 @@ void tcp_reno_cong_avoid(struct sock *sk, u32 ack, u32 in_flight, int flag)
 
 	/* In "safe" area, increase. */
 	if (tp->snd_cwnd <= tp->snd_ssthresh)
-		tcp_slow_start(tp);
+		tcp_slow_start(tp); //慢启动算法
 
 	/* In dangerous area, increase slowly. */
 	else if (sysctl_tcp_abc) {
@@ -378,7 +391,8 @@ void tcp_reno_cong_avoid(struct sock *sk, u32 ack, u32 in_flight, int flag)
 			if (tp->snd_cwnd < tp->snd_cwnd_clamp)
 				tp->snd_cwnd++;
 		}
-	} else {
+	} else { // 拥塞避免
+	
 		/* In theory this is tp->snd_cwnd += 1 / tp->snd_cwnd */
 		if (tp->snd_cwnd_cnt >= tp->snd_cwnd) {
 			if (tp->snd_cwnd < tp->snd_cwnd_clamp)
@@ -418,6 +432,8 @@ struct tcp_congestion_ops tcp_reno = {
 /* Initial congestion control used (until SYN)
  * really reno under another name so we can tell difference
  * during tcp_set_default_congestion_control
+ *
+ * tcp_sock->icsk_ca_ops 在tcp_v4_init_sock中设置为tcp_init_congestion_ops
  */
 struct tcp_congestion_ops tcp_init_congestion_ops  = {
 	.name		= "",

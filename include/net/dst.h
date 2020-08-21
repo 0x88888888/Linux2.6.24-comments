@@ -48,7 +48,7 @@ struct dst_entry
 	int			flags;             // 标志字段
 #define DST_HOST		1
 #define DST_NOXFRM		2
-#define DST_NOPOLICY		4
+#define DST_NOPOLICY	4
 #define DST_NOHASH		8
 	unsigned long		expires;   // 超时时间
 

@@ -28,7 +28,9 @@
 static int fast_convergence = 1;
 /* 每次增加的MSS 不能超过这个值，防止增长太过剧烈*/
 static int max_increment = 16;
-static int low_window = 14;
+//拥塞窗口的下限,提高算法的公平性
+static int low_window = 14; 
+// ==819 /1024 (BICTCP_BETA_SCAL)实际值是0.8*1024
 static int beta = 819;		/* = 819/1024 (BICTCP_BETA_SCALE) */
 static int initial_ssthresh; /* 初始的阈值,初始值被设置成2^31-1=2147483647 */
 static int smooth_part = 20;
@@ -79,6 +81,12 @@ static void bictcp_init(struct sock *sk)
 
 /*
  * Compute congestion window to use.
+ *
+ * tcp_rcv_state_process()
+ *  tcp_ack()
+ *   tcp_cong_avoid()
+ *    bictcp_cong_avoid()
+ *     bictcp_update()
  */
 static inline void bictcp_update(struct bictcp *ca, u32 cwnd)
 {
@@ -103,7 +111,7 @@ static inline void bictcp_update(struct bictcp *ca, u32 cwnd)
 	/* binary increase */
 	if (cwnd < ca->last_max_cwnd) { /*上次掉包前一个snd_cwnd */
 		__u32 	dist = (ca->last_max_cwnd - cwnd)
-			/ BICTCP_B; /* 四分之一 */
+			/ BICTCP_B; /* 四分之一,dist是实际数值差的1/4 */
 
 		if (dist > max_increment)
 			/* linear increase */
@@ -147,18 +155,24 @@ static inline void bictcp_update(struct bictcp *ca, u32 cwnd)
 }
 
 //bictcp拥塞避免
+/*
+ * tcp_rcv_state_process()
+ *  tcp_ack()
+ *   tcp_cong_avoid()
+ *    bictcp_cong_avoid()
+ */
 static void bictcp_cong_avoid(struct sock *sk, u32 ack,
 			      u32 in_flight, int data_acked)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct bictcp *ca = inet_csk_ca(sk);
 
-    /* 如果发送拥塞窗口不被限制，不能再增加，则返回 */
+    /* 判断拥塞窗口是否到达限制 */
 	if (!tcp_is_cwnd_limited(sk, in_flight))
 		return;
 
 	if (tp->snd_cwnd <= tp->snd_ssthresh)
-		tcp_slow_start(tp);
+		tcp_slow_start(tp); //开始slow start
 	else {
 		bictcp_update(ca, tp->snd_cwnd);
 
@@ -178,6 +192,16 @@ static void bictcp_cong_avoid(struct sock *sk, u32 ack,
 /*
  *	behave like Reno until low_window is reached,
  *	then increase congestion window slowly
+ *
+ * sys_sendto()
+ *  sock_sendmsg()
+ *   __sock_sendmsg()
+ *    tcp_sendmsg()
+ *     __tcp_push_pending_frames()
+ *      tcp_write_xmit()
+ *       tcp_transmit_skb()
+ *        tcp_enter_cwr()
+ *         bictcp_recalc_ssthresh()
  *
  *  慢启动阈值重新计算
  *

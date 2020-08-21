@@ -500,11 +500,13 @@ int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	/* If the socket has its own bind function then use it. (RAW) 
 	 *
 	 * 用于原始套接字，TCP协议实例tcp_prot不含此函数指针。
+	 * raw socket为 raw_bind
 	 */
 	if (sk->sk_prot->bind) {
 		err = sk->sk_prot->bind(sk, uaddr, addr_len);
 		goto out;
 	}
+	
 	err = -EINVAL;
 	/* socket地址长度错误 */
 	if (addr_len < sizeof(struct sockaddr_in))
@@ -970,7 +972,7 @@ int inet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 			break;
 		case SIOCADDRT:
 		case SIOCDELRT:
-		case SIOCRTMSG:
+		case SIOCRTMSG: //路由项管理
 			err = ip_rt_ioctl(cmd, (void __user *)arg);
 			break;
 		case SIOCDARP:
@@ -1595,6 +1597,8 @@ static struct packet_type ip_packet_type = {
  *     inet_init()
  *
  * sock_init比inet_init先运行
+ *
+ * 网络协议初始化
  */
 static int __init inet_init(void)
 {

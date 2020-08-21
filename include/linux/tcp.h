@@ -105,10 +105,16 @@ enum {
 #define TCPI_OPT_WSCALE		4
 #define TCPI_OPT_ECN		8
 
+/*　拥塞状态
+ *
+ * 用于inet_connect_sock->icsk_ca_staet
+ */
 enum tcp_ca_state
 {
+    //这是正常状态，也是初始状态，套接字关闭后，也会被重置为该状态
 	TCP_CA_Open = 0,
 #define TCPF_CA_Open	(1<<TCP_CA_Open)
+    //发送段检检测到重复的ack或者附带选择性应答的ACK报文时，进入这个状态
 	TCP_CA_Disorder = 1,
 #define TCPF_CA_Disorder (1<<TCP_CA_Disorder)
 	TCP_CA_CWR = 2,
@@ -274,11 +280,11 @@ struct tcp_sock {
  	u32	rcv_nxt;	/* What we want to receive next , 希望接收的下一个序列号，填写到tcp头部的ack_seq中	*/
 	u32	copied_seq;	/* Head of yet unread data,应用程序下次从这里复制数据		*/
 	/* 最早接收但未确认的段的序号，即当前接收窗口的左端*/
-	u32	rcv_wup;	/* rcv_nxt on last window update sent	*/
+	u32	rcv_wup;	/* 接收窗口的起始位置,在tcp_select_window		中更新, rcv_nxt on last window update sent	*/
  	u32	snd_nxt;	/* Next sequence we send,下一次发送数据包时，用这个sequence 值		*/
 
     /* 发送窗口的左边沿 */
- 	u32	snd_una;	/* First byte we want an ack for	*/
+ 	u32	snd_una;	/* First byte we want an ack for第一个没有被ack的序号	*/
  	u32	snd_sml;	/* Last byte of the most recently transmitted small packet */
 	u32	rcv_tstamp;	/* timestamp of last received ACK (for keepalives) */
 	u32	lsndtime;	/* timestamp of last sent data packet (for restart window) */
@@ -353,11 +359,11 @@ struct tcp_sock {
 /*
  *	Slow start and congestion control (see also Nagle, and Karn & Partridge)
  */
-    //设置慢启动窗口
+    //启动slow start的阈值
  	u32	snd_ssthresh;	/* Slow start size threshold		*/
-    //发送窗口
+    //发送窗口的大小
  	u32	snd_cwnd;	/* Sending congestion window		*/
-	/*表示在当前的拥塞控制窗口中已经发送的数据段的个数*/
+	/* 发送方拥塞窗口的增长因子*/
 	u32	snd_cwnd_cnt;	/* Linear increase counter		*/
 	//拥塞窗口
 	u32	snd_cwnd_clamp; /* Do not allow snd_cwnd to grow above this */
@@ -366,7 +372,7 @@ struct tcp_sock {
 
 	struct sk_buff_head	out_of_order_queue; /* Out of order segments go here */
 
- 	u32	rcv_wnd;	/* Current receiver window,当前接收窗口的大小		*/
+ 	u32	rcv_wnd;	/* Current receiver window,当前接收窗口的大小 ,在tcp_select_window		中更新*/
 	u32	write_seq;	/* Tail(+1) of data held in tcp send buffer */
 	u32	pushed_seq;	/* Last pushed seq, required to talk to windows */
 

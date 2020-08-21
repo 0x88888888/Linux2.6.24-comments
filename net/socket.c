@@ -2404,6 +2404,8 @@ void sock_unregister(int family)
  *     sock_init()
  *
  * sock_init比inet_init先运行 
+ *
+ * socket文件系统初始化
  */
 static int __init sock_init(void)
 {

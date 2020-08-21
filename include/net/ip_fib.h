@@ -63,24 +63,32 @@ struct fib_config {
 struct fib_info;
 
 /*
- * 管理与下一跳有关的信息
+ * 表示下一跳信息
  */
 struct fib_nh {
 
 	struct net_device	*nh_dev;    // 设备
-	struct hlist_node	nh_hash;    // 
+	struct hlist_node	nh_hash;    // 链接到fib_info_devhash中
 	struct fib_info		*nh_parent;
+	//RTNH_F_DEAD, RTNH_F_PERVASIVE, RTNH_F_ONLINK
 	unsigned		nh_flags;       // 标志
+	/*
+     * RT_SCOPE_UNIVERSE,
+	 * RT_SCOPE_SITE,
+	 * RT_SCOPE_LINK,
+	 * RT_SCOPE_HOST,
+	 * RT_SCOPE_NOWHERE
+	 */
 	unsigned char		nh_scope;   // 范围
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
 	int			nh_weight;          // 路由权重字段
 	int			nh_power;           // 路由的指数字段
 #endif
 #ifdef CONFIG_NET_CLS_ROUTE
-	__u32			nh_tclassid;    // 分类标志
+	__u32			nh_tclassid;    // 分类标志,利用realms关键字来设置
 #endif
 	int			nh_oif;             // 去往下一跳的出口
-	__be32			nh_gw;          // 下一跳地址
+	__be32			nh_gw;          // 本下一跳ip地址.如果是NAT的情况，表示的NAT路由器向外界公告的地址
 };
 
 /*
@@ -88,23 +96,29 @@ struct fib_nh {
  *
  * 路由表项信息
  *
- * fib_info用于存储 几个路由条目的一些共用的参数
+ * fib_info用于存储 几个路由条目的一些共享的参数
  * 当一个新路由项和老路由项有共同的参数的时候，
  * 只要增加fib_info->fib_clntref
  *
+ *　fib_alias　中的成员，在fib_table中的注释中有对象层次关系
+ *
  */
 struct fib_info {
-	struct hlist_node	fib_hash;
-	struct hlist_node	fib_lhash;
+	struct hlist_node	fib_hash;　//链接到fib_info_hash表
+	/*
+	 * 链接到fib_info_laddrhash表
+	 * 当路由表项有首选项时，用这个链接到fib_info_laddrhash中
+	 */
+	struct hlist_node	fib_lhash; 
 	
 	int			fib_treeref;     // 路由表项树的引用
 	atomic_t		fib_clntref; // 引用计数增量
-	int			fib_dead;        // 无效条目标志
-	unsigned		fib_flags;   // 标志字段
+	int			fib_dead;        // 路由表项正在被删除
+	unsigned		fib_flags;   // 标志字段, RTNH_F_DEAD
 	
 	int			fib_protocol;    // 协议
-	__be32			fib_prefsrc; // 源地址信息
-	u32			fib_priority;    // 优先级
+	__be32			fib_prefsrc; // 首选源地址信息
+	u32			fib_priority;    // 路由的优先级，值越小，优先级越高.
 	u32			fib_metrics[RTAX_MAX];  // 参数
 #define fib_mtu fib_metrics[RTAX_MTU-1]
 #define fib_window fib_metrics[RTAX_WINDOW-1]
@@ -112,6 +126,9 @@ struct fib_info {
 #define fib_advmss fib_metrics[RTAX_ADVMSS-1]
 	int			fib_nhs;
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
+/*
+ * 当支持多路径时,有用
+ */
 	int			fib_power;
 #endif
     //next hop链表
@@ -128,12 +145,18 @@ struct fib_rule;
  * 对路由表查找后返回该结构。
  */
 struct fib_result {
+    // 匹配路由的前缀长度
 	unsigned char	prefixlen;
+	//多路径路由由多个下一跳定义
 	unsigned char	nh_sel;
+    //下面两个字段从fib_alias->fa_type, fib_alias->fa_scope中取值
 	unsigned char	type;
 	unsigned char	scope;
+
+	//与匹配的fib_alias实例相关的fib_info
 	struct fib_info *fi;
 #ifdef CONFIG_IP_MULTIPLE_TABLES
+    
 	struct fib_rule	*r;
 #endif
 };
@@ -173,6 +196,22 @@ struct fib_result_nl {
 /*
  * 表示一张路由表
  * 一共有两张路由表 ip_fib_main_table， ip_fib_local_table
+ * 还以一张 fib_table_hash,存储255个 fib_table
+ *
+ * 插入路由项看 fn_hash_insert，
+ * 路由项对象为fib_node
+ *
+ *
+ * 路由表、路由项、别名对象层次结构信息
+ * fib_table
+ *  fn_zone
+ *   fn_zone->fz_hash[]->fn_hash
+ *    fib_node
+ *     fib_node->fn_alias
+ *      fib_info
+ *       fib_nh 
+ *
+ * 路由缓存rtable 存放在rt_hash_table中
  */
 struct fib_table {
     /* 负载成员，用于将所有的fib_table链接起来 */
@@ -200,6 +239,7 @@ struct fib_table {
 				     struct netlink_callback *cb);
 	/*
 	 * 指向删除多个路由条目的函数
+	 * fn_hash_delete
 	 */
 	int		(*tb_flush)(struct fib_table *table);
 	/*
@@ -219,7 +259,9 @@ struct fib_table {
 	 *
 	 * 如果是用hash方式实现，就存储fn_hash对象
 	 * 
-	 * tb_data存fn_zone对象数组
+	 * tb_data存fn_hash对象数组
+	 *
+	 * 看fn_hash_insert操作
 	 */
 	unsigned char	tb_data[0];
 };
@@ -276,6 +318,7 @@ static inline int fib_lookup(const struct flowi *flp, struct fib_result *res)
 	if (ip_fib_local_table->tb_lookup(ip_fib_local_table, flp, res) &&
 	    ip_fib_main_table->tb_lookup(ip_fib_main_table, flp, res))
 		return -ENETUNREACH;
+	
 	return 0;
 }
 

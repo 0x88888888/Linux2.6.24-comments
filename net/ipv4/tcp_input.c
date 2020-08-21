@@ -911,7 +911,17 @@ __u32 tcp_init_cwnd(struct tcp_sock *tp, struct dst_entry *dst)
 	return min_t(__u32, cwnd, tp->snd_cwnd_clamp);
 }
 
-/* Set slow start threshold and cwnd not falling to slow start */
+/* Set slow start threshold and cwnd not falling to slow start 
+ *
+ * sys_sendto()
+ *  sock_sendmsg()
+ *   __sock_sendmsg()
+ *    tcp_sendmsg()
+ *     __tcp_push_pending_frames()
+ *      tcp_write_xmit()
+ *       tcp_transmit_skb()
+ *        tcp_enter_cwr()
+ */
 void tcp_enter_cwr(struct sock *sk, const int set_ssthresh)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -921,8 +931,10 @@ void tcp_enter_cwr(struct sock *sk, const int set_ssthresh)
 	tp->bytes_acked = 0;
 	if (icsk->icsk_ca_state < TCP_CA_CWR) {
 		tp->undo_marker = 0;
-		if (set_ssthresh)
+		
+		if (set_ssthresh) //bictcp_recalc_ssthresh, 计算出slow start thresh
 			tp->snd_ssthresh = icsk->icsk_ca_ops->ssthresh(sk);
+		
 		tp->snd_cwnd = min(tp->snd_cwnd,
 				   tcp_packets_in_flight(tp) + 1U);
 		tp->snd_cwnd_cnt = 0;
@@ -1746,9 +1758,11 @@ void tcp_enter_frto(struct sock *sk)
 			u32 stored_cwnd;
 			stored_cwnd = tp->snd_cwnd;
 			tp->snd_cwnd = 2;
+			//bictcp_recalc_ssthresh, 计算出slow start thresh
 			tp->snd_ssthresh = icsk->icsk_ca_ops->ssthresh(sk);
 			tp->snd_cwnd = stored_cwnd;
 		} else {
+			//bictcp_recalc_ssthresh, 计算出slow start thresh
 			tp->snd_ssthresh = icsk->icsk_ca_ops->ssthresh(sk);
 		}
 		/* ... in theory, cong.control module could do "any tricks" in
@@ -1884,6 +1898,8 @@ void tcp_clear_retrans(struct tcp_sock *tp)
  *  tcp_write_timer()
  *   tcp_retransmit_timer()
  *    tcp_enter_loss()
+ *
+ * 进入拥塞和流量控制
  */
 void tcp_enter_loss(struct sock *sk, int how)
 {
@@ -1900,7 +1916,7 @@ void tcp_enter_loss(struct sock *sk, int how)
 	    (icsk->icsk_ca_state == TCP_CA_Loss && !icsk->icsk_retransmits)) {
 	    /* 保留当前阈值，以便在拥塞窗口调整撤销时使用*/
 		tp->prior_ssthresh = tcp_current_ssthresh(sk);
-		/* 减小慢启动阈值*/
+		//bictcp_recalc_ssthresh, 计算出slow start thresh
 		tp->snd_ssthresh = icsk->icsk_ca_ops->ssthresh(sk);
 		/* 通知CA_EVENT_LOSS事件给具体的拥塞控制算法*/
 		tcp_ca_event(sk, CA_EVENT_LOSS);
@@ -2546,6 +2562,11 @@ static void tcp_mtup_probe_success(struct sock *sk, struct sk_buff *skb)
  *       Duplicate ACK
  *       ECN ECE
  *
+ * tcp_rcv_state_process()
+ *  tcp_ack()
+ *   tcp_fastretrans_alert()
+ *
+ * 处理拥塞状态
  */
 static void
 tcp_fastretrans_alert(struct sock *sk, int pkts_acked, int flag)
@@ -2717,7 +2738,7 @@ tcp_fastretrans_alert(struct sock *sk, int pkts_acked, int flag)
 		if (icsk->icsk_ca_state < TCP_CA_CWR) {
 			if (!(flag&FLAG_ECE))
 				tp->prior_ssthresh = tcp_current_ssthresh(sk); /*保存旧阈值*/
-			/*更新阈值*/
+			//bictcp_recalc_ssthresh, 计算出slow start thresh
 			tp->snd_ssthresh = icsk->icsk_ca_ops->ssthresh(sk);
 			TCP_ECN_queue_cwr(tp);
 		}
@@ -2820,6 +2841,11 @@ static inline void tcp_ack_update_rtt(struct sock *sk, const int flag,
 		tcp_ack_no_tstamp(sk, seq_rtt, flag); 
 }
 
+/*
+ * tcp_rcv_state_process()
+ *  tcp_ack()
+ *   tcp_cong_avoid()
+ */
 static void tcp_cong_avoid(struct sock *sk, u32 ack,
 			   u32 in_flight, int good)
 {
@@ -3115,6 +3141,11 @@ static inline int tcp_may_raise_cwnd(const struct sock *sk, const int flag)
  *
  * tcp_ack_update_window()
  *  tcp_may_update_window()
+ *
+ * 检查窗口是否需要更新，
+ * 如果应答报文的期待序号大于本段发送窗口的左边沿
+ * 或者应答报文的序号大于最近更新发送窗口的段序号，
+ * 又或者应答报文的序号等于最近更新发送窗口的段序号且新窗口的尺寸增大
  */
 static inline int tcp_may_update_window(const struct tcp_sock *tp, const u32 ack,
 					const u32 ack_seq, const u32 nwin)
@@ -3128,6 +3159,12 @@ static inline int tcp_may_update_window(const struct tcp_sock *tp, const u32 ack
  *
  * Window update algorithm, described in RFC793/RFC1122 (used in linux-2.2
  * and in FreeBSD. NetBSD's one is even worse.) is wrong.
+ *
+ * tcp_rcv_state_process()
+ *  tcp_ack()
+ *   tcp_ack_update_window()
+ *
+ * 更新发送窗口
  */
 static int tcp_ack_update_window(struct sock *sk, struct sk_buff *skb, u32 ack,
 				 u32 ack_seq)

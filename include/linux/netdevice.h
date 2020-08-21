@@ -233,7 +233,7 @@ struct hh_cache
                                          *  encapuslated type. --BLG
                                          */
 	u16		hh_len;		/* length of header */
-	/* 一般是指向 dev_queue_xmit */		
+	/* 和neighbour->output一样，这个值被初始化为neigh_ops中各种方法中的一个 */		
 	int		(*hh_output)(struct sk_buff *skb);
 	seqlock_t	hh_lock;
 
@@ -695,8 +695,8 @@ struct net_device
 	 * 指向in_device对象
 	 */
 	void			*ip_ptr;	/* IPv4 specific data,放in_device对象,用in_dev_get()获取	*/  
-	void                    *dn_ptr;        /* DECnet specific data */
-	void                    *ip6_ptr;       /* IPv6 specific data */
+	void            *dn_ptr;        /* DECnet specific data */
+	void            *ip6_ptr;       /* IPv6 specific data */
 	void			*ec_ptr;	/* Econet specific data	*/
 	void			*ax25_ptr;	/* AX.25 specific data */
 	struct wireless_dev	*ieee80211_ptr;	/* IEEE 802.11 specific data,

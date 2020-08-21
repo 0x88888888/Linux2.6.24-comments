@@ -391,11 +391,12 @@ struct sk_buff {
 	__u32			priority;
 	
 	__u8			local_df:1, /* 表示此SKB在本地允许分片 */
-                    cloned:1, // 标记所属的SKB是否是另一个skb的克隆
-                    ip_summed:2,
+                    cloned:1, // 标记所属的SKB是否是另一个skb的克隆,被clone过的skb不存在链表中,也不和某一特定的INET Socket关联
+                    ip_summed:2,//检查ip数据包的校验和的计算，表示硬件驱动是否为我们已经进行了校验
                     /*
                      * 
-                     * 标记payload是否被单独使用，如果不是则不能再修改协议首部，也不能通过skb->data访问协议首部
+                     * 标记payload是否被单独使用，如果不是则不能再修改协议首部，
+                     * 也不能通过skb->data访问协议首部
                      */
                     nohdr:1, 
                     nfctinfo:3; /* netfilter conntrack info */
@@ -405,7 +406,7 @@ struct sk_buff {
 	 * PACKET_HOST, PACKET_BROADCAST, PACKET_OTHERHOST
 	 * PACKET_OUTGOING, PACKET_LOOPBACK, PACKET_FASTROUTE(不再支持)
 	 * 
-	*/
+	 */
 	__u8			pkt_type:3, 
 	                /*
 	                 * 当前的clone状态， 
@@ -414,8 +415,8 @@ struct sk_buff {
 	                 * SKB_FCLONE_CLONE          在skbuff_fclone_cache分配的子SKB，从父SKB clone得到的
 	                 */
                     fclone:2, 
-                    ipvs_property:1,
-                    nf_trace:1;
+                    ipvs_property:1, //ipvsx相关的域
+                    nf_trace:1; // netfilter使用的域,是一个trace标记
 	/*
 	 * 从二层设备看上层协议，即链路层承载的三层协议类型。典型的包括IP,IPv6和arp。
 	 * 每个协议都有各自的处理函数，因此该域被设备驱动用来通知上层调用哪个协议处理函数。
@@ -441,7 +442,7 @@ struct sk_buff {
 
 	int             iif;  /* 接收本包的设备的接口索引 */
 #ifdef CONFIG_NETDEVICES_MULTIQUEUE
-	__u16           queue_mapping;
+	__u16           queue_mapping;  //对队列设备的映射
 #endif
 /* 下面两个变量用于输入流量控制 */
 #ifdef CONFIG_NET_SCHED
@@ -460,7 +461,7 @@ struct sk_buff {
 	__u32           secmark;
 #endif
 
-	__u32           mark;
+	__u32           mark;//skb的标记
 
     /* 各个层次之间，数据的有效部分是在data和tail之间 */
 	sk_buff_data_t  transport_header; /* tcp/udp头部开始偏移位置 */
