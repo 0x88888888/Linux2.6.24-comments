@@ -22,6 +22,13 @@ EXPORT_SYMBOL(init_net);
 
 /*
  * setup_net runs the initializers for the network namespace object.
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     net_ns_init()
+ *      setup_net()
  */
 static __net_init int setup_net(struct net *net)
 {
@@ -163,6 +170,13 @@ struct net *copy_net_ns(unsigned long flags, struct net *old_net)
 }
 #endif
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     net_ns_init()
+ */
 static int __init net_ns_init(void)
 {
 	int err;

@@ -62,23 +62,27 @@ struct rtable
 	} u;
 
 	/* Cache lookup keys */
+	/*路由緩存查找相关的匹配條件，该结构体中存放了路由緩存匹配的所有参数*/
 	struct flowi		fl;
 
+    /*指向出口设备的ip配置块*/
 	struct in_device	*idev;
 
-	//RTN_UNREACHABLE之类的
+	/*相应的取值有RTCF_NOTIFY、RTCF_LOCAL、RTCF_BROADCAST、RTCF_MULTICAST、RTCF_REDIRECTED等*/
 	unsigned		rt_flags;
 	/*
-	 * RTN_NAT之类的
+	 * RTN_NAT, RTN_UNSPEC, RTN_UNICAST, RTN_LOCAL, RTN_BROADCAST,RTN_MULTICAST之类的
 	 */
 	__u16			rt_type;
 
+    /*目的ip与源ip*/
 	__be32			rt_dst;	/* Path destination	*/
 	__be32			rt_src;	/* Path source		*/
 	// 入口设备标识符
 	int			rt_iif;
 
 	/* Info on neighbour */
+	/*目的地址或者下一跳网关地址*/
 	__be32			rt_gateway;
 
 	/* Miscellaneous cached information */

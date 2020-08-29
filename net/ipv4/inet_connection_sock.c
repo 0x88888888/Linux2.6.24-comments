@@ -118,7 +118,7 @@ int inet_csk_get_port(struct inet_hashinfo *hashinfo,
 	int ret;
 
 	local_bh_disable();
-	if (!snum) {
+	if (!snum) { //snum==0,随机找一个空闲的端口号
 		int remaining, rover, low, high;
 
         /* 获取端口号的取值范围 */
@@ -130,16 +130,19 @@ int inet_csk_get_port(struct inet_hashinfo *hashinfo,
 		do {
 			/* 根据端口号，确定所在的哈希桶 */
 			head = &hashinfo->bhash[inet_bhashfn(rover, hashinfo->bhash_size)];
+			
 			spin_lock(&head->lock);
 		    /* 从头遍历哈希桶 */
 			inet_bind_bucket_for_each(tb, node, &head->chain)
 				if (tb->port == rover) /* 如果端口被使用了 */
 					goto next;
-			break;
+				
+			break;//找到,rover就是作为可以被使用的空闲端口号
 		next:
 			spin_unlock(&head->lock);
 			if (++rover > high)
-				rover = low;
+				rover = low; 
+			
 		} while (--remaining > 0);
 
 		/* Exhausted local port range during search?  It is not
@@ -154,6 +157,8 @@ int inet_csk_get_port(struct inet_hashinfo *hashinfo,
 
 		/* OK, here is the one we will use.  HEAD is
 		 * non-NULL and we hold it's mutex.
+		 *
+		 * 记录下来可以使用的空闲的端口号
 		 */
 		snum = rover;
 	} else {
@@ -215,11 +220,11 @@ EXPORT_SYMBOL_GPL(inet_csk_get_port);
  * accept()超时时间为sk->sk_rcvtimeo，
  * 在sock_init_data()中初始化为MAX_SCHEDULE_TIMEOUT，表示无限等待。
  *
- *  sys_socketcall()
- *   sys_accept()
- *    inet_accept()
- *     inet_csk_accept()
- *      inet_csk_wait_for_connect()
+ * sys_socketcall()
+ *  sys_accept()
+ *   inet_accept()
+ *    inet_csk_accept()
+ *     inet_csk_wait_for_connect()
  */
 static int inet_csk_wait_for_connect(struct sock *sk, long timeo)
 {

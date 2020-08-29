@@ -15,9 +15,20 @@
 #include <net/sock.h>
 #include <net/fib_rules.h>
 
+//所有fib_rules添加到rules_ops这里来
 static LIST_HEAD(rules_ops);
+
 static DEFINE_SPINLOCK(rules_mod_lock);
 
+/*
+ * inet_init()
+ *  ip_init()
+ *   ip_rt_init()
+ *    ip_fib_init()
+ *     fib4_rules_init()
+ *      fib_default_rules_init()
+ *       fib_default_rule_add(ops==fib4_rules_ops)
+ */
 int fib_default_rule_add(struct fib_rules_ops *ops,
 			 u32 pref, u32 table, u32 flags)
 {
@@ -28,6 +39,7 @@ int fib_default_rule_add(struct fib_rules_ops *ops,
 		return -ENOMEM;
 
 	atomic_set(&r->refcnt, 1);
+	
 	r->action = FR_ACT_TO_TBL;
 	r->pref = pref;
 	r->table = table;
@@ -44,6 +56,12 @@ static void notify_rule_change(int event, struct fib_rule *rule,
 			       struct fib_rules_ops *ops, struct nlmsghdr *nlh,
 			       u32 pid);
 
+/*
+ * fib_nl_newrule()
+ *  lookup_rules_ops()
+ *
+ * 在rules_ops中查找fib_rules_ops对象
+ */
 static struct fib_rules_ops *lookup_rules_ops(int family)
 {
 	struct fib_rules_ops *ops;
@@ -74,6 +92,11 @@ static void flush_route_cache(struct fib_rules_ops *ops)
 		ops->flush_cache();
 }
 
+/*
+ * fib4_rules_init()
+ *  fib_rules_register(&fib4_rules_ops)
+ *
+ */
 int fib_rules_register(struct fib_rules_ops *ops)
 {
 	int err = -EEXIST;
@@ -92,6 +115,7 @@ int fib_rules_register(struct fib_rules_ops *ops)
 		if (ops->family == o->family)
 			goto errout;
 
+    //添加到rules_ops
 	list_add_tail_rcu(&ops->list, &rules_ops);
 	err = 0;
 errout:
@@ -137,18 +161,32 @@ out:
 
 EXPORT_SYMBOL_GPL(fib_rules_unregister);
 
+/*
+ *
+ * ip_queue_xmit()
+ *  ip_route_output_flow()
+ *   __ip_route_output_key()
+ *    ip_route_output_slow()
+ *	   fib_lookup()
+ *      fib_rules_lookup( ops == fib4_rules_ops)
+ *       fib_rule_match()
+ *
+ * 调用协议相关的match进行匹配
+ */
 static int fib_rule_match(struct fib_rule *rule, struct fib_rules_ops *ops,
 			  struct flowi *fl, int flags)
 {
 	int ret = 0;
 
+    //设备比较一下
 	if (rule->ifindex && (rule->ifindex != fl->iif))
 		goto out;
 
+    //mark是否相等
 	if ((rule->mark ^ fl->mark) & rule->mark_mask)
 		goto out;
 
-              //match就是fib4_rule_match
+              //协议规则匹配，match就是fib4_rule_match
 	ret = ops->match(rule, fl, flags);
 out:
 	return (rule->flags & FIB_RULE_INVERT) ? !ret : ret;
@@ -170,8 +208,10 @@ int fib_rules_lookup(struct fib_rules_ops *ops, struct flowi *fl,
 
 	rcu_read_lock();
 
+    //遍历fib4_rules_ops->rules_list上的fib_rule对象
 	list_for_each_entry_rcu(rule, &ops->rules_list, list) {
 jumped:
+	
 		if (!fib_rule_match(rule, ops, fl, flags))
 			continue;
 
@@ -206,6 +246,11 @@ out:
 
 EXPORT_SYMBOL_GPL(fib_rules_lookup);
 
+/*
+ * fib_nl_newrule()
+ *  validate_rulemsg()
+ *
+ */
 static int validate_rulemsg(struct fib_rule_hdr *frh, struct nlattr **tb,
 			    struct fib_rules_ops *ops)
 {
@@ -228,6 +273,11 @@ errout:
 	return err;
 }
 
+/*
+ * 在fib_rules_init中设置为netlink的RTM_NEWRULE处理函数
+ *
+ *
+ */
 static int fib_nl_newrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 {
 	struct net *net = skb->sk->sk_net;
@@ -240,6 +290,7 @@ static int fib_nl_newrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 	if (nlh->nlmsg_len < nlmsg_msg_size(sizeof(*frh)))
 		goto errout;
 
+    /* 对于ipv4而言，获取到的值即爲fib4_rules_ops */
 	ops = lookup_rules_ops(frh->family);
 	if (ops == NULL) {
 		err = EAFNOSUPPORT;
@@ -285,10 +336,18 @@ static int fib_nl_newrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 	if (tb[FRA_FWMASK])
 		rule->mark_mask = nla_get_u32(tb[FRA_FWMASK]);
 
+    /*设置规则的action以及与该规则关联的路由表id，实现规则与路由表的关联*/
 	rule->action = frh->action;
 	rule->flags = frh->flags;
 	rule->table = frh_get_table(frh, tb);
 
+
+	/*
+	 * 当沒有为策略规则配置优先級也沒有默認优先級时，则会调用该协议对应
+	 * 的default_pref获取一個默认的优先級.
+	 * 对于ipv4，其default_pref的原理是获取规则链表中非0优先級中的最高优先級，
+     * 即获取的默认优先級是除0优先級的规则外，最高的优先級。
+     */
 	if (!rule->pref && ops->default_pref)
 		rule->pref = ops->default_pref();
 
@@ -314,10 +373,21 @@ static int fib_nl_newrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 	} else if (rule->action == FR_ACT_GOTO)
 		goto errout_free;
 
+	/*
+     * 调用该协议对应的configure，对该策略进行配置
+     *
+     * fib4_rule_configure
+     */
 	err = ops->configure(rule, skb, nlh, frh, tb);
 	if (err < 0)
 		goto errout_free;
 
+    /*
+     * 遍历规则链表，找到一个pref值比当前刚创建fib_rule->pref值大的fib_rule
+     * 若找到符合要求的規則，則將新創建的策略規則添加到符合要求的規則之前；
+     * 若在搜索完整個鏈表仍沒有找到符合要求的規則，則將該規則添加到
+     * 當前鏈表已有規則的租後，即鏈尾。
+     */
 	list_for_each_entry(r, &ops->rules_list, list) {
 		if (r->pref > rule->pref)
 			break;
@@ -365,6 +435,9 @@ errout:
 	return err;
 }
 
+/*
+ * 删除策略规则
+ */
 static int fib_nl_delrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 {
 	struct fib_rule_hdr *frh = nlmsg_data(nlh);
@@ -376,12 +449,14 @@ static int fib_nl_delrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 	if (nlh->nlmsg_len < nlmsg_msg_size(sizeof(*frh)))
 		goto errout;
 
+    //查找fib_rules_ops对象
 	ops = lookup_rules_ops(frh->family);
 	if (ops == NULL) {
 		err = EAFNOSUPPORT;
 		goto errout;
 	}
 
+    //解析
 	err = nlmsg_parse(nlh, sizeof(*frh), tb, FRA_MAX, ops->policy);
 	if (err < 0)
 		goto errout;
@@ -390,6 +465,7 @@ static int fib_nl_delrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 	if (err < 0)
 		goto errout;
 
+    //遍历所有的fib_rules
 	list_for_each_entry(rule, &ops->rules_list, list) {
 		if (frh->action && (frh->action != rule->action))
 			continue;
@@ -624,6 +700,7 @@ static void detach_rules(struct list_head *rules, struct net_device *dev)
 }
 
 
+//fib_rules_event的通知函数
 static int fib_rules_event(struct notifier_block *this, unsigned long event,
 			    void *ptr)
 {

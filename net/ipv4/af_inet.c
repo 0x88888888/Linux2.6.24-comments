@@ -566,7 +566,7 @@ int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 		inet->saddr = 0;  /* Use device */
 
 	/* Make sure we are allowed to bind here. 
-     * 如果使用的是TCP，则sk_prot为tcp_prot，get_port为inet_csk_get_port(),tcp_v4_get_port()
+     * 如果使用的是TCP，则sk_prot为tcp_prot，get_port为inet_csk_get_port ,tcp_v4_get_port()
      * 端口可用的话返回0。
 	 */
 	if (sk->sk_prot->get_port(sk, snum)) {

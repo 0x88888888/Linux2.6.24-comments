@@ -560,7 +560,7 @@ int arp_find(unsigned char *haddr, struct sk_buff *skb)
  *
  * 为ip_finish_output2()发送数据做好准备
  *
- * 将dst->rt_gateway 与 与之相对的neighbour 对象绑定
+ * 将dst(rtable对象) 与 与之相对的neighbour 对象绑定
  */
  
 int arp_bind_neighbour(struct dst_entry *dst)

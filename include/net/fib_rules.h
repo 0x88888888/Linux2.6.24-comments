@@ -8,23 +8,31 @@
 #include <net/rtnetlink.h>
 
 /*
- * 表示由策略路由在路由流量时选择的规则
+ * 表示由策略路由在路由流量时选择的策略规则
+ *
+ * 在fib_default_rule_add() 中分配，初始化
+ *
+ * 添加到fib_rules_ops->rules_list上
+ *
+ * 实现策略路由的主要数据结构
+ *
+ * 作为fib4_rule成员出现
  */
 struct fib_rule
 {
 	struct list_head	list;// 链接到fib_rules_ops->rule_lists
 	atomic_t		refcnt;
-	int			ifindex; //网络接口索引
+	
+	int			ifindex; //本策略路由的网络接口索引
 	char		ifname[IFNAMSIZ];
 	u32			mark; //mark 值  
 	u32			mark_mask; //mark 掩 码 值 
-	u32			pref; //路由规则优先级， 值越小优先级越大
+    //策略规则优先级， 值越小优先级越大
+	u32			pref; 
 	u32			flags;
 	u32			table; //路由表id  
 	/*
-	 * 策略的动作,RTN_UNICAST, RTN_BLACKHOLE, RTN_UNREACHABLE, RTN_PROHIBIT, RTN_NAT
-	 *
-	 * 如果action取值RTN_UNICAST,则table表示供查询的路由表。
+	 * fib rule的action规则,包括FR_ACT_TO_TBL等
 	 */
 	u8			action; 
 	
@@ -40,20 +48,36 @@ struct fib_lookup_arg
 	struct fib_rule		*rule;
 };
 
+/*
+ * 全局对象 fib4_rules_ops
+ *
+ * 所有的fib_rules_ops都链接到rules_ops链表中
+ * 存放策略规则fib_rule和操作
+ */
 struct fib_rules_ops
 {
-	int			family;
-	struct list_head	list;
+	int			family; //AF_INET之类的
+ 	struct list_head	list; //在fib_rules_register()链接到rules_ops链表中
+ 	//一个策略路由规则所占用的内存大小
 	int			rule_size;
+	//协议相关的地址长度
 	int			addr_size;
+	
 	int			unresolved_rules;
 	int			nr_goto_rules;
 
+
+    /*協議相關的action函數，即是策略規則匹配後，所調用的action函數，執行後續的操作，一般是獲取到相應的路由表，查找符合要求的路由項*/
+	//fib4_rule_action
 	int			(*action)(struct fib_rule *,
 					  struct flowi *, int,
 					  struct fib_lookup_arg *);
+	/*協議相關的規則匹配函數，對於策略規則的匹配，首先是通用匹配，待通用匹配完成後，則會調用該函數，進行協議相關參數（源、目的地址等）的匹配*/
+	//fib4_rule_match
 	int			(*match)(struct fib_rule *,
 					 struct flowi *, int);
+
+	//fib4_rule_configure
 	int			(*configure)(struct fib_rule *,
 					     struct sk_buff *,
 					     struct nlmsghdr *,
@@ -74,7 +98,8 @@ struct fib_rules_ops
 
 	int			nlgroup;
 	const struct nla_policy	*policy;
-	struct list_head	rules_list;
+	
+	struct list_head	rules_list; //fib_rule对象
 	struct module		*owner;
 };
 

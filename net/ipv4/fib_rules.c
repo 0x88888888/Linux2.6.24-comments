@@ -34,6 +34,11 @@
 
 static struct fib_rules_ops fib4_rules_ops;
 
+/*
+ * ipv4協議相關的fib rule結構，該結構包含了
+ * struct fib_rule 類型的成員變量，同時增加了源ip地址、目的
+ * ip地址、tos等ipv4相關的成員判斷
+ */
 struct fib4_rule
 {
 	struct fib_rule		common;
@@ -62,6 +67,9 @@ u32 fib_rules_tclass(struct fib_result *res)
  *   __ip_route_output_key()
  *    ip_route_output_slow()
  *     fib_lookup()
+ *
+ *  在fib_rules.c中的fib_lookup()策略路由的查找
+ *  在ip_fib.h中的fib_lookup()非策略路由查找
  */ 
 int fib_lookup(struct flowi *flp, struct fib_result *res)
 {
@@ -76,6 +84,15 @@ int fib_lookup(struct flowi *flp, struct fib_result *res)
 	return err;
 }
 
+/*
+ * ip_queue_xmit()
+ *  ip_route_output_flow()
+ *   __ip_route_output_key()
+ *    ip_route_output_slow()
+ *	   fib_lookup()
+ *      fib_rules_lookup( ops == fib4_rules_ops)
+ *       fib4_rule_action()
+ */
 static int fib4_rule_action(struct fib_rule *rule, struct flowi *flp,
 			    int flags, struct fib_lookup_arg *arg)
 {
@@ -83,7 +100,8 @@ static int fib4_rule_action(struct fib_rule *rule, struct flowi *flp,
 	struct fib_table *tbl;
 
 	switch (rule->action) {
-	case FR_ACT_TO_TBL:
+	//策略规则并且与路由表ID相关联	
+	case FR_ACT_TO_TBL: //只有这一个是可以用的
 		break;
 
 	case FR_ACT_UNREACHABLE:
@@ -103,6 +121,7 @@ static int fib4_rule_action(struct fib_rule *rule, struct flowi *flp,
 	if ((tbl = fib_get_table(rule->table)) == NULL)
 		goto errout;
 
+    //fn_hash_lookup
 	err = tbl->tb_lookup(tbl, flp, (struct fib_result *) arg->result);
 	if (err > 0)
 		err = -EAGAIN;
@@ -121,6 +140,18 @@ void fib_select_default(const struct flowi *flp, struct fib_result *res)
 	}
 }
 
+/*
+ * ip_queue_xmit()
+ *  ip_route_output_flow()
+ *   __ip_route_output_key()
+ *    ip_route_output_slow()
+ *	   fib_lookup()
+ *      fib_rules_lookup( ops == fib4_rules_ops)
+ *       fib_rule_match()
+ *        fib4_rule_match()
+ *
+ * 对源IP、目的IP、tos进行比较，相等返回1，不等返回0
+ */
 static int fib4_rule_match(struct fib_rule *rule, struct flowi *fl, int flags)
 {
 	struct fib4_rule *r = (struct fib4_rule *) rule;
@@ -128,16 +159,26 @@ static int fib4_rule_match(struct fib_rule *rule, struct flowi *fl, int flags)
 	__be32 saddr = fl->fl4_src;
 
     //异或运算
+    //源IP、目的IP是否相等
 	if (((saddr ^ r->src) & r->srcmask) ||
 	    ((daddr ^ r->dst) & r->dstmask))
 		return 0;
 
+    //tos是否相等
 	if (r->tos && (r->tos != fl->fl4_tos))
 		return 0;
 
 	return 1;
 }
 
+/*
+ * 若应用层沒有设置路由表的id，则调用fib_empty_table创建
+ * 一个新的路由表，并將新创建的路由表的id传递
+ * 給rule->table
+ * (使用如下命令，即会使系统创建一个新的路由表
+ *
+ * # ip rule add from 192.168.192.1 table 0)
+ */
 static struct fib_table *fib_empty_table(void)
 {
 	u32 id;
@@ -153,6 +194,16 @@ static const struct nla_policy fib4_rule_policy[FRA_MAX+1] = {
 	[FRA_FLOW]	= { .type = NLA_U32 },
 };
 
+/*
+ * fib_nl_newrule()
+ *  fib4_rule_configure()
+ *
+ * 当新增加一個ipv4 的fib rule 规则时，就会调用该函数，对
+ * 新创建的struct fib4_rule类型的变量进行初始化操作，即根据
+ * 应用层传递的配置参数，设置struct fib4_rule类型的变量的
+ * 源ip地址、源ip的掩码值、目的ip地址、目的ip的掩码值、
+ * 路由表id、tos等
+ */
 static int fib4_rule_configure(struct fib_rule *rule, struct sk_buff *skb,
 			       struct nlmsghdr *nlh, struct fib_rule_hdr *frh,
 			       struct nlattr **tb)
@@ -166,6 +217,8 @@ static int fib4_rule_configure(struct fib_rule *rule, struct sk_buff *skb,
 	if (rule->table == RT_TABLE_UNSPEC) {
 		if (rule->action == FR_ACT_TO_TBL) {
 			struct fib_table *table;
+
+
 
 			table = fib_empty_table();
 			if (table == NULL) {
@@ -300,6 +353,15 @@ static struct fib_rules_ops fib4_rules_ops = {
 	.owner		= THIS_MODULE,
 };
 
+
+/*
+ * inet_init()
+ *  ip_init()
+ *   ip_rt_init()
+ *    ip_fib_init()
+ *     fib4_rules_init()
+ *      fib_default_rules_init()
+ */
 static int __init fib_default_rules_init(void)
 {
 	i
@@ -320,6 +382,13 @@ static int __init fib_default_rules_init(void)
 	return 0;
 }
 
+/*
+ * inet_init()
+ *  ip_init()
+ *   ip_rt_init()
+ *    ip_fib_init()
+ *     fib4_rules_init()
+ */
 void __init fib4_rules_init(void)
 {
 	BUG_ON(fib_default_rules_init());

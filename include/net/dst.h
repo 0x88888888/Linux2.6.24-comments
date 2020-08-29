@@ -41,25 +41,35 @@ struct sk_buff;
 struct dst_entry
 {
 	struct rcu_head		rcu_head;
-	struct dst_entry	*child;    // 下一级表项指针
+	// 子dst_entry
+	struct dst_entry	*child;    
 	struct net_device       *dev;  // 输出标志
 	short			error;
+  /*
+   * 该值表示該dst_entry的狀態。
+   * 1.若为0，表示可以正常使用
+   * 2.若为2，则说明该dst_entry即將被
+   */	
 	short			obsolete;
 	int			flags;             // 标志字段
+	
 #define DST_HOST		1
 #define DST_NOXFRM		2
 #define DST_NOPOLICY	4
 #define DST_NOHASH		8
-	unsigned long		expires;   // 超时时间
+	/*表示该表项过期的时间戳*/
+	unsigned long		expires;  
 
 	unsigned short		header_len;	/* more space at head required */
 	unsigned short		nfheader_len;	/* more non-fragment space at head required */
 	unsigned short		trailer_len;	/* space to reserve at tail */
 
-	u32			metrics[RTAX_MAX];  // 路由参数
+    /*規格向量，主要是被tcp使用*/
+	u32			metrics[RTAX_MAX];  
 	struct dst_entry	*path;      // 路径
 
-	unsigned long		rate_last;	 /* 为ICMP提供的速率控制, rate limiting for ICMP */
+
+ 	unsigned long		rate_last;	 /* 为ICMP提供的速率控制, rate limiting for ICMP */
 	unsigned long		rate_tokens; /* 令牌速率控制 */
 
 	struct neighbour	*neighbour; // 对应的neighbour子系统指针
@@ -73,8 +83,10 @@ struct dst_entry
 	__u32			tclassid;       // 分类号
 #endif
 
-	struct  dst_ops	        *ops;   // 下层协议的管理接口
-		
+    /*dst_ops指針，包括路由緩存的slab緩存块，緩存的垃圾回收函数等*/
+	struct  dst_ops	        *ops;   
+
+	/*最近一次使用该路由緩存的时间戳*/
 	unsigned long		lastuse;
 	atomic_t		__refcnt;	/* client references	*/
 	int			__use;
@@ -84,6 +96,7 @@ struct dst_entry
 		struct rt6_info   *rt6_next;
 		struct dn_route  *dn_next;
 	};
+	/*可變長度數組*/
 	char			info[0];
 };
 
@@ -203,6 +216,7 @@ static inline void dst_free(struct dst_entry * dst)
 	__dst_free(dst);
 }
 
+//rt_run_flush中设置RCU机制来调用
 static inline void dst_rcu_free(struct rcu_head *head)
 {
 	struct dst_entry *dst = container_of(head, struct dst_entry, rcu_head);

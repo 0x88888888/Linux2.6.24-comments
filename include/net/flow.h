@@ -16,8 +16,11 @@
  * 根据从L3与L4包头中选择的字段值，作为查找时的关键值
  */
 struct flowi {
+    /*出口设备*/
 	int	oif;
+	/*入口设备*/
 	int	iif;
+	/*mark值*/
 	__u32	mark;
 
     // 各个字段可用于指定L3层参数取值的结构
@@ -52,7 +55,7 @@ struct flowi {
 #define fl4_tos		nl_u.ip4_u.tos
 #define fl4_scope	nl_u.ip4_u.scope
 
-    // L4层协议
+    /*四层协议类型与四层协议相关的成员(源、目的端口)等*/
 	__u8	proto;
 	__u8	flags;
 #define FLOWI_FLAG_MULTIPATHOLDROUTE 0x01

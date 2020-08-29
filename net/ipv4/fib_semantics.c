@@ -50,6 +50,7 @@
 #define FSprintk(a...)
 
 static DEFINE_SPINLOCK(fib_info_lock);
+
 static struct hlist_head *fib_info_hash;
 static struct hlist_head *fib_info_laddrhash;
 static unsigned int fib_hash_size;
@@ -196,6 +197,7 @@ static __inline__ int nh_comp(const struct fib_info *fi, const struct fib_info *
 	return 0;
 }
 
+//fib_info对应的hash值
 static inline unsigned int fib_info_hashfn(const struct fib_info *fi)
 {
 	unsigned int mask = (fib_hash_size - 1);
@@ -374,6 +376,15 @@ int fib_detect_death(struct fib_info *fi, int order,
 
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
 
+/*
+ * inet_ioctl()
+ *  ip_rt_ioctl()
+ *   fn_hash_insert()
+ *    fib_create_info()
+ *     fib_count_nexthops()
+ *
+ * 多路由路径
+ */
 static int fib_count_nexthops(struct rtnexthop *rtnh, int remaining)
 {
 	int nhs = 0;
@@ -516,6 +527,12 @@ int fib_nh_match(struct fib_config *cfg, struct fib_info *fi)
 			  |-> {link prefix} -> (gw, oif) [scope local]
 						|
 						|-> {local prefix} (terminal node)
+ *
+ * inet_ioctl()
+ *  ip_rt_ioctl()
+ *   fn_hash_insert()
+ *    fib_create_info()
+ *     fib_check_nh()
  */
 
 static int fib_check_nh(struct fib_config *cfg, struct fib_info *fi,
@@ -531,16 +548,23 @@ static int fib_check_nh(struct fib_config *cfg, struct fib_info *fi,
 			return 0;
 #endif
 		if (nh->nh_flags&RTNH_F_ONLINK) {
+			
 			struct net_device *dev;
 
 			if (cfg->fc_scope >= RT_SCOPE_LINK)
 				return -EINVAL;
+			
 			if (inet_addr_type(nh->nh_gw) != RTN_UNICAST)
 				return -EINVAL;
+
+			//没有指定设备
 			if ((dev = __dev_get_by_index(&init_net, nh->nh_oif)) == NULL)
 				return -ENODEV;
+
+			//设备没有启动
 			if (!(dev->flags&IFF_UP))
 				return -ENETDOWN;
+			
 			nh->nh_dev = dev;
 			dev_hold(dev);
 			nh->nh_scope = RT_SCOPE_LINK;
@@ -566,10 +590,12 @@ static int fib_check_nh(struct fib_config *cfg, struct fib_info *fi,
 		err = -EINVAL;
 		if (res.type != RTN_UNICAST && res.type != RTN_LOCAL)
 			goto out;
+		
 		nh->nh_scope = res.scope;
 		nh->nh_oif = FIB_RES_OIF(res);
 		if ((nh->nh_dev = FIB_RES_DEV(res)) == NULL)
 			goto out;
+		
 		dev_hold(nh->nh_dev);
 		err = -ENETDOWN;
 		if (!(nh->nh_dev->flags & IFF_UP))
@@ -587,6 +613,7 @@ out:
 		in_dev = inetdev_by_index(nh->nh_oif);
 		if (in_dev == NULL)
 			return -ENODEV;
+		
 		if (!(in_dev->dev->flags&IFF_UP)) {
 			in_dev_put(in_dev);
 			return -ENETDOWN;
@@ -626,6 +653,14 @@ static void fib_hash_free(struct hlist_head *hash, int bytes)
 		free_pages((unsigned long) hash, get_order(bytes));
 }
 
+/*
+ * inet_ioctl()
+ *  ip_rt_ioctl()
+ *   fn_hash_insert()
+ *    fib_create_info()
+ *     fib_hash_move()
+ *移动fib_info到新的hash表
+ */
 static void fib_hash_move(struct hlist_head *new_info_hash,
 			  struct hlist_head *new_laddrhash,
 			  unsigned int new_size)
@@ -650,6 +685,7 @@ static void fib_hash_move(struct hlist_head *new_info_hash,
 
 			hlist_del(&fi->fib_hash);
 
+            //fib_info对应的hash值
 			new_hash = fib_info_hashfn(fi);
 			dest = &new_info_hash[new_hash];
 			hlist_add_head(&fi->fib_hash, dest);
@@ -686,7 +722,8 @@ static void fib_hash_move(struct hlist_head *new_info_hash,
  * inet_ioctl()
  *  ip_rt_ioctl()
  *   fn_hash_insert()
- *    fib_create_info
+ *    fib_create_info()
+ * 创建fib_info对象，添加到fib_info_hash中去
  */
 struct fib_info *fib_create_info(struct fib_config *cfg)
 {
@@ -701,6 +738,8 @@ struct fib_info *fib_create_info(struct fib_config *cfg)
 
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
 	if (cfg->fc_mp) {
+
+	    //一共多少个fib_nh对象
 		nhs = fib_count_nexthops(cfg->fc_mp, cfg->fc_mp_len);
 		if (nhs == 0)
 			goto err_inval;
@@ -716,16 +755,20 @@ struct fib_info *fib_create_info(struct fib_config *cfg)
 
 		if (!new_size)
 			new_size = 1;
+		
 		bytes = new_size * sizeof(struct hlist_head *);
 		new_info_hash = fib_hash_alloc(bytes);
 		new_laddrhash = fib_hash_alloc(bytes);
+		
 		if (!new_info_hash || !new_laddrhash) {
+			
 			fib_hash_free(new_info_hash, bytes);
 			fib_hash_free(new_laddrhash, bytes);
 		} else {
 			memset(new_info_hash, 0, bytes);
 			memset(new_laddrhash, 0, bytes);
 
+			//移动到新的hash表中
 			fib_hash_move(new_info_hash, new_laddrhash, new_size);
 		}
 
@@ -733,6 +776,7 @@ struct fib_info *fib_create_info(struct fib_config *cfg)
 			goto failure;
 	}
 
+    //分配fib_info和fib_nh对象
 	fi = kzalloc(sizeof(*fi)+nhs*sizeof(struct fib_nh), GFP_KERNEL);
 	if (fi == NULL)
 		goto failure;
@@ -742,8 +786,9 @@ struct fib_info *fib_create_info(struct fib_config *cfg)
 	fi->fib_flags = cfg->fc_flags;
 	fi->fib_priority = cfg->fc_priority;
 	fi->fib_prefsrc = cfg->fc_prefsrc;
-
 	fi->fib_nhs = nhs;
+
+	//设置fib_nh->nh_parent==fi
 	change_nexthops(fi) {
 		nh->nh_parent = fi;
 	} endfor_nexthops(fi)
@@ -752,6 +797,7 @@ struct fib_info *fib_create_info(struct fib_config *cfg)
 		struct nlattr *nla;
 		int remaining;
 
+        //遍历nlattr
 		nla_for_each_attr(nla, cfg->fc_mx, cfg->fc_mx_len, remaining) {
 			int type = nla_type(nla);
 
@@ -767,11 +813,14 @@ struct fib_info *fib_create_info(struct fib_config *cfg)
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
 		err = fib_get_nhs(fi, cfg->fc_mp, cfg->fc_mp_len, cfg);
 		if (err != 0)
-			goto failure;
+			goto failure;
+			
 		if (cfg->fc_oif && fi->fib_nh->nh_oif != cfg->fc_oif)
 			goto err_inval;
+		
 		if (cfg->fc_gw && fi->fib_nh->nh_gw != cfg->fc_gw)
 			goto err_inval;
+		
 #ifdef CONFIG_NET_CLS_ROUTE
 		if (cfg->fc_flow && fi->fib_nh->nh_tclassid != cfg->fc_flow)
 			goto err_inval;
@@ -809,12 +858,14 @@ struct fib_info *fib_create_info(struct fib_config *cfg)
 		if (nhs != 1 || nh->nh_gw)
 			goto err_inval;
 		nh->nh_scope = RT_SCOPE_NOWHERE;
+		//网络设备对象
 		nh->nh_dev = dev_get_by_index(&init_net, fi->fib_nh->nh_oif);
 		err = -ENODEV;
 		if (nh->nh_dev == NULL)
 			goto failure;
 	} else {
 		change_nexthops(fi) {
+			
 			if ((err = fib_check_nh(cfg, fi, nh)) != 0)
 				goto failure;
 		} endfor_nexthops(fi)
@@ -838,8 +889,10 @@ link_it:
 	fi->fib_treeref++;
 	atomic_inc(&fi->fib_clntref);
 	spin_lock_bh(&fib_info_lock);
+	//添加fib_info到fib_info_hash[]中去
 	hlist_add_head(&fi->fib_hash,
 		       &fib_info_hash[fib_info_hashfn(fi)]);
+	
 	if (fi->fib_prefsrc) {
 		struct hlist_head *head;
 
@@ -885,6 +938,7 @@ int fib_semantic_match(struct list_head *head, const struct flowi *flp,
 	struct fib_alias *fa;
 	int nh_sel = 0;
 
+    //取出fib_alias来进行匹配
 	list_for_each_entry_rcu(fa, head, fa_list) {
 		int err;
 

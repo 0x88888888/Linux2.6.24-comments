@@ -126,6 +126,8 @@ enum {
  * |   (struct nlattr)   | ing |                   | ing |
  * +---------------------+- - -+- - - - - - - - - -+- - -+
  *  <-------------- nlattr->nla_len -------------->
+ *
+ * fib_config中的成员
  */
 
 struct nlattr

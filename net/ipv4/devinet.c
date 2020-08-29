@@ -994,6 +994,8 @@ out:
  * ip_route_input_slow()
  *  inet_select_addr()
  *
+ * 在发送arp请求时，若产生请求的主机有多个ip地址时，
+ * 通过该函数获取到最佳的ip地址。
  */
 __be32 inet_select_addr(const struct net_device *dev, __be32 dst, int scope)
 {
@@ -1001,23 +1003,30 @@ __be32 inet_select_addr(const struct net_device *dev, __be32 dst, int scope)
 	struct in_device *in_dev;
 
 	rcu_read_lock();
+	
+	//获取该设备对应的ip地址
 	in_dev = __in_dev_get_rcu(dev);
 	if (!in_dev)
 		goto no_in_dev;
 
     /*
-     * 遍历in_device->ifa_list上的ip地址
+     * 遍历in_device->ifa_list上的primary ip地址(in_dev->ifa_list)
 	 */
 	for_primary_ifa(in_dev) {
+	    /*进行scope判断，若primary地址的scope大于传递过来的scope值，则继续循环*/
 		if (ifa->ifa_scope > scope)
 			continue;
+		/*1、若目的地址为空，则直接选择该primary ip地址
+		  2、该primary ip地址与dst地址在同一个子网内，则将ip地址赋值给addr，程序返回*/
 		
 		if (!dst || inet_ifa_match(dst, ifa)) {
 			addr = ifa->ifa_local;
 			break;
 		}
+		/*将第一个primary ip地址作为默认选择地址*/
 		if (!addr)
 			addr = ifa->ifa_local;
+		
 	} endfor_ifa(in_dev);
 no_in_dev:
 	rcu_read_unlock();

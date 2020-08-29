@@ -285,14 +285,18 @@ enum rtattr_type_t
  *
  * At the moment it is impossible to set different prefsrc, mtu, window
  * and rtt for different paths from multipath.
+ *
+ * fib_count_nexthops中遍历
+ *
+ * 这个结构的信息将被设置到fib_nh对象中
  */
 
 struct rtnexthop
 {
-	unsigned short		rtnh_len;
-	unsigned char		rtnh_flags;
-	unsigned char		rtnh_hops;
-	int			rtnh_ifindex;
+	unsigned short		rtnh_len;    // 指定的跳转结构长度
+	unsigned char		rtnh_flags;  // 指定的跳转次数
+	unsigned char		rtnh_hops;   // 指定的跳转次数
+	int			rtnh_ifindex;        // 指定的跳转设备
 };
 
 /* rtnh_flags */

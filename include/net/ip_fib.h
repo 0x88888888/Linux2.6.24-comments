@@ -51,6 +51,7 @@ struct fib_config {
 	u32			fc_priority;
 	//prefer 源地址，暂不知道用途
 	__be32			fc_prefsrc;
+	//MSS,MTU等等之类的属性信息
 	struct nlattr		*fc_mx;
 	struct rtnexthop	*fc_mp;
 	int			fc_mx_len;
@@ -64,10 +65,12 @@ struct fib_info;
 
 /*
  * 表示下一跳信息
+ *
+ * 在fib_create_info中分配，分配的fib_nh时候,紧接着fib_info对象的
  */
 struct fib_nh {
 
-	struct net_device	*nh_dev;    // 设备
+	struct net_device	*nh_dev;    // 网卡设备
 	struct hlist_node	nh_hash;    // 链接到fib_info_devhash中
 	struct fib_info		*nh_parent;
 	//RTNH_F_DEAD, RTNH_F_PERVASIVE, RTNH_F_ONLINK
@@ -119,12 +122,13 @@ struct fib_info {
 	int			fib_protocol;    // 协议
 	__be32			fib_prefsrc; // 首选源地址信息
 	u32			fib_priority;    // 路由的优先级，值越小，优先级越高.
-	u32			fib_metrics[RTAX_MAX];  // 参数
-#define fib_mtu fib_metrics[RTAX_MTU-1]
-#define fib_window fib_metrics[RTAX_WINDOW-1]
-#define fib_rtt fib_metrics[RTAX_RTT-1]
-#define fib_advmss fib_metrics[RTAX_ADVMSS-1]
-	int			fib_nhs;
+	u32			fib_metrics[RTAX_MAX];  // 参数,用来保存MTU,MSS等内容
+	
+#define fib_mtu fib_metrics[RTAX_MTU-1] // MTU值
+#define fib_window fib_metrics[RTAX_WINDOW-1] //窗口值
+#define fib_rtt fib_metrics[RTAX_RTT-1] //RTT值
+#define fib_advmss fib_metrics[RTAX_ADVMSS-1] // 对外公开的MSS值
+	int			fib_nhs; // fib_nh[]中对象的数量
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
 /*
  * 当支持多路径时,有用
@@ -145,18 +149,26 @@ struct fib_rule;
  * 对路由表查找后返回该结构。
  */
 struct fib_result {
-    // 匹配路由的前缀长度
+    /*掩码长度*/
 	unsigned char	prefixlen;
-	//多路径路由由多个下一跳定义
+	/*fib_info变量中的下一跳网关变量的index，根据该index值与struct fib_info结构
+
+类型的变量，就能够找到struct fib_nh结构的变量，从而就能夠获取下一跳
+
+网关相关的属性*/
 	unsigned char	nh_sel;
+	/*路由项的类型:为RTN_MULTICAST、RTN_UNICAST、RTN_BROADCAST等*/
     //下面两个字段从fib_alias->fa_type, fib_alias->fa_scope中取值
 	unsigned char	type;
+	
+	/*路由项的scope:取值为RT_SCOPE_UNIVERSE、RT_SCOPE_LINK等*/
 	unsigned char	scope;
 
 	//与匹配的fib_alias实例相关的fib_info
 	struct fib_info *fi;
 #ifdef CONFIG_IP_MULTIPLE_TABLES
-    
+
+	/*指向关联的fib_rule结构的变量，用于策略路由*/
 	struct fib_rule	*r;
 #endif
 };
@@ -204,17 +216,21 @@ struct fib_result_nl {
  *
  * 路由表、路由项、别名对象层次结构信息
  * fib_table
- *  fn_zone
- *   fn_zone->fz_hash[]->fn_hash
- *    fib_node
- *     fib_node->fn_alias
- *      fib_info
- *       fib_nh 
+ *  fn_hash
+ *   fn_zone[33]
+ *    fn_zone->fz_hash[]->fn_hash
+ *     fib_node
+ *      fib_node->fn_alias
+ *       fib_info
+ *        fib_nh 
  *
  * 路由缓存rtable 存放在rt_hash_table中
+ * fib_table在函数fib_hash_init()中分配
+ *
+ * 在fib_hash_init()中创建fib_table
  */
 struct fib_table {
-    /* 负载成员，用于将所有的fib_table链接起来 */
+    /* 使用hash链表將多個路由表变量链接在一起 */
 	struct hlist_node tb_hlist;	
 	/*tb_id字段是表的id，如果配置了多个表，它的值在1到255之间。如果没有配置多个表，则只会RT_TABLE_MAIN或RT_TABLE_LOCAL，tb_stamp目前没有使用。*/ 
 	u32		tb_id;
@@ -259,7 +275,7 @@ struct fib_table {
 	 *
 	 * 如果是用hash方式实现，就存储fn_hash对象
 	 * 
-	 * tb_data存fn_hash对象数组
+	 * tb_data存fn_hash对象数组,fn_hash中存储fn_zone对象
 	 *
 	 * 看fn_hash_insert操作
 	 */
@@ -282,9 +298,13 @@ static inline struct fib_table *fib_get_table(u32 id)
 {
 	if (id != RT_TABLE_LOCAL)
 		return ip_fib_main_table;
+	
 	return ip_fib_local_table;
 }
 
+/*
+ * 查找或者创建table_id==id的 fib_table对象
+ */
 static inline struct fib_table *fib_new_table(u32 id)
 {
 	return fib_get_table(id);
@@ -303,6 +323,8 @@ static inline struct fib_table *fib_new_table(u32 id)
  *   __ip_route_output_key()
  *    ip_route_output_slow()
  *     fib_lookup()
+ *
+ * 非策略路由的查找
  */
 static inline int fib_lookup(const struct flowi *flp, struct fib_result *res)
 {
@@ -314,6 +336,8 @@ static inline int fib_lookup(const struct flowi *flp, struct fib_result *res)
       * 再查询main路由表,ip_fib_main_table->tb_lookup ，这个是咱们设置路由或路由daemon设置的路由表 
       *
       * tb_lookup == fn_hash_lookup或者fn_trie_lookup
+      *
+      * 在ip_fib_local_table和ip_fib_main_table中查找，属于非策略路由
       */
 	if (ip_fib_local_table->tb_lookup(ip_fib_local_table, flp, res) &&
 	    ip_fib_main_table->tb_lookup(ip_fib_main_table, flp, res))

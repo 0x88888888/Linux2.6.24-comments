@@ -59,7 +59,7 @@ static struct kmem_cache *fn_alias_kmem __read_mostly;
  */
 struct fib_node {
 	struct hlist_node	fn_hash;  //链接到fn_zone->fz_hash[]->fn_hash
-	struct list_head	fn_alias; //链接到fib_alias对象
+	struct list_head	fn_alias; //链接到fib_alias->fa_list,一个fib_node对应多个fib_alias对象
 	//
 	__be32			fn_key;
 };
@@ -108,6 +108,8 @@ struct fn_zone {
 路由1存储在fn_zones[0]中，路由2存储在fn_zones[24]，路由3存储在fn_zones[32]中。
 那么此时的fn_zone_list指向的是fn_zones[32]，完整的链表为
 fn_zone_list(即fn_zones[32]).next->fn_zones[24]->fn_zones[0]。
+*
+* 值fib_hash_init中分配
  */
 struct fn_hash {
 	struct fn_zone	*fn_zones[33];
@@ -241,6 +243,7 @@ static struct fn_zone *
 fn_new_zone(struct fn_hash *table, int z)
 {
 	int i;
+	//分配fn_zone对象
 	struct fn_zone *fz = kzalloc(sizeof(struct fn_zone), GFP_KERNEL);
 	if (!fz)
 		return NULL;
@@ -251,6 +254,7 @@ fn_new_zone(struct fn_hash *table, int z)
 		fz->fz_divisor = 1;
 	}
 	fz->fz_hashmask = (fz->fz_divisor - 1);
+	//分配hash bucket
 	fz->fz_hash = fz_hash_alloc(fz->fz_divisor);
 	if (!fz->fz_hash) {
 		kfree(fz);
@@ -283,7 +287,17 @@ fn_new_zone(struct fn_hash *table, int z)
  * fib_lookup()
  *  fn_hash_looku()
  *
- * 查找
+ * ip_queue_xmit()
+ *  ip_route_output_flow()
+ *   __ip_route_output_key()
+ *    ip_route_output_slow()
+ *	   fib_lookup()
+ *      fib_rules_lookup( ops == fib4_rules_ops)
+ *       fib4_rule_action()
+ *        fn_hash_lookup()
+ * 
+ * (即進行最長掩碼匹配查找，先從掩碼最大的fn_zone變量開始進行路由項匹配，
+ * 只有在不匹配時纔會繼續遍歷掩碼長度次之的fn_zone變量)
  */
 static int
 fn_hash_lookup(struct fib_table *tb, const struct flowi *flp, struct fib_result *res)
@@ -302,7 +316,7 @@ fn_hash_lookup(struct fib_table *tb, const struct flowi *flp, struct fib_result 
 		struct fib_node *f;
 		/* 计算key，实际就是dst的网络部分 */
 		__be32 k = fz_key(flp->fl4_dst, fz);
-        /* 计算hash */
+        /* 计算hash，找到对应的fn_hash */
 		head = &fz->fz_hash[fn_hash(k, fz)];
 		/* 在桶中遍历所有路由条目 */
 		hlist_for_each_entry(f, node, head, fn_hash) {
@@ -445,6 +459,9 @@ static struct fib_node *fib_find_node(struct fn_zone *fz, __be32 key)
  * inet_ioctl()
  *  ip_rt_ioctl()
  *   fn_hash_insert()
+ *
+ * inet_rtm_newroute()
+ *  fn_hash_insert()
  */
 static int fn_hash_insert(struct fib_table *tb, struct fib_config *cfg)
 {
@@ -475,7 +492,7 @@ static int fn_hash_insert(struct fib_table *tb, struct fib_config *cfg)
 		key = fz_key(cfg->fc_dst, fz);
 	}
 
-    //创建fib_info
+    //创建fib_info对象，添加到fib_info_hash中去
 	fi = fib_create_info(cfg);
 	if (IS_ERR(fi))
 		return PTR_ERR(fi);
@@ -484,7 +501,7 @@ static int fn_hash_insert(struct fib_table *tb, struct fib_config *cfg)
 	    fz->fz_divisor < FZ_MAX_DIVISOR &&
 	    (cfg->fc_dst_len == 32 ||
 	     (1 << cfg->fc_dst_len) > fz->fz_divisor))
-		fn_rehash_zone(fz);
+		fn_rehash_zone(fz);//重建hash表
 
     //查找对应的路由项 fib_node
 	f = fib_find_node(fz, key);
@@ -537,7 +554,8 @@ static int fn_hash_insert(struct fib_table *tb, struct fib_config *cfg)
 			fib_release_info(fi_drop);
 			if (state & FA_S_ACCESSED)
 				rt_cache_flush(-1);
-			
+
+			//通知
 			rtmsg_fib(RTM_NEWROUTE, key, fa, cfg->fc_dst_len, tb->tb_id,
 				  &cfg->fc_nlinfo, NLM_F_REPLACE);
 			return 0;
@@ -577,7 +595,7 @@ static int fn_hash_insert(struct fib_table *tb, struct fib_config *cfg)
 
 	err = -ENOBUFS;
 
-	//到此说明fib_node->alias中不存在符合要insert的配置
+	//到此说明fib_node->alias中不存在符合要insert的fib_alias，要重新创建
 	new_fa = kmem_cache_alloc(fn_alias_kmem, GFP_KERNEL);
 	if (new_fa == NULL)
 		goto out;
@@ -639,6 +657,8 @@ out:
  *
  * fib_flush()
  *  fn_hash_delete()
+ *
+ * 
  */
 static int fn_hash_delete(struct fib_table *tb, struct fib_config *cfg)
 {
@@ -714,9 +734,9 @@ static int fn_hash_delete(struct fib_table *tb, struct fib_config *cfg)
 		write_unlock_bh(&fib_hash_lock);
 
 		if (fa->fa_state & FA_S_ACCESSED)
-			rt_cache_flush(-1);
+			rt_cache_flush(-1); //释放rt_hash_table[]中的rtable路由缓存对象
 		
-		fn_free_alias(fa);
+		fn_free_alias(fa);//释放fib_alias对象
 		if (kill_fn) {
 			fn_free_node(f);
 			fz->fz_nent--;
@@ -897,6 +917,7 @@ struct fib_table * __init fib_hash_init(u32 id)
 						  0, SLAB_HWCACHE_ALIGN,
 						  NULL);
 
+
 	tb = kmalloc(sizeof(struct fib_table) + sizeof(struct fn_hash),
 		     GFP_KERNEL);
 	if (tb == NULL)
@@ -909,6 +930,7 @@ struct fib_table * __init fib_hash_init(u32 id)
 	tb->tb_flush = fn_hash_flush;
 	tb->tb_select_default = fn_hash_select_default;
 	tb->tb_dump = fn_hash_dump;
+	
 	memset(tb->tb_data, 0, sizeof(struct fn_hash));
 	return tb;
 }

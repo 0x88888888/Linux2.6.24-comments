@@ -136,6 +136,7 @@ static unsigned long rt_deadline;
 
 #define RTprint(a...)	printk(KERN_DEBUG a)
 
+//在ip_rt_init中设置为rt_flush_timer.function == rt_run_flush
 static struct timer_list rt_flush_timer;
 static void rt_check_expire(struct work_struct *work);
 static DECLARE_DELAYED_WORK(expires_work, rt_check_expire);
@@ -203,7 +204,8 @@ const __u8 ip_tos2prio[16] = {
  *    they do so with atomic increments and with the
  *    lock held.
  *
- * 管理路由表项的链表
+ * 管理路由缓存表项的链表
+ * 路由缓存(rtable)的全局对象为rt_hash_table
  */
 struct rt_hash_bucket {
 	struct rtable	*chain;
@@ -626,6 +628,8 @@ static void rt_check_expire(struct work_struct *work)
  *    rt_run_flush(0)
  *
  * 刷新一次路由缓存
+ *
+ * 在ip_rt_init中设置为rt_flush_timer.function == rt_run_flush
  */
 static void rt_run_flush(unsigned long dummy)
 {
@@ -638,12 +642,15 @@ static void rt_run_flush(unsigned long dummy)
 
 	for (i = rt_hash_mask; i >= 0; i--) {
 		spin_lock_bh(rt_hash_lock_addr(i));
-		
+
+	    //得到rt_hash_table[i]的头
 		rth = rt_hash_table[i].chain;
 		if (rth)
 			rt_hash_table[i].chain = NULL;
+		
 		spin_unlock_bh(rt_hash_lock_addr(i));
 
+        //rcu去这个释放rtable
 		for (; rth; rth = next) {
 			next = rth->u.dst.rt_next;
 			rt_free(rth); //释放掉
@@ -657,6 +664,12 @@ static DEFINE_SPINLOCK(rt_flush_lock);
  * devinet_sysctl_forward()
  *  inet_forward_change()
  *   rt_cache_flush()
+ *
+ * fn_hash_insert()
+ *  rt_cache_flush()
+ *
+ * fn_hash_delete()
+ *  rt_cache_flush(-1)
  */
 void rt_cache_flush(int delay)
 {
@@ -668,6 +681,7 @@ void rt_cache_flush(int delay)
 
 	spin_lock_bh(&rt_flush_lock);
 
+    //在ip_rt_init中设置为rt_flush_timer.function == rt_run_flush
 	if (del_timer(&rt_flush_timer) && delay > 0 && rt_deadline) {
 		long tmo = (long)(rt_deadline - now);
 
@@ -685,7 +699,7 @@ void rt_cache_flush(int delay)
 			delay = tmo;
 	}
 
-	if (delay <= 0) {
+	if (delay <= 0) { //同步删除
 		spin_unlock_bh(&rt_flush_lock);
 		rt_run_flush(0);
 		return;
@@ -1532,6 +1546,19 @@ static void set_class_tag(struct rtable *rt, u32 tag)
 }
 #endif
 
+/*
+ * ip_route_input_slow()
+ *	ip_mkroute_input()
+ *   __mkroute_input()
+ *    rt_set_nexthop()
+ *
+ * ip_route_output_slow()
+ *  ip_mkroute_output()
+ *   __mkroute_output()
+ *    rt_set_nexthop()
+ *
+ * 设置rt.u.dest.metrics[]信息
+ */
 static void rt_set_nexthop(struct rtable *rt, struct fib_result *res, u32 itag)
 {
 	struct fib_info *fi = res->fi;
@@ -1710,6 +1737,12 @@ static void ip_handle_martian_source(struct net_device *dev,
  *	  ip_route_input_slow
  *	   ip_mkroute_input
  *      __mkroute_input
+ *
+ * 输入路由缓存项
+ *
+ * 创建的路由緩存項是一個输入转发路由缓存项，即接口接收到一个数据包，
+ * 通过查找路由確定是需要转发时，则会调用该函数调用输入路由缓存项，
+ * 其input函數设置为 ip_forward，其output函数为，ip_output
  */
 static inline int __mkroute_input(struct sk_buff *skb,
 				  struct fib_result* res,
@@ -1734,6 +1767,13 @@ static inline int __mkroute_input(struct sk_buff *skb,
 		return -EINVAL;
 	}
 
+
+	/*
+	 * 路由合法性检查，当调用该函数前，已经找到了一个从saddr->daddr的路由项，
+	 * 而该函數的功能是创建該路由项对应的路由緩存。但是创建路由緩存之前，
+	 * 我們需要对该路由項進行合法性檢查，即判断daddr->saddr的反向路由是否存在，
+	 * 若不存在，則说明从saddr->daddr的路由是有问题的，则该函数会返回错误
+	 */
 
 	err = fib_validate_source(saddr, daddr, tos, FIB_RES_OIF(*res),
 				  in_dev->dev, &spec_dst, &itag);
@@ -1777,11 +1817,13 @@ static inline int __mkroute_input(struct sk_buff *skb,
 	rth->u.dst.flags= DST_HOST;
 	if (IN_DEV_CONF_GET(in_dev, NOPOLICY))
 		rth->u.dst.flags |= DST_NOPOLICY;
+	
 	if (IN_DEV_CONF_GET(out_dev, NOXFRM))
 		rth->u.dst.flags |= DST_NOXFRM;
 	
 	rth->fl.fl4_dst	= daddr;
 	rth->rt_dst	= daddr;
+	
 	rth->fl.fl4_tos	= tos;
 	rth->fl.mark    = skb->mark;
 	rth->fl.fl4_src	= saddr;
@@ -1901,6 +1943,9 @@ static int ip_route_input_slow(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 
 	/* Check for the most weird martians, which can be not detected
 	   by fib_lookup.
+	 * 
+	 * 当源ip地址为組播、广播或者环回地址，则返回错误。
+	 * 
 	 */
 
 	if (MULTICAST(saddr) || BADCLASS(saddr) || LOOPBACK(saddr))
@@ -1924,7 +1969,7 @@ static int ip_route_input_slow(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 	 *	Now we are ready to route packet.
 	 *  根据fl查询路由表，并把查询得到的结果返回到res参数中
 	 *
-	 * 在ip_fib.h中
+	 * 在ip_fib.h中,策略路由 在fib_rules.c中
 	 */
 	if ((err = fib_lookup(&fl, &res)) != 0) {
 		if (!IN_DEV_FORWARD(in_dev))  /*没找到，先判断转发标志是否打开*/
@@ -1948,8 +1993,7 @@ static int ip_route_input_slow(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 		int result;
 		/*如果是发给本机的包，则验证原地址是否合法*/
 		result = fib_validate_source(saddr, daddr, tos,
-					     init_net.loopback_dev->ifindex,
-					     dev, &spec_dst, &itag);
+					     init_net.loopback_dev->ifindex, dev, &spec_dst, &itag);
 		if (result < 0)
 			goto martian_source;
 		if (result)
@@ -1977,7 +2021,7 @@ brd_input:
 	if (skb->protocol != htons(ETH_P_IP))
 		goto e_inval;
 
-	if (ZERONET(saddr))
+	if (ZERONET(saddr)) //选择ip地址
 		spec_dst = inet_select_addr(dev, 0, RT_SCOPE_LINK);
 	else {
 		err = fib_validate_source(saddr, 0, tos, 0, dev, &spec_dst,
@@ -2021,7 +2065,7 @@ local_input:
 	rth->idev	= in_dev_get(rth->u.dst.dev);
 	rth->rt_gateway	= daddr;
 	rth->rt_spec_dst= spec_dst;
-	                  /* 设置转发到上层协议的处理函数 */
+    /* 设置转发到上层协议的处理函数 */
 	rth->u.dst.input= ip_local_deliver; 
 	rth->rt_flags 	= flags|RTCF_LOCAL;
 	if (res.type == RTN_UNREACHABLE) {
@@ -2032,7 +2076,7 @@ local_input:
 	rth->rt_type	= res.type;
 	/* 计算缓存表的hash值，寻找入口 */
 	hash = rt_hash(daddr, saddr, fl.iif);
-	/* 调用rt_intern_hash插入路由表项 */
+	/* 调用rt_intern_hash插入路由表项到rt_hash_table[]中 */
 	err = rt_intern_hash(hash, rth, (struct rtable**)&skb->dst); 
 	goto done;
 
@@ -2081,6 +2125,8 @@ martian_source:
  *
  * arp_process()
  *  ip_route_input()
+ *
+ * 输入路由查找
  */
 int ip_route_input(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 		   u8 tos, struct net_device *dev)
@@ -2127,7 +2173,7 @@ int ip_route_input(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 	   Note, that multicast routers are not affected, because
 	   route cache entry is created eventually.
 	 *
-	 * ip层多播地址
+	 *  路由緩存沒有命中，且目的地址为組播地址时，则进入組播处理流程
 	 */
 	if (MULTICAST(daddr)) {
 		struct in_device *in_dev;
@@ -2154,7 +2200,7 @@ int ip_route_input(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 	}
 
 	/*
-	 * 如果路由缓存中查找不到匹配的表项，就需要转到路由表中去查找了
+	 * 如果路由缓存中查找不到匹配的表项，又不是组播地址时，就需要转到路由表中去查找了
 	 * ip_fib_local_table, ip_fib_main_table
 	 */
 	return ip_route_input_slow(skb, daddr, saddr, tos, dev);
@@ -2167,6 +2213,11 @@ int ip_route_input(struct sk_buff *skb, __be32 daddr, __be32 saddr,
  *	  ip_route_output_slow()
  *	   ip_mkroute_output()
  *      __mkroute_output()
+ *
+ * 功能:創建一個輸入路由緩存項。
+ * 1.對路由項的類型進行判斷，並執行相應的判斷。
+ * 2.調用dst_alloc創建路由緩存項
+ * 3.設置路由緩存的輸出函數指針 
  */
 static inline int __mkroute_output(struct rtable **result,
 				   struct fib_result* res,
@@ -2464,7 +2515,7 @@ static int ip_route_output_slow(struct rtable **rp, const struct flowi *oldflp)
 
 	
 	/* 根据fl查找到路由表,并把查询得到结果返回到res参数中 
-	 * 在ip_fib.h中
+	 * 在fib_rules.c中
 	 */
 	if (fib_lookup(&fl, &res)) {
 		res.fi = NULL;
@@ -2521,6 +2572,19 @@ static int ip_route_output_slow(struct rtable **rp, const struct flowi *oldflp)
 		fib_select_multipath(&fl, &res);
 	else
 #endif
+
+	/*
+	
+	同时满足以下三種情況时，总会调用函數fib_select_default查找默认路由
+	
+	1.查找的路由項的掩码为0
+	
+	2.查找的路由項的类型为RTN_UNICAST
+	
+	3.查找的路由項的出口设备值为空
+	
+	*/
+
 	if (!res.prefixlen && res.type == RTN_UNICAST && !fl.oif)
 		fib_select_default(&fl, &res);
 
@@ -3270,6 +3334,7 @@ int __init ip_rt_init(void)
 	ip_fib_init();
 
 	init_timer(&rt_flush_timer);
+	
 	rt_flush_timer.function = rt_run_flush;
 	init_timer(&rt_secret_timer);
 	rt_secret_timer.function = rt_secret_rebuild;

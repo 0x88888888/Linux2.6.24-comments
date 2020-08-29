@@ -51,13 +51,18 @@
 
 static struct sock *fibnl;
 
+/*
+ * 在4.19中，这个定义为CONFIG_IP_MULTIPLE_TABLES=y
+ * 那下面这段代码就不在编译范围内了
+ */
 #ifndef CONFIG_IP_MULTIPLE_TABLES
 
-//系统内中的两张路由表
+//系统内中的两张路由表，非策略路由
 struct fib_table *ip_fib_local_table;
 struct fib_table *ip_fib_main_table;
 
 #define FIB_TABLE_HASHSZ 1
+//存放fib_table,策略路由
 static struct hlist_head fib_table_hash[FIB_TABLE_HASHSZ];
 
 /*
@@ -123,10 +128,13 @@ struct fib_table *fib_get_table(u32 id)
 
 	if (id == 0)
 		id = RT_TABLE_MAIN;
+	
 	h = id & (FIB_TABLE_HASHSZ - 1);
+	
 	rcu_read_lock();
+	//遍历fib_table_hash
 	hlist_for_each_entry_rcu(tb, node, &fib_table_hash[h], tb_hlist) {
-		if (tb->tb_id == id) {
+		if (tb->tb_id == id) { //找到fib_table对象
 			rcu_read_unlock();
 			return tb;
 		}
@@ -322,6 +330,12 @@ static int put_rtax(struct nlattr *mx, int len, int type, u32 value)
 	return len + nla_total_size(4);
 }
 
+/*
+ * inet_ioctl()
+ *  ip_rt_ioctl()
+ *   rtentry_to_fib_config()
+ * 将rtentry转成fib_config对象
+ */
 static int rtentry_to_fib_config(int cmd, struct rtentry *rt,
 				 struct fib_config *cfg)
 {
@@ -472,6 +486,7 @@ int ip_rt_ioctl(unsigned int cmd, void __user *arg)
 			return -EFAULT;
 
 		rtnl_lock();
+		//将用户传过来的参数转化成fib_config对象
 		err = rtentry_to_fib_config(cmd, &rt, &cfg);
 		if (err == 0) {
 			struct fib_table *tb;
@@ -544,6 +559,7 @@ static int rtm_to_fib_config(struct sk_buff *skb, struct nlmsghdr *nlh,
 		goto errout;
 	}
 
+    //设置fib_config的一些属性
 	nlmsg_for_each_attr(attr, nlh, sizeof(struct rtmsg), remaining) {
 		switch (nla_type(attr)) {
 		case RTA_DST:
@@ -1000,7 +1016,11 @@ void __init ip_fib_init(void)
 	for (i = 0; i < FIB_TABLE_HASHSZ; i++)
 		INIT_HLIST_HEAD(&fib_table_hash[i]);
 
-    //LOCAL, MAIN两张路由表(策略路由)初始化，
+    /*
+     * 在net/ipv4/fib_rules.c中
+     *
+     * local,main,default三个路由规则添加到fib4_rules_ops->rules_list
+     */ 
 	fib4_rules_init();
 
     /*register a network notifier block，主要是设备状态改变*/

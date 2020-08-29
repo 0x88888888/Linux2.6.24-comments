@@ -21,7 +21,7 @@ struct net {
 	atomic_t		use_count;	/* To track references we
 						 * destroy on demand
 						 */
-	//链接到net_namespace_list上					 
+	//链接到net_namespace_list链表上					 
 	struct list_head	list;		/* 所有网络命名空间都链接在一个链表上，copy_net_ns向链表添加一个元素。 list of network namespaces */
 	struct work_struct	work;		/* work struct for freeing */
 
