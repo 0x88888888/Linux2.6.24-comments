@@ -284,7 +284,7 @@ struct fib_table {
 
 #ifndef CONFIG_IP_MULTIPLE_TABLES
 
-//系统中的两张路由表
+//系统中非策略路由时用的两张路由表
 extern struct fib_table *ip_fib_local_table;
 extern struct fib_table *ip_fib_main_table;
 
@@ -292,7 +292,8 @@ extern struct fib_table *ip_fib_main_table;
  * fib_magic()
  *  fib_new_table()
  *   fib_get_table()
- * 得到相应的路由表
+ *
+ * 非策略路由时,得到相应的路由表
  */
 static inline struct fib_table *fib_get_table(u32 id)
 {
@@ -346,13 +347,23 @@ static inline int fib_lookup(const struct flowi *flp, struct fib_result *res)
 	return 0;
 }
 
+/*
+ * ip_queue_xmit()
+ *  ip_route_output_flow()
+ *   __ip_route_output_key()
+ *    ip_route_output_slow()
+ *     fib_select_default()
+ * 非策略路由，选择默认路由条目
+ */
 static inline void fib_select_default(const struct flowi *flp, struct fib_result *res)
 {
 	if (FIB_RES_GW(*res) && FIB_RES_NH(*res).nh_scope == RT_SCOPE_LINK)
+		//fn_hash_select_default
 		ip_fib_main_table->tb_select_default(ip_fib_main_table, flp, res);
 }
 
 #else /* CONFIG_IP_MULTIPLE_TABLES */
+
 extern void __init fib4_rules_init(void);
 
 #ifdef CONFIG_NET_CLS_ROUTE

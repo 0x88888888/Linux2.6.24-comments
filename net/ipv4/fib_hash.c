@@ -239,6 +239,11 @@ static inline void fn_free_alias(struct fib_alias *fa)
 	kmem_cache_free(fn_alias_kmem, fa);
 }
 
+/*
+ * z为掩码位数
+ * fn_hash_insert()
+ *  fn_new_zone()
+ */
 static struct fn_zone *
 fn_new_zone(struct fn_hash *table, int z)
 {
@@ -261,6 +266,7 @@ fn_new_zone(struct fn_hash *table, int z)
 		return NULL;
 	}
 	memset(fz->fz_hash, 0, fz->fz_divisor * sizeof(struct hlist_head *));
+	//掩码长度
 	fz->fz_order = z;
 	fz->fz_mask = inet_make_mask(z);
 
@@ -268,6 +274,7 @@ fn_new_zone(struct fn_hash *table, int z)
 	for (i=z+1; i<=32; i++)
 		if (table->fn_zones[i])
 			break;
+		
 	write_lock_bh(&fib_hash_lock);
 	if (i>32) {
 		/* No more specific masks, we are the first. */
@@ -309,8 +316,10 @@ fn_hash_lookup(struct fib_table *tb, const struct flowi *flp, struct fib_result 
 
     //根据地址前缀匹配路由表项
 	read_lock(&fib_hash_lock);
+	
 	/* 按顺序从fn_zone中查找路由 */
 	for (fz = t->fn_zone_list; fz; fz = fz->fz_next) {
+		
 		struct hlist_head *head;
 		struct hlist_node *node;
 		struct fib_node *f;
@@ -343,6 +352,14 @@ out:
 
 static int fn_hash_last_dflt=-1;
 
+/*
+ * ip_queue_xmit()
+ *  ip_route_output_flow()
+ *   __ip_route_output_key()
+ *    ip_route_output_slow()
+ *     fib_select_default()
+ *      fn_hash_select_default()
+ */
 static void
 fn_hash_select_default(struct fib_table *tb, const struct flowi *flp, struct fib_result *res)
 {
@@ -362,21 +379,26 @@ fn_hash_select_default(struct fib_table *tb, const struct flowi *flp, struct fib
 	order = -1;
 
 	read_lock(&fib_hash_lock);
+	//遍历fn_zone->fz_hash[]
 	hlist_for_each_entry(f, node, &fz->fz_hash[0], fn_hash) {
 		struct fib_alias *fa;
-
+		
+        //遍历fib_node->fn_alias
 		list_for_each_entry(fa, &f->fn_alias, fa_list) {
 			struct fib_info *next_fi = fa->fa_info;
 
 			if (fa->fa_scope != res->scope ||
 			    fa->fa_type != RTN_UNICAST)
 				continue;
-
+			
+            //优先级太低了
 			if (next_fi->fib_priority > res->fi->fib_priority)
 				break;
+			
 			if (!next_fi->fib_nh[0].nh_gw ||
 			    next_fi->fib_nh[0].nh_scope != RT_SCOPE_LINK)
 				continue;
+			
 			fa->fa_state |= FA_S_ACCESSED;
 
 			if (fi == NULL) {
@@ -384,8 +406,10 @@ fn_hash_select_default(struct fib_table *tb, const struct flowi *flp, struct fib
 					break;
 			} else if (!fib_detect_death(fi, order, &last_resort,
 						     &last_idx, &fn_hash_last_dflt)) {
+				//找到		     
 				if (res->fi)
 					fib_info_put(res->fi);
+				
 				res->fi = fi;
 				atomic_inc(&fi->fib_clntref);
 				fn_hash_last_dflt = order;
@@ -686,7 +710,7 @@ static int fn_hash_delete(struct fib_table *tb, struct fib_config *cfg)
 
 	if (!f)
 		fa = NULL;
-	else
+	else //在fib_node->fn_alias中查找fib_alias
 		fa = fib_find_alias(&f->fn_alias, cfg->fc_tos, 0);
 	
 	if (!fa)

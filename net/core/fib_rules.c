@@ -105,6 +105,7 @@ int fib_rules_register(struct fib_rules_ops *ops)
 	if (ops->rule_size < sizeof(struct fib_rule))
 		return -EINVAL;
 
+    //这几个函数指针必须要设置
 	if (ops->match == NULL || ops->configure == NULL ||
 	    ops->compare == NULL || ops->fill == NULL ||
 	    ops->action == NULL)
@@ -199,6 +200,10 @@ out:
  *    ip_route_output_slow()
  *	   fib_lookup()
  *      fib_rules_lookup( ops == fib4_rules_ops)
+ *
+ * 策略路由对应的路由查找函数
+ *
+ * 遍历ops->rules_list,查找符合条件的fib_rule对象
  */ 
 int fib_rules_lookup(struct fib_rules_ops *ops, struct flowi *fl,
 		     int flags, struct fib_lookup_arg *arg)
@@ -211,13 +216,14 @@ int fib_rules_lookup(struct fib_rules_ops *ops, struct flowi *fl,
     //遍历fib4_rules_ops->rules_list上的fib_rule对象
 	list_for_each_entry_rcu(rule, &ops->rules_list, list) {
 jumped:
-	
+
+        //会调用ops->match(rule)去匹配
 		if (!fib_rule_match(rule, ops, fl, flags))
 			continue;
 
-		if (rule->action == FR_ACT_GOTO) {
+		if (rule->action == FR_ACT_GOTO) { //要转一下
 			struct fib_rule *target;
-
+            //转一下
 			target = rcu_dereference(rule->ctarget);
 			if (target == NULL) {
 				continue;
@@ -228,7 +234,7 @@ jumped:
 		} else if (rule->action == FR_ACT_NOP)
 			continue;
 		else          //action就是fib4_rule_action
-			err = ops->action(rule, fl, flags, arg);
+			err = ops->action(rule, fl, flags, arg); //rule->action == FR_ACT_TO_TBL才符合条件
 
 		if (err != -EAGAIN) {
 			fib_rule_get(rule);

@@ -993,6 +993,10 @@ static ctl_table brnf_net_table[] = {
 };
 #endif
 
+/*
+ * br_init()
+ *  br_netfilter_init()
+ */
 int __init br_netfilter_init(void)
 {
 	int ret;

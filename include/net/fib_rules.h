@@ -35,8 +35,9 @@ struct fib_rule
 	 * fib rule的action规则,包括FR_ACT_TO_TBL等
 	 */
 	u8			action; 
-	
+
 	u32			target;
+	//action == FR_ACT_GOTO时，跳转到用这个ctarget
 	struct fib_rule *	ctarget;
 	struct rcu_head		rcu;
 };

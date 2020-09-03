@@ -79,6 +79,7 @@ int fib_lookup(struct flowi *flp, struct fib_result *res)
 	int err;
 
 	err = fib_rules_lookup(&fib4_rules_ops, flp, 0, &arg);
+	//查找结果
 	res->r = arg.rule;
 
 	return err;
@@ -92,6 +93,8 @@ int fib_lookup(struct flowi *flp, struct fib_result *res)
  *	   fib_lookup()
  *      fib_rules_lookup( ops == fib4_rules_ops)
  *       fib4_rule_action()
+ *
+ * 返回0,表示没有出错
  */
 static int fib4_rule_action(struct fib_rule *rule, struct flowi *flp,
 			    int flags, struct fib_lookup_arg *arg)
@@ -130,12 +133,22 @@ errout:
 }
 
 
+/*
+ * ip_queue_xmit()
+ *  ip_route_output_flow()
+ *   __ip_route_output_key()
+ *    ip_route_output_slow()
+ *     fib_select_default()
+ *
+ * 策略路由,选择默认路由条目
+ */
 void fib_select_default(const struct flowi *flp, struct fib_result *res)
 {
 	if (res->r && res->r->action == FR_ACT_TO_TBL &&
 	    FIB_RES_GW(*res) && FIB_RES_NH(*res).nh_scope == RT_SCOPE_LINK) {
 		struct fib_table *tb;
 		if ((tb = fib_get_table(res->r->table)) != NULL)
+			//fn_hash_select_default
 			tb->tb_select_default(tb, flp, res);
 	}
 }
@@ -214,12 +227,12 @@ static int fib4_rule_configure(struct fib_rule *rule, struct sk_buff *skb,
 	if (frh->tos & ~IPTOS_TOS_MASK)
 		goto errout;
 
+    //创建新的fib_table
 	if (rule->table == RT_TABLE_UNSPEC) {
+		
 		if (rule->action == FR_ACT_TO_TBL) {
 			struct fib_table *table;
-
-
-
+            
 			table = fib_empty_table();
 			if (table == NULL) {
 				err = -ENOBUFS;
@@ -243,6 +256,7 @@ static int fib4_rule_configure(struct fib_rule *rule, struct sk_buff *skb,
 
 	rule4->src_len = frh->src_len;
 	rule4->srcmask = inet_make_mask(rule4->src_len);
+	
 	rule4->dst_len = frh->dst_len;
 	rule4->dstmask = inet_make_mask(rule4->dst_len);
 	rule4->tos = frh->tos;
@@ -252,6 +266,10 @@ errout:
 	return err;
 }
 
+/*
+ *
+ * 若相等，就返回1
+ */
 static int fib4_rule_compare(struct fib_rule *rule, struct fib_rule_hdr *frh,
 			     struct nlattr **tb)
 {
@@ -335,6 +353,9 @@ static void fib4_rule_flush_cache(void)
 	rt_cache_flush(-1);
 }
 
+/*
+ * 在fib_default_rules_init中添加fib_rule->pref为RT_TABLE_LOCAL, RT_TABLE_MAIN, RT_TABLE_DEFAULT的三个fib_rule对象
+ */
 static struct fib_rules_ops fib4_rules_ops = {
 	.family		= AF_INET,
 	.rule_size	= sizeof(struct fib4_rule),

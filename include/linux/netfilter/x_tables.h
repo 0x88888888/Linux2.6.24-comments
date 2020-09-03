@@ -8,6 +8,11 @@
  * 防火墙规则的匹配部分
  * ipt_entry_match
  *
+ * 我们使用到ipt_entry_match时，就说明这是一个扩展match，
+ * 对于一个标准match是通过调用函数ip_packet_match，
+ * 对ipt_entry->ip进行判断来实现的，
+ * 只有扩展match才会使用该结构体在ipt_entry中添加一个ipt_entry_match变量。
+ *
  * ipt_entry：标准匹配结构，主要包含数据包的源、目的IP，出、入接口和掩码等；
  * ipt_entry_match：扩展匹配。一条rule规则可能有零个或多个ipt_entry_match结构；
  * ipt_entry_target：一条rule规则有且仅有一个targe
@@ -19,15 +24,21 @@
 struct xt_entry_match
 {
 	union {
-		struct {
+		struct {					
+            /*该match所占用的内存大小(以字节为单位)*/
 			u_int16_t match_size;
 
 			/* Used by userspace */
+            /*该match的名称*/
 			char name[XT_FUNCTION_MAXNAMELEN-1];
-
+			/*该match的版本,
+			通过match的名称与版本信息可以唯一确定一个match。
+			*/
 			u_int8_t revision;
 		} user;
+		
 		struct {
+			/*该match所占用的内存大小(以字节为单位)*/
 			u_int16_t match_size;
 
 			/* Used inside the kernel */
@@ -38,6 +49,7 @@ struct xt_entry_match
 		u_int16_t match_size;
 	} u;
 
+	/*可变长度数组，与下一个match或者target关联*/
 	unsigned char data[0];
 };
 
@@ -50,27 +62,38 @@ struct xt_entry_match
  */
 struct xt_entry_target
 {
-	union {
-		struct {
-			u_int16_t target_size;
+ union {
+  struct {			
+   //target 所占用的内存大小
+   u_int16_t target_size;
+   /* Used by userspace */
+   char name[XT_FUNCTION_MAXNAMELEN-1]; //target 的名字		
+	/*
+	 * target的版本号，这个值也有很大的作用，这个值让target的向 上兼容成为了可能。
+     * 存在以下情况:
+     *  对于target名称为"ABC "，revision为0的target，我们想对这个 target的扩展target函数做新的架构修改，
+     * 但是又不想改target的 名称，也不想直接改原target的扩展target函数，
+     * 这时我们可以重 新添加一个target名称为"ABC"，revision为1，且扩展target函数
+     * 为我们新编写的target。这样既保证了针对原来target "ABC"的 iptables规则能正确执行，
+     * 又能满足我们新的需求。通过name与revision可以唯一确定一个target
+	*/
+	u_int8_t revision;
+  } user;
+		
+  struct {
+   /*target 所占用的内存大小*/
+   u_int16_t target_size;
+   /* Used inside the kernel */
+   /* 扩展target使用，用于指向xt_target */
+   struct xt_target *target;
+  } kernel;
 
-			/* Used by userspace */
-			char name[XT_FUNCTION_MAXNAMELEN-1];
-
-			u_int8_t revision;
-		} user;
-		struct {
-			u_int16_t target_size;
-
-			/* Used inside the kernel */
-			struct xt_target *target;
-		} kernel;
-
-		/* Total length */
-		u_int16_t target_size;
-	} u;
-
-	unsigned char data[0];
+  /* Total length */
+  u_int16_t target_size;
+} u;
+	
+  /*可变长数组，与下一个ipt_entry关联*/
+  unsigned char data[0];
 };
 
 #define XT_TARGET_INIT(__name, __size)					       \
@@ -81,6 +104,10 @@ struct xt_entry_target
 	},								       \
 }
 
+/*
+ * ipt_standard_target 是xt_standard_target的别名
+ *
+ */
 struct xt_standard_target
 {
 	struct xt_entry_target target;
@@ -158,7 +185,7 @@ struct xt_counters_info
  */
 struct xt_match
 {
-     /* 通常初始化成{NULL,NULL}，由核心使用 */
+    //链表，使该match添加到match链表中
 	struct list_head list;
 
     /* Match的名字，同时也要求包含该Match的模块文件名为ipt_'name'.o */
@@ -216,13 +243,19 @@ struct xt_match
 /* Registration hooks for targets. */
 struct xt_target
 {
+    //链表，使该match添加到target链表中
 	struct list_head list;
 
+    //target 名称
 	const char name[XT_FUNCTION_MAXNAMELEN-1];
 
 	/* Returns verdict. Argument order changed since 2.6.9, as this
 	   must now handle non-linear skbs, using skb_copy_bits and
 	   skb_ip_make_writable. */
+    /*
+     * target处理函数，对于SNAT、DNAT即在其target函数里，
+     * 更新request或者reply方向 ip_conntrack_tuple值
+     */	   
 	unsigned int (*target)(struct sk_buff *skb,
 			       const struct net_device *in,
 			       const struct net_device *out,
@@ -262,7 +295,15 @@ struct xt_target
 
 /* Furniture shopping...
  *
- * ipt_table
+ * 
+ * packet_filter, packet_mangler
+ * packet_raw, nat_table 这几个对象代表 iptables操作的几个表
+ *
+ * ipt_table 是这个结构体的别名
+ *
+ * 该结构体对应于iptables中的表，目前内核注册的table有filter、mangle、nat、raw表，
+ * 而这些table根据pf值添加到xt_af[pf].tables链表中。
+ * 而一个xt_table中包含了该表所支持的hook点与该表里已添加的所有rule规则
  */
 struct xt_table
 {
@@ -323,6 +364,9 @@ struct xt_table_info
 	unsigned int underflow[NF_IP_NUMHOOKS];
 
 	/* ipt_entry tables: one per CPU */
+	/*
+	 * ipt_entry | ipt_entry_match | ipt_standard_target(xt_entry_target | verdict) | ipt_standard_target(xt_entry_target | verdict) |...
+	 */
 	char *entries[NR_CPUS];
 };
 

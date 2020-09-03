@@ -371,6 +371,8 @@ static int old_deviceless(void __user *uarg)
  *   do_ioctl()
  *    sock_ioctl()
  *     br_ioctl_deviceless_stub()
+ *
+ * 操作网桥
  */
 int br_ioctl_deviceless_stub(struct net *net, unsigned int cmd, void __user *uarg)
 {

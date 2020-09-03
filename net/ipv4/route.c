@@ -2390,7 +2390,8 @@ static inline int ip_mkroute_output(struct rtable **rp,
 static int ip_route_output_slow(struct rtable **rp, const struct flowi *oldflp)
 {
     /*得到flowi记录，以便查询路由表*/
-	u32 tos	= RT_FL_TOS(oldflp);  
+	u32 tos	= RT_FL_TOS(oldflp);  
+	
 	struct flowi fl = { .nl_u = { .ip4_u =
 				      { .daddr = oldflp->fl4_dst,
 					.saddr = oldflp->fl4_src,
@@ -2402,6 +2403,7 @@ static int ip_route_output_slow(struct rtable **rp, const struct flowi *oldflp)
 			    .mark = oldflp->mark,
 			    .iif = init_net.loopback_dev->ifindex, /*设备号为lo的设备号?*/
 			    .oif = oldflp->oif };
+						  
 	struct fib_result res;        // 用来保存查找路由表得到结果
 	unsigned flags = 0;           // 路由缓存中的路由表项
 	struct net_device *dev_out = NULL; // 输出设备
@@ -2417,6 +2419,7 @@ static int ip_route_output_slow(struct rtable **rp, const struct flowi *oldflp)
     /*先是对源地址， 发包接口号和目的地址进行判断分类处理。下面的每一个红色跳转就是一种情况*/
 	if (oldflp->fl4_src) {
 		err = -EINVAL;
+		//下面几种类型的ip,跳出去
 		if (MULTICAST(oldflp->fl4_src) ||
 		    BADCLASS(oldflp->fl4_src) ||
 		    ZERONET(oldflp->fl4_src))
@@ -2489,6 +2492,7 @@ static int ip_route_output_slow(struct rtable **rp, const struct flowi *oldflp)
 							      RT_SCOPE_LINK);
 			goto make_route;
 		}
+		
 		if (!fl.fl4_src) {
 			if (MULTICAST(oldflp->fl4_dst))
 				fl.fl4_src = inet_select_addr(dev_out, 0,
@@ -2514,7 +2518,8 @@ static int ip_route_output_slow(struct rtable **rp, const struct flowi *oldflp)
 	}
 
 	
-	/* 根据fl查找到路由表,并把查询得到结果返回到res参数中 
+	/* 在fib4_rules_ops->rules_list上根据fl查找fib_rule,
+	 * 并把查询得到结果返回到res参数中 
 	 * 在fib_rules.c中
 	 */
 	if (fib_lookup(&fl, &res)) {

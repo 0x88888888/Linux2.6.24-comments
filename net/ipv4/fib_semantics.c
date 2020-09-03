@@ -926,9 +926,11 @@ failure:
 
 /* Note! fib_semantic_match intentionally uses  RCU list functions. 
  *
- * 根据flp，从路由表中得到路由条目信息：下一跳，接口等。
+ * 根据flp，从路由表中得到路由条目信息(fib_alias)：下一跳，接口等。
+ *
+ * 该函数会遍历传入的链表head，搜索符合条件的fib_alias变量与fib_info变量
  * fib_lookup()
- *  fn_hash_looku()
+ *  fn_hash_lookup()
  *   fib_semantic_match()
  */
 int fib_semantic_match(struct list_head *head, const struct flowi *flp,

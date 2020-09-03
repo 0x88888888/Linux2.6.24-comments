@@ -118,6 +118,7 @@ struct fib_table *fib_new_table(u32 id)
  *   fib_new_table()
  *    fib_get_table()
  *
+ * 策略路由查找fib_table
  * 从 fib_table_hash中获取fib_table
  */
 struct fib_table *fib_get_table(u32 id)
@@ -148,6 +149,8 @@ struct fib_table *fib_get_table(u32 id)
  * fib_inetaddr_event()
  *  fib_del_ifaddr()
  *   fib_flush()
+ *
+ * 删除路由缓存
  */
 static void fib_flush(void)
 {

@@ -499,6 +499,10 @@ int xt_compat_target_to_user(struct xt_entry_target *t, void __user **dstptr,
 EXPORT_SYMBOL_GPL(xt_compat_target_to_user);
 #endif
 
+/*
+ * ipt_register_table()
+ *  xt_alloc_table_info()
+ */
 struct xt_table_info *xt_alloc_table_info(unsigned int size)
 {
 	struct xt_table_info *newinfo;

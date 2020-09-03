@@ -43,18 +43,24 @@
  */
 struct ipt_ip {
 	/* Source and destination IP addr */
+	/* 源、目的ip地址 */
 	struct in_addr src, dst;
 	/* Mask for src and dest IP addr */
+    /* 源、目的ip地址的掩码*/
 	struct in_addr smsk, dmsk;
+    /*数据包入口、出口的网络接口名称*/
 	char iniface[IFNAMSIZ], outiface[IFNAMSIZ];
+	/*入口、出口的网络接口掩码*/
 	unsigned char iniface_mask[IFNAMSIZ], outiface_mask[IFNAMSIZ];
 
 	/* Protocol, 0 = ANY */
+    /*协议号*/
 	u_int16_t proto;
 
 	/* Flags word */
 	u_int8_t flags;
 	/* Inverse flags */
+    /*是否是反转匹配*/
 	u_int8_t invflags;
 };
 
@@ -110,13 +116,19 @@ struct ipt_entry
 
 	/* Size of ipt_entry + matches */
 	/* target区的偏移，通常target区位于match区之后，而match区则在ipt_entry的末尾； 初始化为sizeof(struct ipt_entry)，即假定没有match */
+	/*该规则中target结构相对于该ipt_entry首地址的偏移量*/
 	u_int16_t target_offset;
 	/* Size of ipt_entry + matches + target */
 	/* 下一条规则相对于本规则的偏移，也即本规则所用空间的总和， 初始化为sizeof(struct ipt_entry)+sizeof(struct ipt_target)，即没有match */
 	u_int16_t next_offset;
 
 	/* Back pointer */
-	/* 位向量，标记调用本规则的HOOK号，可用于检查规则的有效性 */
+	
+    /*
+     * 这个变量的用途有两个：
+     * 1.判断table表中的规则链是否存在环路
+     * 2.遍历规则链链时，用于用户自定义链的规则执行完时返回到主链时使用
+     */
 	unsigned int comefrom;
 
 	/* Packet and byte counters. */
@@ -125,6 +137,7 @@ struct ipt_entry
 
 	/* The matches (if any), then the target. */
 	/*target或者是match的起始位置 */
+	/*由于在设计时需要match结构与ipt_entry的内存是连续的，但是一个ipt_entry包含的match个数又是可变的，所以定义了一个可变长度数组elems，主要是为了实现动态的申请match内存空间*/
 	unsigned char elems[0];
 };
 
@@ -201,7 +214,7 @@ struct ipt_getinfo
 /* The argument to IPT_SO_SET_REPLACE. 
  * 在调用ipt_register_table时作为参数用
  *
- * 之所以要设计ipt_replace{}这个结构体，是因为在1.4.0版的iptables中有规则替换这个功能，它可以用一个新的规则替换掉指定位置上的已存在的现有规则
+ * 在我们创建一个xt_table,或者替换掉一个xt_table里的规则时，就会用到这个结构体
  */
 struct ipt_replace
 {
@@ -237,6 +250,13 @@ struct ipt_replace
 	struct xt_counters __user *counters;
 
 	/* The entries (hang off end: not really an array). */
+	/*
+     * 表中的每一个规则的结构为ipt_entry+ipt_entry_match(大于等于0个)+ipt_standard_target
+     * 而ipt_standard_target由xt_entry_target与verdict 组成可变长数组，
+     * 下面内存里存放的就是需要替换到表中的新的规则。
+     *
+     * ipt_entry | ipt_entry_match | ipt_standard_target(xt_entry_target | verdict) | ipt_standard_target(xt_entry_target | verdict) |...
+     */
 	struct ipt_entry entries[0];
 };
 
@@ -288,6 +308,17 @@ ipt_get_target(struct ipt_entry *e)
 })
 
 /* fn returns 0 to continue iteration */
+/*
+
+功能如函数名称:
+
+遍历所有的ipt_entry:
+
+1、检查从entry0到entry0 + size之间每一个ipt_entry变量的大小是否符 合要求，以及每一个ipt_entry的起始地址的对齐
+
+2、判断相邻的ipt_entry的offset值是否正确，在正确的情况下将offset 值设置到相应的newinfo->hook_entry[]、newinfo->underflow[]
+
+*/		
 #define IPT_ENTRY_ITERATE(entries, size, fn, args...)		\
 ({								\
 	unsigned int __i;					\

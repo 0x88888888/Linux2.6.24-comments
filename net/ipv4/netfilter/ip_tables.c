@@ -74,6 +74,14 @@ do {								\
    Hence the start of any table is given by get_table() below.  */
 
 /* Returns whether matches rule or not. */
+/*
+ * ipt_do_table()
+ *  ip_packet_match()
+ *
+ * 功能:标准匹配
+ * 这个函数通过自定义的宏，巧妙的处理了ip地址匹配、协议号匹配、接口名称匹配
+ * 与取反匹配双重判断后的匹配结果。这个FWINV宏设计的很巧妙
+ */
 static inline int
 ip_packet_match(const struct iphdr *ip,
 		const char *indev,
@@ -84,7 +92,38 @@ ip_packet_match(const struct iphdr *ip,
 	size_t i;
 	unsigned long ret;
 
+	/*
+	
+	定义宏FWINV，当bool与!!(ipinfo->invflags & invflg)的值不是同时为真也不是同时为假时，返回真
+	
+	后面的!!(ipinfo->invflags & invflg)，其中使用!!，主要是使返回的值要么为真要么为假
+	
+	*/
 #define FWINV(bool,invflg) ((bool) ^ !!(ipinfo->invflags & invflg))
+
+	/*
+	
+	下面这句话的意思是:
+	
+	当到达分组的src ip地址经过掩码处理后与规则的src ip不等时，
+	
+	且没有对src ip进行取反操作后，说明match不匹配，返回0
+	
+	当到达分组的src ip地址经过掩码处理后与规则的src相等时，
+	
+	其有对src ip地址进行取反操作后，说明match不匹配，返回0
+	
+	
+	
+	当到达分组的dst ip地址经过掩码处理后与规则的dst ip不等时，
+	
+	且没有对dst ip进行取反操作后，说明match不匹配，返回0
+	
+	当到达分组的src ip地址经过掩码处理后与规则的dst ip相等时，
+	
+	其有对dst ip地址进行取反操作后，说明match不匹配，返回0
+	
+	*/
 
 	if (FWINV((ip->saddr&ipinfo->smsk.s_addr) != ipinfo->src.s_addr,
 		  IPT_INV_SRCIP)
@@ -182,6 +221,11 @@ ipt_error(struct sk_buff *skb,
 	return NF_DROP;
 }
 
+/*
+ * 该函数主要就是调用m->u.kernel.match->match扩展match函数，并返回match结果
+ * ipt_do_table()
+ *  do_match()
+ */  
 static inline
 bool do_match(struct ipt_entry_match *m,
 	      const struct sk_buff *skb,
@@ -332,6 +376,9 @@ static void trace_packet(struct sk_buff *skb,
  * nf_nat_rule_find()
  *  ipt_do_table()
  *
+ * 
+ * 功能:
+ *  遍历xt_table的hook链上的所有规则，并进行标准match和扩展match(存在的话)，并进行target操作。
  */
 unsigned int
 ipt_do_table(struct sk_buff *skb,
@@ -346,7 +393,7 @@ ipt_do_table(struct sk_buff *skb,
 	u_int16_t datalen;
 	bool hotdrop = false;
 	/* Initializing verdict to NF_DROP keeps gcc happy. */
-	unsigned int verdict = NF_DROP;
+	unsigned int verdict = NF_DROP; /*默认值为NF_DROP*/
 	const char *indev, *outdev;
 	void *table_base;
 	struct ipt_entry *e, *back;
@@ -368,20 +415,40 @@ ipt_do_table(struct sk_buff *skb,
 	read_lock_bh(&table->lock);
 	IP_NF_ASSERT(table->valid_hooks & (1 << hook));
 	private = table->private;
+	
+	/*获取表的首个规则的地址*/	
 	table_base = (void *)private->entries[smp_processor_id()];
-	//从packet_filter中取出对应HOOK点的规则
+	
+	//从packet_filter中取出对应HOOK点的规则	
+	/*获取到相应规则链的首个规则*/	
 	e = get_entry(table_base, private->hook_entry[hook]);
 
 	/* For return from builtin chain */
+    /* 获取到相应规则链的最后一个规则??
+     * 对于别人说这个underflow是规则链的最后一个规则的说法我持怀疑态度
+     * 我反而觉得其与hookentry[]中相对应位置的值是一样的。通过阅读代码，
+     * 我感觉就是根据其underflow指针获取到规则链的首个ipt_entry，
+     * 然后在一 个rule的target为NF_REPEAT时，
+     * 则从该underflow处的ipt_entry开始重 新进行rule规则检查，重新执行一次ipt_do_table而已。
+     */	
 	back = get_entry(table_base, private->underflow[hook]);
 
+
+	/* 在下面的循环中，如果一直不匹配，岂不是要循环到其他的规则链的规则?
+     * 答案是否定的，因为每一条链都有默认规则，默认规则的标准match肯定是匹 配的，
+     * 我们在系统初始化时，会通过iptables -t table_name -P CHAIN为相应的链添加一条默认的规则，。
+	*/
 	do {
 		IP_NF_ASSERT(e);
 		IP_NF_ASSERT(back);
-	   //规则匹配，判断是否满足ip地址要求
+	   /*首先进行标准match，主要是进行源、目的ip地址的比较以及输入设备 和输出设备名称的比较，即标准match是必须的*/ 
 		if (ip_packet_match(ip, indev, outdev, &e->ip, offset)) {
 			struct ipt_entry_target *t;
-
+            /*
+             * 当标准match通过后，若存在扩展match，则遍历所有的扩展match， 并通过函数do_match调用
+             * ipt_entry_match->u.kernel.match->match，并返回调用结果，
+             * 若有 一个match回调函数返回值为1，则说明数据包不匹配该rule，继续 下一条rule进行match操作。
+             */
 			if (IPT_MATCH_ITERATE(e, do_match,
 					      skb, in, out,
 					      offset, &hotdrop) != 0)
@@ -389,6 +456,10 @@ ipt_do_table(struct sk_buff *skb,
 
 			ADD_COUNTER(e->counters, ntohs(ip->tot_len), 1);
 
+            /* 
+             * 当标准match与扩展match都匹配后，则数据包需要执行该条规则 的target操作。
+             * 首先，调用函数ipt_get_target，获得该rule对应 的ipt_entry_target
+             */
 			t = ipt_get_target(e);
 			IP_NF_ASSERT(t->u.kernel.target);
 
@@ -400,21 +471,48 @@ ipt_do_table(struct sk_buff *skb,
 					     table->name, private, e);
 #endif
 			/* Standard target? */
+            /*下面需要进行标准或者扩展target的操作了*/
+            /*
+             * a)若ipt_entry_match->u.kernel.target->target== NULL，说明这 是一个标准的target，此时又分为如下两种情况
+             * (这时候就需要根据ipt_standard_target->verdict，因为 ipt_entry_match与ipt_standard_target相比，
+             * ipt_standard_target就多了一个verdict，所以他们之间的转发 也是非常容易)
+             *  i)如果ipt_standard_target->verdict小于0，说明这是一个标 准target，且不会跳转到用户自定义链，此时就直接返回 -verdict-1即可(此时还有一种情况需要注意，如果-verdict为 IPT_RETURN (即为NF_REPEAT)时，这就说明还需要继续对该规则 链上的下一条rule进行匹配操作。)
+             *  ii)如果ipt_standard_target->verdict大于0，说明这是一个需 要跳转到用户自定义链的标准target，此时就需要跳转到用户自 定义链了，但是为了跳转到用户自定义链后，还能返回到当前遍 历的rule的下一条rule，则需要借助back指针与e->comefrom， 实现用户链遍历完以后的跳转回来操作。
+             */
 			if (!t->u.kernel.target->target) {
 				int v;
 
 				v = ((struct ipt_standard_target *)t)->verdict;
+			    
+				/*标准target*/				
 				if (v < 0) {
 					/* Pop from stack? */
+				    
+					/*不是NF_REPEAT时，则无须重新执行该hook函数，程序返回*/					
 					if (v != IPT_RETURN) {
 						verdict = (unsigned)(-v) - 1;
 						break;
 					}
+
+					/*当是NF_REPEAT时，则需要用到back指针了，即从back  rule开始，重新进行一次rule规则检查。也就类似于重新执 行了一次ipt_do_table函数。
+                      此处其实是包含两种情况的
+                      a)当为标准target的NF_REPEAT时，则是从该规则链的首个 ipt_entry开始遍历每一个rule，进行rule检查与匹配
+                      b)当为用户自定义链中的NF_REPEAT时，则跳转到符合如下 条件的一个rule，即这个rule是曾经跳转到用户链的那一条 rule的下一条ip_entry (这个是根据back指针与 back->comefrom实现的)。
+                      当跳转到back之前，需要重新设置一下back指针，设置这 个back指针是有意义的
+                      当为用户链的 NF_REPEAT时，通过重新设置back指针，则使 back指针重新指向underflow[]的首个ipt_entry
+                      */
 					e = back;
 					back = get_entry(table_base,
 							 back->comefrom);
 					continue;
 				}
+
+				/*说明这是一个跳转到用户链的标准链
+                  当需要跳转的用户链不是下一个ipt_entry时，执行以下操作
+                  a)获取当前ipt_entry的下一个ipt_entry，即next
+                  b)将next->comefrom的值设置为当前back相对于表的首个 ipt_entry的偏移值
+                  c)将back设置为next，这主要为了使用户链的规则没有匹配时 能够返回到当前规则的下一个规则而已。
+                 */
 				if (table_base + v != (void *)e + e->next_offset
 				    && !(e->ip.flags & IPT_F_GOTO)) {
 					/* Save old back ptr in next entry */
@@ -430,6 +528,10 @@ ipt_do_table(struct sk_buff *skb,
 			} else {
 				/* Targets which reenter must return
 				   abs. verdicts */
+				/* 当时扩展target时，则需要调用t->u.kernel.target->target， 
+				 * 执行扩展的target操作，并返回结果。
+                 * 当返回的结果为IPT_CONTINUE时，则需要获取下一条规则，继续进行规则检查
+                 */   
 #ifdef CONFIG_NETFILTER_DEBUG
 				((struct ipt_entry *)table_base)->comefrom
 					= 0xeeeeeeec;
@@ -481,7 +583,10 @@ ipt_do_table(struct sk_buff *skb,
 }
 
 /* Figures out from what hook each rule can be called: returns 0 if
-   there are loops.  Puts hook bitmask in comefrom. */
+ * there are loops.  Puts hook bitmask in comefrom. 
+ *
+ * 判断一个规则链中的所有规则有没有出现环路
+ */
 static int
 mark_source_chains(struct xt_table_info *newinfo,
 		   unsigned int valid_hooks, void *entry0)
@@ -491,26 +596,32 @@ mark_source_chains(struct xt_table_info *newinfo,
 	/* No recursion; use packet counter to save back ptrs (reset
 	   to 0 as we leave), and comefrom to save source hook bitmask */
 	for (hook = 0; hook < NF_IP_NUMHOOKS; hook++) {
+		/*获取当前要遍历的规则链的首条规则地址*/
 		unsigned int pos = newinfo->hook_entry[hook];
 		struct ipt_entry *e
 			= (struct ipt_entry *)(entry0 + pos);
 
+        /*仅遍历该表支持的hook链*/
 		if (!(valid_hooks & (1 << hook)))
 			continue;
 
 		/* Set initial back pointer. */
+		/*初始返回地址即设置为首条规则的偏移地址*/
 		e->counters.pcnt = pos;
 
+        /*遍历该规则链的所有规则*/
 		for (;;) {
 			struct ipt_standard_target *t
 				= (void *)ipt_get_target(e);
 			int visited = e->comefrom & (1 << hook);
 
+            /*该规则链中存在闭环，返回0*/
 			if (e->comefrom & (1 << NF_IP_NUMHOOKS)) {
 				printk("iptables: loop hook %u pos %u %08X.\n",
 				       hook, pos, e->comefrom);
 				return 0;
 			}
+			/*进入规则前置位NF_IP_NUMHOOKS*/
 			e->comefrom
 				|= ((1 << hook) | (1 << NF_IP_NUMHOOKS));
 
@@ -532,6 +643,8 @@ mark_source_chains(struct xt_table_info *newinfo,
 				/* Return: backtrack through the last
 				   big jump. */
 				do {
+					
+				    /*清除NF_IP_NUMHOOKS*/				
 					e->comefrom ^= (1<<NF_IP_NUMHOOKS);
 #ifdef DEBUG_IP_FIREWALL_USER
 					if (e->comefrom
@@ -560,7 +673,12 @@ mark_source_chains(struct xt_table_info *newinfo,
 					(entry0 + pos + size);
 				e->counters.pcnt = pos;
 				pos += size;
-			} else {
+			} else {
+            /*
+             * 对于非规则链尾的规则，主要有两种，分类方法为:
+             * 1、跳转到用户自定义链的规则
+             * 2、不需要跳转的标准target规则与扩张target规则
+             */	
 				int newpos = t->verdict;
 
 				if (strcmp(t->target.u.user.name,
@@ -578,6 +696,9 @@ mark_source_chains(struct xt_table_info *newinfo,
 						 pos, newpos);
 				} else {
 					/* ... this is a fallthru */
+				    /* 对于不需要跳转到用户自定义链的规则来说，
+				     * 下一条规则的地址,即可根据e->next_offset计算出来
+				     */
 					newpos = pos + e->next_offset;
 				}
 				e = (struct ipt_entry *)
@@ -623,7 +744,11 @@ check_entry(struct ipt_entry *e, const char *name)
 
 	return 0;
 }
-
+
+/*
+ * 功能:根据m->u.user.name，在kernel的xt[af].match链表中，查找符合要求的match，
+ * 若查找到，则将match的首地址赋给m->u.kernel.match 
+*/
 static inline int check_match(struct ipt_entry_match *m, const char *name,
 				const struct ipt_ip *ip, unsigned int hookmask,
 				unsigned int *i)
@@ -741,6 +866,12 @@ find_check_entry(struct ipt_entry *e, const char *name, unsigned int size,
 	return ret;
 }
 
+/*
+ * 该函数完成以下功能：
+ * A）判断其首地址边界对其是否正确
+ * B）该ipt_entry的大小是否超过了最大值
+ * C）当前ipt_entry相对于首个ipt_entry首地址的偏移量是否与某一个hook_entry[]或者underflows[]的值相等
+ */
 static inline int
 check_entry_size_and_hooks(struct ipt_entry *e,
 			   struct xt_table_info *newinfo,
@@ -752,12 +883,18 @@ check_entry_size_and_hooks(struct ipt_entry *e,
 {
 	unsigned int h;
 
+    /*首先判断ipt_entry e的取值是否正确*/
 	if ((unsigned long)e % __alignof__(struct ipt_entry) != 0
 	    || (unsigned char *)e + sizeof(struct ipt_entry) >= limit) {
 		duprintf("Bad offset %p\n", e);
 		return -EINVAL;
 	}
 
+	/*	
+     * 判断ipt_entry->next_offset，是否满足要求。
+     * 对于一个ipt_entry来说，至少要包含一个	
+     * ipt_entry和一个ipt_entry_target。	
+	*/
 	if (e->next_offset
 	    < sizeof(struct ipt_entry) + sizeof(struct ipt_entry_target)) {
 		duprintf("checking: element %p size %u\n",
@@ -766,6 +903,11 @@ check_entry_size_and_hooks(struct ipt_entry *e,
 	}
 
 	/* Check hooks & underflows */
+    /*
+     * 为当前ipt_entry对应的hook_entries[h]进行赋值，这个主要是
+     * 用来检查hook_entries里的偏移量是否真的是指向了这个ipt_entry的首地址
+     * 如果是指向了就对newinfo->hook_entry[h]进行赋值，否则就不赋值。
+     */		
 	for (h = 0; h < NF_IP_NUMHOOKS; h++) {
 		if ((unsigned char *)e - base == hook_entries[h])
 			newinfo->hook_entry[h] = hook_entries[h];
@@ -802,7 +944,10 @@ cleanup_entry(struct ipt_entry *e, unsigned int *i)
 }
 
 /* Checks and translates the user-supplied table segment (held in
-   newinfo) */
+ * newinfo) 
+ *
+ * 
+ */
 static int
 translate_table(const char *name,
 		unsigned int valid_hooks,
@@ -828,12 +973,20 @@ translate_table(const char *name,
 	duprintf("translate_table: size %u\n", newinfo->size);
 	i = 0;
 	/* Walk through entries, checking offsets. */
+	
+/*
+ * 功能如函数名称:
+ * 遍历所有的ipt_entry:
+ * 1、检查从entry0到entry0 + size之间每一个ipt_entry变量的大小是否符 合要求，以及每一个ipt_entry的起始地址的对齐
+ * 2、判断相邻的ipt_entry的offset值是否正确，在正确的情况下将offset 值设置到相应的newinfo->hook_entry[]、newinfo->underflow[]
+ */	
 	ret = IPT_ENTRY_ITERATE(entry0, newinfo->size,
 				check_entry_size_and_hooks,
 				newinfo,
 				entry0,
 				entry0 + size,
 				hook_entries, underflows, &i);
+	
 	if (ret != 0)
 		return ret;
 
@@ -844,6 +997,7 @@ translate_table(const char *name,
 	}
 
 	/* Check hooks all assigned */
+    /*对于本表支持的规则链，若出现规则链相应的hook_entry[i]未被赋值则返回出错*/	
 	for (i = 0; i < NF_IP_NUMHOOKS; i++) {
 		/* Only hooks which are valid */
 		if (!(valid_hooks & (1 << i)))
@@ -860,10 +1014,21 @@ translate_table(const char *name,
 		}
 	}
 
+    //判断一个规则链中的所有规则有没有出现环路
 	if (!mark_source_chains(newinfo, valid_hooks, entry0))
 		return -ELOOP;
 
 	/* Finally, each sanity check must pass */
+    /*
+     * 遍历链表中的所有ipt_entry，对每一个ipt_entry，执行以下动作
+     * 1、遍历该ipt_entry下的所有match，根据每个match的用户层的match名称，
+     * 在kernel的xt[af].match链表中查找名称相同的match变量，
+     * 将地址赋值   给m->u.kernel.match ，当满足合法性检查时，继续操作；
+     * 若不满足合法性   检查，则会返回失败，并释放创建的struct xt_table_info newinfo，
+     * 说明   创建ipt_table失败
+     *
+     * 2、遍历xt[af].target，查找符合条件的target，并赋值给t->u.kernel.target
+     */	
 	i = 0;
 	ret = IPT_ENTRY_ITERATE(entry0, newinfo->size,
 				find_check_entry, name, size, &i);
@@ -875,6 +1040,10 @@ translate_table(const char *name,
 	}
 
 	/* And one copy for every other CPU */
+    /*
+     * 在经过了规则链的环路检查，规则的边界检查，match与target的赋值后，
+     * 对于每一个cpu所对应的newinfo->entries，将新值进行拷贝
+     */	
 	for_each_possible_cpu(i) {
 		if (newinfo->entries[i] && newinfo->entries[i] != entry0)
 			memcpy(newinfo->entries[i], entry0, newinfo->size);
@@ -1336,6 +1505,16 @@ __do_replace(const char *name, unsigned int valid_hooks,
 	return ret;
 }
 
+
+/*
+ * 当用户层通过iptables -A添加一条规则或者通过iptables -D删除一条规则时，
+ * 最终都会调用函数do_replace函数实现新的规则的添加或者规则的删除
+ * (其实就是替换xt_table->private,即需要创建一个新的xt_table_info和一个新的内存块，用于存放新的所有的规则)。
+ *
+ * do_ipt_set_ctl()
+ *  do_replace()
+ *
+ */
 static int
 do_replace(void __user *user, unsigned int len)
 {
@@ -2148,11 +2327,17 @@ do_ipt_get_ctl(struct sock *sk, int cmd, void __user *user, int *len)
 }
 
 /*
- * iptable_filter_init()
+ * iptable_filter_init(&packet_filter, &initial_table.repl)
  *  ipt_register_table()
  *
+ * iptable_mangle_init(&packet_mangler, &initial_table.repl)
+ *  ipt_register_table()
  *
+ * iptable_raw_init(&packet_raw, &initial_table.repl)
+ *  ipt_register_table()
  *
+ * nf_nat_rule_init(&nat_table, &nat_initial_table.repl)
+ *  ipt_register_table()
  */
 int ipt_register_table(struct xt_table *table, const struct ipt_replace *repl)
 {

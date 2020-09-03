@@ -177,7 +177,10 @@ static int br_rtm_setlink(struct sk_buff *skb,  struct nlmsghdr *nlh, void *arg)
 	return 0;
 }
 
-
+/*
+ * br_init()
+ *  br_netlink_init()
+ */
 int __init br_netlink_init(void)
 {
 	if (__rtnl_register(PF_BRIDGE, RTM_GETLINK, NULL, br_dump_ifinfo))

@@ -31,6 +31,10 @@ static int fdb_insert(struct net_bridge *br, struct net_bridge_port *source,
 
 static u32 fdb_salt __read_mostly;
 
+/*
+ * br_init()
+ *  br_fdb_init()
+ */
 int __init br_fdb_init(void)
 {
 	br_fdb_cache = kmem_cache_create("bridge_fdb_cache",

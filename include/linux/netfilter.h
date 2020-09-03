@@ -68,6 +68,9 @@ typedef unsigned int nf_hookfn(unsigned int hooknum,
 /*
  * netfilter中的hook函数
  *
+ * ipv4_conntrack_ops[],
+ 
+ *
  * nf_hooks[port][hooknum]
  */
 struct nf_hook_ops
