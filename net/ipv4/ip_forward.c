@@ -152,7 +152,11 @@ int ip_forward(struct sk_buff *skb)
 
 	skb->priority = rt_tos2priority(iph->tos);
 
-	/* 先netfilter机制，然后用ip_forward_finish转发 */
+	/* 先netfilter机制，然后用ip_forward_finish转发 
+	 *
+	 * ipt_route_hook
+	 * ipt_hook
+	 */
 	return NF_HOOK(PF_INET, NF_IP_FORWARD, skb, skb->dev, rt->u.dst.dev,
 		       ip_forward_finish);
 

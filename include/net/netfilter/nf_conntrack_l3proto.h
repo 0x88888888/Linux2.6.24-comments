@@ -18,6 +18,8 @@
 
 /*
  * netfilter中conntrack功能使用这个结构,跟踪3层协议
+ *
+ * nf_conntrack_l3proto_ipv4 ，在nf_conntrack_l3proto_ipv4_init中注册
  */
 struct nf_conntrack_l3proto
 {
@@ -30,6 +32,8 @@ struct nf_conntrack_l3proto
 	/*
 	 * Try to fill in the third arg: nhoff is offset of l3 proto
          * hdr.  Return true if possible.
+     *
+     * ipv4: ipv4_pkt_to_tuple
 	 */
 	int (*pkt_to_tuple)(const struct sk_buff *skb, unsigned int nhoff,
 			    struct nf_conntrack_tuple *tuple);
@@ -40,16 +44,24 @@ struct nf_conntrack_l3proto
 	 *
 	 * 对于一个给定的tuple结构，对其三层相关元组进行取反操作并赋值给
      * 新的tuple变量inverse
+     *
+     * ipv4: ipv4_invert_tuple
 	 */
 	int (*invert_tuple)(struct nf_conntrack_tuple *inverse,
 			    const struct nf_conntrack_tuple *orig);
 
-	/* Print out the per-protocol part of the tuple. */
+	/* Print out the per-protocol part of the tuple.
+	 *
+	 * ipv4: ipv4_print_tuple
+	 */
 	int (*print_tuple)(struct seq_file *s,
 			   const struct nf_conntrack_tuple *);
 
 	/* Print out the private part of the conntrack. */
-    /*打印一个数据连接变量中三层相关的信息*/			   			   
+    /*打印一个数据连接变量中三层相关的信息
+     *
+     * ipv4: ipv4_print_conntrack
+	 */			   			   
 	int (*print_conntrack)(struct seq_file *s, const struct nf_conn *);
 
 	/* Returns verdict for packet, or -1 for invalid. */
@@ -71,6 +83,8 @@ struct nf_conntrack_l3proto
 	 * Called before tracking. 
 	 *	*dataoff: offset of protocol header (TCP, UDP,...) in skb
 	 *	*protonum: protocol number
+	 *
+	 * ipv3: ipv4_get_l4proto
 	 */
 	int (*get_l4proto)(const struct sk_buff *skb, unsigned int nhoff,
 			   unsigned int *dataoff, u_int8_t *protonum);

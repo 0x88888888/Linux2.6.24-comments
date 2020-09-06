@@ -980,7 +980,14 @@ static int tcp_packet(struct nf_conn *conntrack,
 	return NF_ACCEPT;
 }
 
-/* Called when a new connection for this protocol found. */
+/* Called when a new connection for this protocol found.
+ *
+ * ipv4_conntrack_local()
+ *  nf_conntrack_in()
+ *   resolve_normal_ct()
+ *    init_conntrack()
+ *     tcp_new()
+ */
 static int tcp_new(struct nf_conn *conntrack,
 		   const struct sk_buff *skb,
 		   unsigned int dataoff)
@@ -1004,6 +1011,7 @@ static int tcp_new(struct nf_conn *conntrack,
 		return 0;
 	}
 
+    //服务端是这个状态了
 	if (new_state == TCP_CONNTRACK_SYN_SENT) {
 		/* SYN packet */
 		conntrack->proto.tcp.seen[0].td_end =

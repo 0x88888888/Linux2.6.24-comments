@@ -305,7 +305,15 @@ int ip_local_deliver(struct sk_buff *skb)
 			return 0;  //数据还不全，ip fragment詹存在ip4_frags中
 	}
 
-	/* 先netfilter机制，然后ip_local_deliver_finish */
+	/* 先netfilter机制，然后ip_local_deliver_finish 
+	 *
+	 * ipt_route_hook
+	 * ipt_hook
+	 * nf_nat_fn
+	 * ipv4_conntrack_help
+	 * nf_nat_adjust
+	 * ipv4_confirm
+	 */
 	return NF_HOOK(PF_INET, NF_IP_LOCAL_IN, skb, skb->dev, NULL,
 		       ip_local_deliver_finish);
 }
@@ -528,7 +536,16 @@ int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, 
 	 */
 	memset(IPCB(skb), 0, sizeof(struct inet_skb_parm));
 	
-           /* 先netfilter机制，然后再ip_rcv_finish中决定如何处理 */
+           /* 先netfilter机制，然后再ip_rcv_finish中决定如何处理
+            *
+            * ip_sabotage_in
+            * ipv4_conntrack_defrag
+            * ipt_hook
+            * ipv4_conntrack_in
+            * ipt_route_hook
+            * nf_nat_in
+            * selinux_ipv4_postroute_last
+            */
 	return NF_HOOK(PF_INET, NF_IP_PRE_ROUTING, skb, dev, NULL,
 		       ip_rcv_finish /* 处理函数 */ );
 

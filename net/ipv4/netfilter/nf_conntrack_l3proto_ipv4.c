@@ -48,6 +48,11 @@ static int ipv4_pkt_to_tuple(const struct sk_buff *skb, unsigned int nhoff,
 /*
  * 根据原始的tuple的源ip、目的ip值，设置reply的tuple值，
  * 新的tuple值的源、目的ip值与原始的tuple的源ip、目的ip值是反过来的
+ *
+ * resolve_normal_ct()
+ *  init_conntrack()
+ *   nf_ct_invert_tuple()
+ *    ipv4_invert_tuple()
  */
 static int ipv4_invert_tuple(struct nf_conntrack_tuple *tuple,
 			   const struct nf_conntrack_tuple *orig)

@@ -155,6 +155,12 @@ int nf_ct_get_tuplepr(const struct sk_buff *skb,
 }
 EXPORT_SYMBOL_GPL(nf_ct_get_tuplepr);
 
+/*
+ * resolve_normal_ct()
+ *  init_conntrack()
+ *   nf_ct_invert_tuple()
+ *
+ */
 int
 nf_ct_invert_tuple(struct nf_conntrack_tuple *inverse,
 		   const struct nf_conntrack_tuple *orig,
@@ -164,12 +170,15 @@ nf_ct_invert_tuple(struct nf_conntrack_tuple *inverse,
 	NF_CT_TUPLE_U_BLANK(inverse);
 
 	inverse->src.l3num = orig->src.l3num;
+
+	//ipv4_invert_tuple
 	if (l3proto->invert_tuple(inverse, orig) == 0)
 		return 0;
 
 	inverse->dst.dir = !orig->dst.dir;
 
 	inverse->dst.protonum = orig->dst.protonum;
+	
 	return l4proto->invert_tuple(inverse, orig);
 }
 EXPORT_SYMBOL_GPL(nf_ct_invert_tuple);
@@ -279,12 +288,15 @@ static void death_by_timeout(unsigned long ul_conntrack)
 }
 
 /*
- * nf_conntrack_find_get()
- *  __nf_conntrack_find()
+ * resolve_normal_ct()
+ *  nf_conntrack_find_get()
+ *   __nf_conntrack_find()
  *
  * nf_nat_used_tuple()
  *  nf_conntrack_tuple_taken() 
  *   __nf_conntrack_find()
+ *
+ * 早nf_conntrack_hash[]中查找找到相应的nf_conntrack_tuple_hash
  */
 struct nf_conntrack_tuple_hash *
 __nf_conntrack_find(const struct nf_conntrack_tuple *tuple,
@@ -297,7 +309,8 @@ __nf_conntrack_find(const struct nf_conntrack_tuple *tuple,
 	hlist_for_each_entry(h, n, &nf_conntrack_hash[hash], hnode) {
 		
 		if (nf_ct_tuplehash_to_ctrack(h) != ignored_conntrack &&
-		    nf_ct_tuple_equal(tuple, &h->tuple)) {
+		    nf_ct_tuple_equal(tuple, &h->tuple)) { // 找到
+		    
 			NF_CT_STAT_INC(found);
 			return h;
 		}
@@ -308,7 +321,13 @@ __nf_conntrack_find(const struct nf_conntrack_tuple *tuple,
 }
 EXPORT_SYMBOL_GPL(__nf_conntrack_find);
 
-/* Find a connection corresponding to a tuple. */
+/* Find a connection corresponding to a tuple. 
+ *
+ * resolve_normal_ct()
+ *  nf_conntrack_find_get()
+ * 
+ * 找到相应的nf_conntrack_tuple_hash对象
+ */
 struct nf_conntrack_tuple_hash *
 nf_conntrack_find_get(const struct nf_conntrack_tuple *tuple)
 {
@@ -598,7 +617,10 @@ init_conntrack(const struct nf_conntrack_tuple *tuple,
 	struct nf_conntrack_tuple repl_tuple;
 	struct nf_conntrack_expect *exp;
    
-	/*根据入口nf_conntrack_tuple变量和三层、四层nf_conntrack_proto变量的invert函数构造出口nf_conntrack_tuple变量，对于ipv4来说，就是ipv4_invert_tuple，对于tcp协议来说即是 tcp_invert_tuple*/
+	/*
+	 * 根据入口nf_conntrack_tuple变量和三层、四层nf_conntrack_proto变量的invert函数构造出口nf_conntrack_tuple变量，
+	 * 对于ipv4来说，就是ipv4_invert_tuple，对于tcp协议来说即是 tcp_invert_tuple
+	 */
 	if (!nf_ct_invert_tuple(&repl_tuple, tuple, l3proto, l4proto)) {
 		pr_debug("Can't invert tuple.\n");
 		return NULL;
@@ -611,7 +633,10 @@ init_conntrack(const struct nf_conntrack_tuple *tuple,
 		return (struct nf_conntrack_tuple_hash *)conntrack;
 	}
     
-	/*调用四层nf_conntrack_prot的new函数为新的nf_conn进行四层初始化*/
+	/*调用四层nf_conntrack_prot的new函数为新的nf_conn进行四层初始化
+	 *
+	 * tcp_new, udp_new
+	 */
 	if (!l4proto->new(conntrack, skb, dataoff)) {
 		nf_conntrack_free(conntrack);
 		pr_debug("init conntrack: can't track with proto module\n");
@@ -677,6 +702,8 @@ init_conntrack(const struct nf_conntrack_tuple *tuple,
  * ipv4_conntrack_local()
  *  nf_conntrack_in()
  *   resolve_normal_ct()
+ *
+ * 根据l3proto和l4proto对象，查找或者创建nf_conn对象
  */
 static inline struct nf_conn *
 resolve_normal_ct(struct sk_buff *skb,
@@ -716,7 +743,9 @@ resolve_normal_ct(struct sk_buff *skb,
 			return (void *)h;
 	}
 	
-	/*根据tuple值，获取nf_conn*/
+	/*
+	 * 在nf_conntrack_tuple_hash[]中,根据tuple值，获取nf_conn
+	 */
 	ct = nf_ct_tuplehash_to_ctrack(h);
 
 	/* It exists; we have (non-exclusive) reference. */
@@ -756,6 +785,7 @@ resolve_normal_ct(struct sk_buff *skb,
 		}
 		*set_reply = 0;
 	}
+	
 	skb->nfct = &ct->ct_general;
 	skb->nfctinfo = *ctinfo;
 	return ct;
@@ -784,7 +814,9 @@ nf_conntrack_in(int pf, unsigned int hooknum, struct sk_buff *skb)
 		return NF_ACCEPT;
 	}
 
-	/* rcu_read_lock()ed by nf_hook_slow */
+	/* rcu_read_lock()ed by nf_hook_slow 
+	 * 查找 nf_conntrack_l3proto对象
+	 */
 	l3proto = __nf_ct_l3proto_find((u_int16_t)pf);
 	ret = l3proto->get_l4proto(skb, skb_network_offset(skb),
 				   &dataoff, &protonum);
@@ -795,6 +827,7 @@ nf_conntrack_in(int pf, unsigned int hooknum, struct sk_buff *skb)
 		return -ret;
 	}
 
+    //查找nf_conntrack_l4proto对象
 	l4proto = __nf_ct_l4proto_find((u_int16_t)pf, protonum);
 
 	/* It may be an special packet, error, unclean...
@@ -807,6 +840,7 @@ nf_conntrack_in(int pf, unsigned int hooknum, struct sk_buff *skb)
 		return -ret;
 	}
 
+    //根据l3proto,l4proto 对象，创建或者查找到nf_conn对象
 	ct = resolve_normal_ct(skb, dataoff, pf, protonum, l3proto, l4proto,
 			       &set_reply, &ctinfo);
 	if (!ct) {

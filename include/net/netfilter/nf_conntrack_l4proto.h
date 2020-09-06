@@ -15,6 +15,14 @@
 
 struct seq_file;
 
+/*
+ * nf_conntrack_l4proto_tcp4
+ * nf_conntrack_l4proto_udp4
+ * nf_conntrack_l4proto_icmp
+ * nf_conntrack_l4proto_udplite4
+ *
+ * 这几个对象在nf_conntrack_l3proto_ipv4_init中注册
+ */
 struct nf_conntrack_l4proto
 {
 	/* L3 Protocol number. */
@@ -27,27 +35,43 @@ struct nf_conntrack_l4proto
 	const char *name;
 
 	/* Try to fill in the third arg: dataoff is offset past network protocol
-           hdr.  Return true if possible. */
+     *      hdr.  Return true if possible. 
+     *
+     * tcp: tcp_pkt_to_tuple
+     * udp: udp_pkt_to_tuple, udplite_pkt_to_tuple
+     */
 	int (*pkt_to_tuple)(const struct sk_buff *skb,
 			    unsigned int dataoff,
 			    struct nf_conntrack_tuple *tuple);
 
 	/* Invert the per-proto part of the tuple: ie. turn xmit into reply.
 	 * Some packets can't be inverted: return 0 in that case.
+	 *
+	 * tcp: tcp_invert_tuple
+	 * udp: udp_invert_tuple, udplite_invert_tuple
 	 */
 	int (*invert_tuple)(struct nf_conntrack_tuple *inverse,
 			    const struct nf_conntrack_tuple *orig);
 
-	/* Print out the per-protocol part of the tuple. Return like seq_* */
+	/* Print out the per-protocol part of the tuple. Return like seq_* 
+	 *
+	 * tcp: tcp_print_tuple
+	 * udp: udp_print_tuple, udplite_print_tuple
+	 */
 	int (*print_tuple)(struct seq_file *s,
 			   const struct nf_conntrack_tuple *);
 
-	/* Print out the private part of the conntrack. */
+	/* Print out the private part of the conntrack. 
+	 *
+	 * tcp: tcp_print_conntrack
+	 * udp: udp_print_conntrack, udplite_print_conntrack
+	 */
 	int (*print_conntrack)(struct seq_file *s, const struct nf_conn *);
 
 	/* Returns verdict for packet, or -1 for invalid.
 	 *
 	 * 对于tcp:就是tcp_packet
+	 * udp: udp_packet,  udplite_packet
 	 */
 	int (*packet)(struct nf_conn *conntrack,
 		      const struct sk_buff *skb,
@@ -57,7 +81,11 @@ struct nf_conntrack_l4proto
 		      unsigned int hooknum);
 
 	/* Called when a new connection for this protocol found;
-	 * returns TRUE if it's OK.  If so, packet() called next. */
+	 * returns TRUE if it's OK.  If so, packet() called next. 
+	 *
+	 * tcp: tcp_new
+	 * udp: udp_new, udplite_new
+	 */
 	int (*new)(struct nf_conn *conntrack, const struct sk_buff *skb,
 		   unsigned int dataoff);
 

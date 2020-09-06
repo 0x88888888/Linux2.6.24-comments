@@ -409,6 +409,12 @@ int ip_output(struct sk_buff *skb)
     /*
      * ip_finish_output或许要给ip数据报fragment或许直接发送出去
      * 要看数据包有没有大过pmtu了
+     *
+     * ipt_route_hook
+     * nf_nat_out
+     * ipv4_conntrack_help
+     * nf_nat_adjust
+     * ipv4_confirm
      */
 	return NF_HOOK_COND(PF_INET, NF_IP_POST_ROUTING, skb, NULL, dev,
 			    ip_finish_output,
@@ -529,6 +535,14 @@ packet_routed:
     //设置数据报的QoS类别
 	skb->priority = sk->sk_priority;
 
+    /*
+     * ipv4_conntrack_defrag
+	 * ipt_local_hook
+	 * ipv4_conntrack_local
+	 * ipt_local_hook
+	 * nf_nat_local_fn
+	 * ipt_local_out_hook
+	 */
 	return NF_HOOK(PF_INET, NF_IP_LOCAL_OUT, skb, NULL, rt->u.dst.dev,
 		       dst_output); //在dst_output中调用的函数指针是ip_output
 
@@ -1805,6 +1819,13 @@ int ip_push_pending_frames(struct sock *sk)
 
 	/* Netfilter gets whole the not fragmented skb. 
 	 * 发送出去
+	 *
+	 * ipv4_conntrack_defrag
+	 * ipt_local_hook
+	 * ipv4_conntrack_local
+	 * ipt_local_hook
+	 * nf_nat_local_fn
+	 * ipt_local_out_hook
      */
 	err = NF_HOOK(PF_INET, NF_IP_LOCAL_OUT, skb, NULL,
 		      skb->dst->dev, dst_output);
