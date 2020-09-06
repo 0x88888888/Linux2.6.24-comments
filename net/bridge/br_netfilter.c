@@ -882,11 +882,13 @@ static struct nf_hook_ops br_nf_ops[] = {
 	  .pf = PF_BRIDGE,
 	  .hooknum = NF_BR_PRE_ROUTING,
 	  .priority = NF_BR_PRI_BRNF, },
+	  
 	{ .hook = br_nf_local_in,
 	  .owner = THIS_MODULE,
 	  .pf = PF_BRIDGE,
 	  .hooknum = NF_BR_LOCAL_IN,
 	  .priority = NF_BR_PRI_BRNF, },
+	  
 	{ .hook = br_nf_forward_ip,
 	  .owner = THIS_MODULE,
 	  .pf = PF_BRIDGE,
@@ -912,6 +914,7 @@ static struct nf_hook_ops br_nf_ops[] = {
 	  .pf = PF_INET,
 	  .hooknum = NF_IP_PRE_ROUTING,
 	  .priority = NF_IP_PRI_FIRST, },
+	  
 	{ .hook = ip_sabotage_in,
 	  .owner = THIS_MODULE,
 	  .pf = PF_INET6,

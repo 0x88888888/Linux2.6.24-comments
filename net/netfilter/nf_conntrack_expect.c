@@ -506,6 +506,12 @@ static void exp_proc_remove(void)
 
 module_param_named(expect_hashsize, nf_ct_expect_hsize, uint, 0600);
 
+
+/*
+ * nf_conntrack_standalone_init()
+ *  nf_conntrack_init()
+ *   nf_conntrack_expect_init()
+ */
 int __init nf_conntrack_expect_init(void)
 {
 	int err = -ENOMEM;
@@ -521,7 +527,8 @@ int __init nf_conntrack_expect_init(void)
 						  &nf_ct_expect_vmalloc);
 	if (nf_ct_expect_hash == NULL)
 		goto err1;
-
+	
+	/*创建期望连接跟踪项相关的slab缓存*/
 	nf_ct_expect_cachep = kmem_cache_create("nf_conntrack_expect",
 					sizeof(struct nf_conntrack_expect),
 					0, 0, NULL);

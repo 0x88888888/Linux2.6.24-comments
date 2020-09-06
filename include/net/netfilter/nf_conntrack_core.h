@@ -62,15 +62,25 @@ nf_conntrack_find_get(const struct nf_conntrack_tuple *tuple);
 
 extern int __nf_conntrack_confirm(struct sk_buff *skb);
 
-/* Confirm a connection: returns NF_DROP if packet must be dropped. */
+/* Confirm a connection: returns NF_DROP if packet must be dropped. 
+ *
+ * ipv4_confirm()
+ *  nf_conntrack_confirm()
+ */
 static inline int nf_conntrack_confirm(struct sk_buff *skb)
 {
 	struct nf_conn *ct = (struct nf_conn *)skb->nfct;
 	int ret = NF_ACCEPT;
 
 	if (ct) {
+		/*
+		 * 若一个连接跟踪项还没有被确认，则调用函数
+         * __nf_conntrack_confirm对一个连接跟踪项执行确认操作。
+         */
 		if (!nf_ct_is_confirmed(ct) && !nf_ct_is_dying(ct))
 			ret = __nf_conntrack_confirm(skb);
+		
+		/*通过调用该函数，由通知block ctnl_notifier的回调函数决定是否将该事件发送出去*/
 		nf_ct_deliver_cached_events(ct);
 	}
 	return ret;

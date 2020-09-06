@@ -76,17 +76,24 @@ nf_nat_fn(unsigned int hooknum,
 	enum ip_conntrack_info ctinfo;
 	struct nf_conn_nat *nat;
 	/* maniptype == SRC for postrouting. */
+    /*获取NAT类型*/
 	enum nf_nat_manip_type maniptype = HOOK2MANIP(hooknum);
 
 	/* We never see fragments: conntrack defrags on pre-routing
 	   and local-out, and nf_nat_out protects post-routing. */
 	NF_CT_ASSERT(!(ip_hdr(skb)->frag_off & htons(IP_MF | IP_OFFSET)));
-
+    
+	/*获取该数据包对应的连接跟踪项*/
 	ct = nf_ct_get(skb, &ctinfo);
 	/* Can't track?  It's not due to stress, or conntrack would
 	   have dropped it.  Hence it's the user's responsibilty to
 	   packet filter it out, or implement conntrack/NAT for that
 	   protocol. 8) --RR */
+	
+    /*
+     * 当数据包没有连接跟踪项，且为icmp_redirect时，返回DROP;
+     * 当数据包没有连接跟踪项，且不是icmp_redirect时，返回ACCEPT;
+     */      
 	if (!ct) {
 		/* Exception: ICMP redirect to new connection (not in
 		   hash table yet).  We must not let this through, in
@@ -103,7 +110,11 @@ nf_nat_fn(unsigned int hooknum,
 		return NF_ACCEPT;
 	}
 
-	/* Don't try to NAT if this packet is not conntracked */
+	/* Don't try to NAT if this packet is not conntracked */	
+	/*
+	 * 对于连接跟踪项为nf_conntrack_untracked，
+	 * 则说明不对该数据包进行连接跟踪，此时直接返回ACCEPT
+	 */
 	if (ct == &nf_conntrack_untracked)
 		return NF_ACCEPT;
 
@@ -116,6 +127,17 @@ nf_nat_fn(unsigned int hooknum,
 		}
 	}
 
+    
+/*
+对于期望连接original与reply方向的数据包，对于icmp协议的数据包，进行nat操作；
+对于期望连接、及非期望连接的NEW状态下的连接跟踪项，只有连接跟踪项的NAT操作没有进行
+的情况下才进行NAT转换操作。
+a)对于LOCAL_IN的hook点，调用alloc_null_binding进行NAT操作，可能会修改四层协议相关的关键字
+b)对于已经确认过却没有进行NAT操作的连接跟踪项，调用alloc_null_binding_confirmed进行NAT操作，只有可能修改
+   四层协议相关的关键字。
+c)对于其他情况，则通过nf_nat_rule_find，查找iptables的nat表中有没有匹配该数据流的NAT规则，若有则根据
+  NAT类型，调用相应的target进行NAT操作(SNAT target 、DNAT target)
+*/
 	switch (ctinfo) {
 	case IP_CT_RELATED:
 	case IP_CT_RELATED+IP_CT_IS_REPLY:
@@ -276,6 +298,9 @@ nf_nat_adjust(unsigned int hooknum,
 static struct nf_hook_ops nf_nat_ops[] = {
 	/* Before packet filtering, change destination */
 	{
+	    
+/*注册在NF_IP_PRE_ROUTING链上，实现DNAT转换的功能(或者对于SNAT时，对reply的
+数据包实现De-SNAT功能)*/
 		.hook		= nf_nat_in,
 		.owner		= THIS_MODULE,
 		.pf		= PF_INET,
@@ -284,6 +309,8 @@ static struct nf_hook_ops nf_nat_ops[] = {
 	},
 	/* After packet filtering, change source */
 	{
+/*注册在NF_IP_POST_ROUTING实现SNAT转换的功能(或者对于开启DNAT时，在此处
+会对数据包实现De-DNAT功能)*/	
 		.hook		= nf_nat_out,
 		.owner		= THIS_MODULE,
 		.pf		= PF_INET,
@@ -300,6 +327,9 @@ static struct nf_hook_ops nf_nat_ops[] = {
 	},
 	/* Before packet filtering, change destination */
 	{
+    /*
+     * 注册在NF_IP_LOCAL_OUT链，实现DNAT转换功能
+     */	
 		.hook		= nf_nat_local_fn,
 		.owner		= THIS_MODULE,
 		.pf		= PF_INET,
@@ -308,6 +338,9 @@ static struct nf_hook_ops nf_nat_ops[] = {
 	},
 	/* After packet filtering, change source */
 	{
+	/*
+     * 注册在NF_IP_LOCAL_IN链上，实现SNAT转换功能
+     */
 		.hook		= nf_nat_fn,
 		.owner		= THIS_MODULE,
 		.pf		= PF_INET,

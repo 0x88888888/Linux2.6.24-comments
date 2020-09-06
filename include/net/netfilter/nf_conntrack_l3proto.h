@@ -16,6 +16,9 @@
 #include <linux/seq_file.h>
 #include <net/netfilter/nf_conntrack.h>
 
+/*
+ * netfilter中conntrack功能使用这个结构,跟踪3层协议
+ */
 struct nf_conntrack_l3proto
 {
 	/* L3 Protocol Family number. ex) PF_INET */
@@ -34,6 +37,9 @@ struct nf_conntrack_l3proto
 	/*
 	 * Invert the per-proto part of the tuple: ie. turn xmit into reply.
 	 * Some packets can't be inverted: return 0 in that case.
+	 *
+	 * 对于一个给定的tuple结构，对其三层相关元组进行取反操作并赋值给
+     * 新的tuple变量inverse
 	 */
 	int (*invert_tuple)(struct nf_conntrack_tuple *inverse,
 			    const struct nf_conntrack_tuple *orig);
@@ -43,9 +49,11 @@ struct nf_conntrack_l3proto
 			   const struct nf_conntrack_tuple *);
 
 	/* Print out the private part of the conntrack. */
+    /*打印一个数据连接变量中三层相关的信息*/			   			   
 	int (*print_conntrack)(struct seq_file *s, const struct nf_conn *);
 
 	/* Returns verdict for packet, or -1 for invalid. */
+	/*对数据包进行三层相关的处理，并修改数据连接相关的值*/	
 	int (*packet)(struct nf_conn *conntrack,
 		      const struct sk_buff *skb,
 		      enum ip_conntrack_info ctinfo);
@@ -53,6 +61,9 @@ struct nf_conntrack_l3proto
 	/*
 	 * Called when a new connection for this protocol found;
 	 * returns TRUE if it's OK.  If so, packet() called next.
+	 *
+	 * 
+	 * 当创建一个新的数据连接时，调用该函数进行初始化	 
 	 */
 	int (*new)(struct nf_conn *conntrack, const struct sk_buff *skb);
 

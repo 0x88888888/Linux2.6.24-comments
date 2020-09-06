@@ -193,7 +193,12 @@ static struct nf_ct_ext_type helper_extend __read_mostly = {
 	.align	= __alignof__(struct nf_conn_help),
 	.id	= NF_CT_EXT_HELPER,
 };
-
+
+/*
+ * nf_conntrack_standalone_init()
+ *  nf_conntrack_init()
+ *   nf_conntrack_helper_init()
+ */	
 int nf_conntrack_helper_init(void)
 {
 	int err;

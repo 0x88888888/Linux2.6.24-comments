@@ -10,15 +10,32 @@
 #include <linux/if_pppox.h>
 
 /* Bridge Hooks */
-/* After promisc drops, checksum checks. */
+/* After promisc drops, checksum checks. 
+ *
+ * br_nf_pre_routing,
+ */
 #define NF_BR_PRE_ROUTING	0
-/* If the packet is destined for this box. */
+/* If the packet is destined for this box. 
+ *
+ * br_nf_local_in,
+ */
 #define NF_BR_LOCAL_IN		1
-/* If the packet is destined for another interface. */
+/* If the packet is destined for another interface. 
+ *
+ * br_nf_forward_ip, 
+ * br_nf_forward_arp
+ */
 #define NF_BR_FORWARD		2
-/* Packets coming from a local process. */
+/* Packets coming from a local process. 
+ *
+ * br_nf_local_out,
+ * 
+ */
 #define NF_BR_LOCAL_OUT		3
-/* Packets about to hit the wire. */
+/* Packets about to hit the wire. 
+ *
+ * br_nf_post_routing
+ */
 #define NF_BR_POST_ROUTING	4
 /* Not really a hook, but used for the ebtables broute table */
 #define NF_BR_BROUTING		5

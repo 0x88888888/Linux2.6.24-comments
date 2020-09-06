@@ -103,12 +103,24 @@ nf_ct_get_tuple(const struct sk_buff *skb,
 	NF_CT_TUPLE_U_BLANK(tuple);
 
 	tuple->src.l3num = l3num;
+
+/*
+ * 调用函数ipv4_pkt_to_tuple，设置tuple结构的源、目的ip地址，
+ * 对于ipv4，则是调用函数ipv4_pkt_to_tuple
+ */	
 	if (l3proto->pkt_to_tuple(skb, nhoff, tuple) == 0)
 		return 0;
 
+	/*
+	 * 调用四层函数l4_pkt_to_tuple，设置tuple结构中的四层相关的源、目的值。 
+	 */
 	tuple->dst.protonum = protonum;
 	tuple->dst.dir = IP_CT_DIR_ORIGINAL;
 
+	/*
+	 * 调用四层函数l4_pkt_to_tuple，设置tuple结构中的四层相关的源、目的值。
+	 * 对于tcp协议来说，则是调用函数tcp_pkt_to_tuple
+	*/
 	return l4proto->pkt_to_tuple(skb, dataoff, tuple);
 }
 EXPORT_SYMBOL_GPL(nf_ct_get_tuple);
@@ -173,6 +185,25 @@ clean_from_lists(struct nf_conn *ct)
 	nf_ct_remove_expectations(ct);
 }
 
+
+/*
+
+功能:销毁一个连接跟踪项
+
+1.发送destory消息给nfnetlink模块，让nfnetlink模块执行该连接跟踪相关联的内容
+
+2.调用连接跟踪项中三、四层协议相关的销毁函数
+
+3.因为未确认的连接跟踪项是放在unconntrack链表中的，因此对于未确认的连接跟踪
+
+   项，还需要将该连接跟踪项origin方向的tuple从unconntrack链表上删除
+
+4.若该连接为期望连接，调用nf_ct_put，减去对主连接的引用
+
+5.调用nf_conntrack_free释放连接跟踪项占用的内存。
+
+*/
+
 static void
 destroy_conntrack(struct nf_conntrack *nfct)
 {
@@ -207,6 +238,8 @@ destroy_conntrack(struct nf_conntrack *nfct)
 	nf_ct_remove_expectations(ct);
 
 	/* We overload first tuple to link into unconfirmed list. */
+	/*若该连接还未被确认，则该连接跟踪项只有origin tuple添加到了unconntrack的
+	链表上了，所以只删除origin方向的tuple连接*/	
 	if (!nf_ct_is_confirmed(ct)) {
 		BUG_ON(hlist_unhashed(&ct->tuplehash[IP_CT_DIR_ORIGINAL].hnode));
 		hlist_del(&ct->tuplehash[IP_CT_DIR_ORIGINAL].hnode);
@@ -245,6 +278,14 @@ static void death_by_timeout(unsigned long ul_conntrack)
 	nf_ct_put(ct);
 }
 
+/*
+ * nf_conntrack_find_get()
+ *  __nf_conntrack_find()
+ *
+ * nf_nat_used_tuple()
+ *  nf_conntrack_tuple_taken() 
+ *   __nf_conntrack_find()
+ */
 struct nf_conntrack_tuple_hash *
 __nf_conntrack_find(const struct nf_conntrack_tuple *tuple,
 		    const struct nf_conn *ignored_conntrack)
@@ -254,6 +295,7 @@ __nf_conntrack_find(const struct nf_conntrack_tuple *tuple,
 	unsigned int hash = hash_conntrack(tuple);
 
 	hlist_for_each_entry(h, n, &nf_conntrack_hash[hash], hnode) {
+		
 		if (nf_ct_tuplehash_to_ctrack(h) != ignored_conntrack &&
 		    nf_ct_tuple_equal(tuple, &h->tuple)) {
 			NF_CT_STAT_INC(found);
@@ -305,7 +347,12 @@ void nf_conntrack_hash_insert(struct nf_conn *ct)
 }
 EXPORT_SYMBOL_GPL(nf_conntrack_hash_insert);
 
-/* Confirm a connection given skb; places it in hash table */
+/* Confirm a connection given skb; places it in hash table 
+ *
+ * ipv4_confirm()
+ *  nf_conntrack_confirm()
+ *   __nf_conntrack_confirm()
+ */
 int
 __nf_conntrack_confirm(struct sk_buff *skb)
 {
@@ -321,10 +368,16 @@ __nf_conntrack_confirm(struct sk_buff *skb)
 	/* ipt_REJECT uses nf_conntrack_attach to attach related
 	   ICMP/TCP RST packets in other direction.  Actual packet
 	   which created connection will be IP_CT_NEW or for an
-	   expected connection, IP_CT_RELATED. */
+	   expected connection, IP_CT_RELATED.
+	   */
+/*该函数只对dir为IP_CT_DIR_ORIGINAL状态时的nf_conn进行confirm操作
+对于dir为IP_CT_DIR_REPLY状态的nf_conn，其状态已经设置过confirm，所以
+不需要操作*/	   
 	if (CTINFO2DIR(ctinfo) != IP_CT_DIR_ORIGINAL)
 		return NF_ACCEPT;
 
+    
+	/*根据tuple值获取来、去的hash值*/
 	hash = hash_conntrack(&ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple);
 	repl_hash = hash_conntrack(&ct->tuplehash[IP_CT_DIR_REPLY].tuple);
 
@@ -343,6 +396,23 @@ __nf_conntrack_confirm(struct sk_buff *skb)
 	/* See if there's one in the list already, including reverse:
 	   NAT could have grabbed it without realizing, since we're
 	   not in the hash.  If there is, we lost race. */
+
+	/*
+	 
+	若在nf_conntrack_hash链表中没有发现符合条件的nf_conn
+	则说明该nf_conn还没有在nf_conntrack_hash表中。
+	a)则需要将该nf_conn从unconfirmed链表中删除，并加入到nf_conntrack_hash
+	链表中
+	b)设置nf_conn超时时间并启动定时器
+	c)设置该nf_conn的状态为confirm状态
+	d)若对于该nf_conn，有设置SNAT/DNAT操作，则设置event状态为IPCT_NATINFO，
+	   用于netlink通知链处理
+	e)若该nf_conn链接为一个期望链接，则设置event状态为IPCT_RELATED，否则
+	   设置为IPCT_NEW
+	   对于上面的d)、e)只是设置了event状态，而并没有将改事件通知给netlink，
+	   主要是在nf_conntrack_confirm的最后通过调用nf_ct_deliver_cached_events，才将事件通知发送给netlink的nf_conntrack_chain，由该通知链的回调函数根据事件类型，设置相应的组并决定是否将事件通知发送出去。并根据连接跟踪项的status中IPCT_HELPER、IPS_SRC_NAT_DONE_BIT、IPS_SRC_NAT_DONE_BIT的值，来决定是否向nfnetlink模块发送消息。
+	*/	 
+	   
 	hlist_for_each_entry(h, n, &nf_conntrack_hash[hash], hnode)
 		if (nf_ct_tuple_equal(&ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple,
 				      &h->tuple))
@@ -385,7 +455,11 @@ out:
 EXPORT_SYMBOL_GPL(__nf_conntrack_confirm);
 
 /* Returns true if a connection correspondings to the tuple (required
-   for NAT). */
+   for NAT). 
+ *
+ * nf_nat_used_tuple()
+ *  nf_conntrack_tuple_taken()
+ */
 int
 nf_conntrack_tuple_taken(const struct nf_conntrack_tuple *tuple,
 			 const struct nf_conn *ignored_conntrack)
@@ -393,6 +467,7 @@ nf_conntrack_tuple_taken(const struct nf_conntrack_tuple *tuple,
 	struct nf_conntrack_tuple_hash *h;
 
 	read_lock_bh(&nf_conntrack_lock);
+	
 	h = __nf_conntrack_find(tuple, ignored_conntrack);
 	read_unlock_bh(&nf_conntrack_lock);
 
@@ -415,6 +490,7 @@ static int early_drop(unsigned int hash)
 
 	read_lock_bh(&nf_conntrack_lock);
 	for (i = 0; i < nf_conntrack_htable_size; i++) {
+		
 		hlist_for_each_entry(h, n, &nf_conntrack_hash[hash], hnode) {
 			tmp = nf_ct_tuplehash_to_ctrack(h);
 			if (!test_bit(IPS_ASSURED_BIT, &tmp->status))
@@ -427,6 +503,7 @@ static int early_drop(unsigned int hash)
 	}
 	if (ct)
 		atomic_inc(&ct->ct_general.use);
+	
 	read_unlock_bh(&nf_conntrack_lock);
 
 	if (!ct)
@@ -454,6 +531,14 @@ struct nf_conn *nf_conntrack_alloc(const struct nf_conntrack_tuple *orig,
 	/* We don't want any race condition at early drop stage */
 	atomic_inc(&nf_conntrack_count);
 
+	/*若当前以创建的连接跟踪项已经超过了最大值了，
+	则根据要创建的连接的origin方向的tuple变量计算hash值为h，然后
+	调用early_drop，遍历链表nf_conntrack_hash[h]，
+	对于连接跟踪项的status的IPS_ASSURED_BIT位没有被置位的连接跟踪项，则强制删除。
+	最后若early_drop返回0，则没有找到可删除的项，程序返回创建连接跟踪项失败；
+	若early_drop 返回1，则说明已经删除了一个连接跟踪项，则可以继续创建新的
+	连接跟踪项。
+	*/
 	if (nf_conntrack_max
 	    && atomic_read(&nf_conntrack_count) > nf_conntrack_max) {
 		unsigned int hash = hash_conntrack(orig);
@@ -494,7 +579,13 @@ void nf_conntrack_free(struct nf_conn *conntrack)
 EXPORT_SYMBOL_GPL(nf_conntrack_free);
 
 /* Allocate a new conntrack: we return -ENOMEM if classification
-   failed due to stress.  Otherwise it really is unclassifiable. */
+ * failed due to stress.  Otherwise it really is unclassifiable. 
+ *
+ * ipv4_conntrack_local()
+ *  nf_conntrack_in()
+ *   resolve_normal_ct()
+ *    init_conntrack()
+ */
 static struct nf_conntrack_tuple_hash *
 init_conntrack(const struct nf_conntrack_tuple *tuple,
 	       struct nf_conntrack_l3proto *l3proto,
@@ -506,18 +597,21 @@ init_conntrack(const struct nf_conntrack_tuple *tuple,
 	struct nf_conn_help *help;
 	struct nf_conntrack_tuple repl_tuple;
 	struct nf_conntrack_expect *exp;
-
+   
+	/*根据入口nf_conntrack_tuple变量和三层、四层nf_conntrack_proto变量的invert函数构造出口nf_conntrack_tuple变量，对于ipv4来说，就是ipv4_invert_tuple，对于tcp协议来说即是 tcp_invert_tuple*/
 	if (!nf_ct_invert_tuple(&repl_tuple, tuple, l3proto, l4proto)) {
 		pr_debug("Can't invert tuple.\n");
 		return NULL;
 	}
 
+    // 创建一个数据连接跟踪项
 	conntrack = nf_conntrack_alloc(tuple, &repl_tuple);
 	if (conntrack == NULL || IS_ERR(conntrack)) {
 		pr_debug("Can't allocate conntrack.\n");
 		return (struct nf_conntrack_tuple_hash *)conntrack;
 	}
-
+    
+	/*调用四层nf_conntrack_prot的new函数为新的nf_conn进行四层初始化*/
 	if (!l4proto->new(conntrack, skb, dataoff)) {
 		nf_conntrack_free(conntrack);
 		pr_debug("init conntrack: can't track with proto module\n");
@@ -525,11 +619,15 @@ init_conntrack(const struct nf_conntrack_tuple *tuple,
 	}
 
 	write_lock_bh(&nf_conntrack_lock);
+	
+	/*在nf_conntrack_expect_list链表中，查找新建的nf_conn是否为一个已建立的nf_conn的期望连接*/
 	exp = nf_ct_find_expectation(tuple);
 	if (exp) {
 		pr_debug("conntrack: expectation arrives ct=%p exp=%p\n",
 			 conntrack, exp);
 		/* Welcome, Mr. Bond.  We've been expecting you... */
+		/*若是期望链接，则更新链接的状态，并对master指针进行赋值。并
+         增加对主数据连接跟踪项的引用计数*/	 
 		__set_bit(IPS_EXPECTED_BIT, &conntrack->status);
 		conntrack->master = exp->master;
 		if (exp->helper) {
@@ -548,7 +646,8 @@ init_conntrack(const struct nf_conntrack_tuple *tuple,
 		NF_CT_STAT_INC(expect_new);
 	} else {
 		struct nf_conntrack_helper *helper;
-
+		
+		/*若不是期望链接，则调用__nf_ct_helper_find，从链表helpers中查找符合条件的helper函数*/
 		helper = __nf_ct_helper_find(&repl_tuple);
 		if (helper) {
 			help = nf_ct_helper_ext_add(conntrack, GFP_ATOMIC);
@@ -573,7 +672,12 @@ init_conntrack(const struct nf_conntrack_tuple *tuple,
 	return &conntrack->tuplehash[IP_CT_DIR_ORIGINAL];
 }
 
-/* On success, returns conntrack ptr, sets skb->nfct and ctinfo */
+/* On success, returns conntrack ptr, sets skb->nfct and ctinfo 
+ *
+ * ipv4_conntrack_local()
+ *  nf_conntrack_in()
+ *   resolve_normal_ct()
+ */
 static inline struct nf_conn *
 resolve_normal_ct(struct sk_buff *skb,
 		  unsigned int dataoff,
@@ -588,6 +692,8 @@ resolve_normal_ct(struct sk_buff *skb,
 	struct nf_conntrack_tuple_hash *h;
 	struct nf_conn *ct;
 
+	/*根据三、四层协议的nf_conntrack结构变量及skb，为该数据包计算相应的
+	nf_conntrack_tuple值*/
 	if (!nf_ct_get_tuple(skb, skb_network_offset(skb),
 			     dataoff, l3num, protonum, &tuple, l3proto,
 			     l4proto)) {
@@ -596,23 +702,47 @@ resolve_normal_ct(struct sk_buff *skb,
 	}
 
 	/* look for tuple match */
+	 /*根据上面获取的nf_conntrack_tuple变量，在hash数组nf_conntrack_hash中相应的hash链表中
+	 查找是否有满足条件的nf_conntrack_tuple_hash*/
 	h = nf_conntrack_find_get(&tuple);
 	if (!h) {
+        /* 没有找到符合条件的nf_conntrack_tuple_hash，则调用init_conntrack创建一个新的
+         * nf_conntrack_tuple_hash，并对其helper指针进行赋值
+         */		
 		h = init_conntrack(&tuple, l3proto, l4proto, skb, dataoff);
 		if (!h)
 			return NULL;
 		if (IS_ERR(h))
 			return (void *)h;
 	}
+	
+	/*根据tuple值，获取nf_conn*/
 	ct = nf_ct_tuplehash_to_ctrack(h);
 
 	/* It exists; we have (non-exclusive) reference. */
-	if (NF_CT_DIRECTION(h) == IP_CT_DIR_REPLY) {
+	/*
+     * 根据tuple的dst.dir，确定当前进来的数据包对应于连接跟踪项的哪一个方向，
+     * 然后设置set_reply的值，
+     */
+	if (NF_CT_DIRECTION(h) == IP_CT_DIR_REPLY) {
+        /* 
+         *　当是reply方向的数据包时，则skb->nfctinfo可以设置为IP_CT_ESTABLISHED + IP_CT_IS_REPLY，
+         * 同时需要将连接跟踪项的status的IPS_SEEN_REPLY_BIT位置为1。
+　　　　 */
 		*ctinfo = IP_CT_ESTABLISHED + IP_CT_IS_REPLY;
 		/* Please set reply bit if this packet OK */
 		*set_reply = 1;
 	} else {
 		/* Once we've had two way comms, always ESTABLISHED. */
+
+		/* 当是连接跟踪项原始方向的数据包时，则有以下几种情况
+         * 1.当发送的数据包到达连接跟踪模块时，其reply方向没有收到对应的数据包之前
+         * a)连接跟踪项不是期望连接，此时将skb->nfctinfo设置为IP_CT_NEW
+         * b)连接跟踪项是期望连接，此时将skb->nfctinfo设置为IP_CT_RELATED
+         * 2.当原始方向发送的数据包到达连接跟踪模块时，其reply方向已经收到过对应的数据包
+         * 即连接跟踪项的状态的IPS_SEEN_REPLY_BIT位已经置位了。
+         * 此时将skb->nfctinfo设置为IP_CT_ESTABLISHED
+         */
 		if (test_bit(IPS_SEEN_REPLY_BIT, &ct->status)) {
 			pr_debug("nf_conntrack_in: normal packet for %p\n", ct);
 			*ctinfo = IP_CT_ESTABLISHED;
@@ -634,6 +764,7 @@ resolve_normal_ct(struct sk_buff *skb,
 /*
  * ipv4_conntrack_local()
  *  nf_conntrack_in()
+ *
  */
 unsigned int
 nf_conntrack_in(int pf, unsigned int hooknum, struct sk_buff *skb)
@@ -692,6 +823,10 @@ nf_conntrack_in(int pf, unsigned int hooknum, struct sk_buff *skb)
 
 	NF_CT_ASSERT(skb->nfct);
 
+	/*
+     * 创建连接跟踪项后，再调用四层协议的packet函数进行处理。
+     * tcp_packet
+	*/
 	ret = l4proto->packet(ct, skb, dataoff, ctinfo, pf, hooknum);
 	if (ret < 0) {
 		/* Invalid: inverse of the return code tells
@@ -710,6 +845,10 @@ nf_conntrack_in(int pf, unsigned int hooknum, struct sk_buff *skb)
 }
 EXPORT_SYMBOL_GPL(nf_conntrack_in);
 
+/*
+ * nf_nat_packet()
+ *  nf_ct_invert_tuplepr()
+ */
 int nf_ct_invert_tuplepr(struct nf_conntrack_tuple *inverse,
 			 const struct nf_conntrack_tuple *orig)
 {
@@ -1072,6 +1211,10 @@ EXPORT_SYMBOL_GPL(nf_conntrack_set_hashsize);
 module_param_call(hashsize, nf_conntrack_set_hashsize, param_get_uint,
 		  &nf_conntrack_htable_size, 0600);
 
+/*
+ * nf_conntrack_standalone_init()
+ *  nf_conntrack_init()
+ */
 int __init nf_conntrack_init(void)
 {
 	int max_factor = 8;
@@ -1079,12 +1222,19 @@ int __init nf_conntrack_init(void)
 
 	/* Idea from tcp.c: use 1/16384 of memory.  On i386: 32MB
 	 * machine has 512 buckets. >= 1GB machines have 16384 buckets. */
+
+	/* 
+	 * 当nf_conntrack_htable_size的值没有设置时，则在内存小于1GB时，
+     * 使用内存的1/16384作为hash数组的最大值；在内存大于1GB时
+     * 则最大hash数组的值为8192
+     */
 	if (!nf_conntrack_htable_size) {
 		nf_conntrack_htable_size
 			= (((num_physpages << PAGE_SHIFT) / 16384)
 			   / sizeof(struct hlist_head));
 		if (num_physpages > (1024 * 1024 * 1024 / PAGE_SIZE))
 			nf_conntrack_htable_size = 16384;
+		
 		if (nf_conntrack_htable_size < 32)
 			nf_conntrack_htable_size = 32;
 
@@ -1094,6 +1244,10 @@ int __init nf_conntrack_init(void)
 		 * entries. */
 		max_factor = 4;
 	}
+	
+     /*
+      * hash链表的初始化，申请nf_conntrack_htable_size个hash链表
+      */
 	nf_conntrack_hash = nf_ct_alloc_hashtable(&nf_conntrack_htable_size,
 						  &nf_conntrack_vmalloc);
 	if (!nf_conntrack_hash) {
@@ -1101,6 +1255,11 @@ int __init nf_conntrack_init(void)
 		goto err_out;
 	}
 
+    /*
+     * 设置nf_conntrack_max的值，即连接跟踪项的最大值。 
+     * 该值取决于nf_conntrack_hash[]数组的最大值，即为
+     * nf_conntrack_htable_size的8倍。
+     */
 	nf_conntrack_max = max_factor * nf_conntrack_htable_size;
 
 	printk("nf_conntrack version %s (%u buckets, %d max)\n",
@@ -1119,6 +1278,7 @@ int __init nf_conntrack_init(void)
 	if (ret < 0)
 		goto err_free_conntrack_slab;
 
+    
 	ret = nf_conntrack_expect_init();
 	if (ret < 0)
 		goto out_fini_proto;
@@ -1135,6 +1295,14 @@ int __init nf_conntrack_init(void)
 	    - to never be deleted, not in any hashes */
 	atomic_set(&nf_conntrack_untracked.ct_general.use, 1);
 	/*  - and look it like as a confirmed connection */
+    
+    /* 
+     * 设置变量nf_conntrack_untracked的状态为confirmed，当对一类数据包
+     * 不想进行连接跟踪时，就会添加如下命令，
+     * iptables -t raw -A PREROUTING -d x.x.x.x-j NOTRACK，这样在数据包首先进入PRE_ROUTING
+     * 、OUTPUT链时，就会首先进入raw模块对应注册的hook函数，并将
+     * 数据包的nfct指针指向存储nf_conntrack_untracked的内存地址
+     */	
 	set_bit(IPS_CONFIRMED_BIT, &nf_conntrack_untracked.status);
 
 	return ret;

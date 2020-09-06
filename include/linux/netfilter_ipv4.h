@@ -42,9 +42,22 @@
 /* After promisc drops, checksum checks. 
  * 
  * 刚刚进入网络层的数据包通过此点(刚刚进行完版本号，校验和等检查)，目的地址转换在此点进行
+ *
+ * 优先级: NF_IP_PRI_FIRST    INT_MIN
+ *           ip_sabotage_in , 
+ *        
+ *         NF_IP_PRI_MANGLE   -150
+ *           ipt_route_hook
+ *
  */
 #define NF_IP_PRE_ROUTING	0
 /* If the packet is destined for this box. 
+ *
+ * 优先级: NF_IP_PRI_MANGLE   -150
+ *           ipt_route_hook
+ *
+ *         NF_IP_PRI_MANGLE
+ *           ipt_route_hook
  *
  * 经过路由查找后，送往本机的通过此检查点，INPUT包过滤在此点进行
  */

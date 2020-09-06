@@ -240,7 +240,19 @@ struct xt_match
 	u_int8_t revision;
 };
 
-/* Registration hooks for targets. */
+/* Registration hooks for targets. 
+ *
+ * ipt_snat_reg, ipt_dnat_reg
+ * clusterip_tgt, ipt_log_reg,
+ * masquerade, target_module,
+ * redirect_reg, ipt_reject_reg,
+ * same_reg, ipt_ulog_reg,
+ * ipt_standard_target, ipt_error_target,
+ * xt_classify_target[], xt_connsecmark_target[]
+ * xt_nflog_target[], xt_nfqueue_target[],
+ * xt_notrack_target[], xt_secmark_target[]
+ * xt_trace_target[], 
+ */
 struct xt_target
 {
     //链表，使该match添加到target链表中

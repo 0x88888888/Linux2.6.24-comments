@@ -182,6 +182,10 @@ static void nf_ct_l3proto_unregister_sysctl(struct nf_conntrack_l3proto *l3proto
 #endif
 }
 
+/*
+ * nf_conntrack_l3proto_ipv4_init()
+ *  nf_conntrack_l3proto_register(&nf_conntrack_l3proto_ipv4)
+ */
 int nf_conntrack_l3proto_register(struct nf_conntrack_l3proto *proto)
 {
 	int ret = 0;
@@ -272,7 +276,15 @@ static void nf_ct_l4proto_unregister_sysctl(struct nf_conntrack_l4proto *l4proto
 }
 
 /* FIXME: Allow NULL functions and sub in pointers to generic for
-   them. --RR */
+   them. --RR 
+ *
+ * nf_conntrack_l3proto_ipv4_init(nf_conntrack_l4proto_tcp4)
+ * nf_conntrack_l3proto_ipv4_init(nf_conntrack_l4proto_udp4)
+ * nf_conntrack_l3proto_ipv4_init(nf_conntrack_l4proto_icmp)
+ * nf_conntrack_l3proto_ipv4_init(nf_conntrack_l3proto_ipv4)
+ * nf_conntrack_l3proto_ipv4_init()
+ *
+ */
 int nf_conntrack_l4proto_register(struct nf_conntrack_l4proto *l4proto)
 {
 	int ret = 0;

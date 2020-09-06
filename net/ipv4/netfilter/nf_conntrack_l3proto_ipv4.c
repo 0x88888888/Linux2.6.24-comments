@@ -24,6 +24,12 @@
 #include <net/netfilter/nf_conntrack_core.h>
 #include <net/netfilter/ipv4/nf_conntrack_ipv4.h>
 
+/*
+ * nf_ct_get_tuple()
+ *  ipv4_pkt_to_tuple()
+ *
+ * 根据ip头部获取源ip地址与目的ip地址，并写入tuple变量中。
+ */
 static int ipv4_pkt_to_tuple(const struct sk_buff *skb, unsigned int nhoff,
 			     struct nf_conntrack_tuple *tuple)
 {
@@ -39,6 +45,10 @@ static int ipv4_pkt_to_tuple(const struct sk_buff *skb, unsigned int nhoff,
 	return 1;
 }
 
+/*
+ * 根据原始的tuple的源ip、目的ip值，设置reply的tuple值，
+ * 新的tuple值的源、目的ip值与原始的tuple的源ip、目的ip值是反过来的
+ */
 static int ipv4_invert_tuple(struct nf_conntrack_tuple *tuple,
 			   const struct nf_conntrack_tuple *orig)
 {
@@ -75,6 +85,7 @@ static int nf_ct_ipv4_gather_frags(struct sk_buff *skb, u_int32_t user)
 	skb_orphan(skb);
 
 	local_bh_disable();
+	//ip包重组
 	err = ip_defrag(skb, user);
 	local_bh_enable();
 
@@ -167,6 +178,7 @@ static unsigned int ipv4_conntrack_defrag(unsigned int hooknum,
 
 	/* Gather fragments. */
 	if (ip_hdr(skb)->frag_off & htons(IP_MF | IP_OFFSET)) {
+		
 		if (nf_ct_ipv4_gather_frags(skb,
 					    hooknum == NF_IP_PRE_ROUTING ?
 					    IP_DEFRAG_CONNTRACK_IN :
@@ -188,9 +200,16 @@ static unsigned int ipv4_conntrack_in(unsigned int hooknum,
 	return nf_conntrack_in(PF_INET, hooknum, skb);
 }
 
-  /*
-   * netfilter挂载函数，挂载点:NF_IP_LOCAL_OUT,
-   */
+/*
+ * netfilter挂载函数，挂载点:NF_IP_LOCAL_OUT,
+ *
+ * 主要实现以下功能：
+ *
+ * a)当是一个新的数据包时，则为该数据包创建对应的连接跟踪项,创建成果后进入c
+ * b)当已经为传递过来的数据包创建了连接跟踪项，则进入c
+ * c）更新连接跟踪项的状态
+ * d）为数据包的nfct指针赋值
+ */
 static unsigned int ipv4_conntrack_local(unsigned int hooknum,
 					 struct sk_buff *skb,
 					 const struct net_device *in,

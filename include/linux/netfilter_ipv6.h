@@ -44,7 +44,10 @@
 
 
 /* IP6 Hooks */
-/* After promisc drops, checksum checks. */
+/* After promisc drops, checksum checks. 
+ *
+ * ip_sabotage_in
+ */
 #define NF_IP6_PRE_ROUTING	0
 /* If the packet is destined for this box. */
 #define NF_IP6_LOCAL_IN		1

@@ -82,7 +82,13 @@ hash_by_src(const struct nf_conntrack_tuple *tuple)
 			    tuple->dst.protonum, 0) % nf_nat_htable_size;
 }
 
-/* Is this tuple already taken? (not by us) */
+/* Is this tuple already taken? (not by us) 
+ *
+ * 判断已传入tuple取反获取到的reply tuple变量，
+ * 是否已经被其他连接跟踪项使用了：
+ *  若已经被其他连接跟踪项使用了，则返回TRUE；
+ *  若没有被其他连接跟踪项使用，则返回FALSE
+ */
 int
 nf_nat_used_tuple(const struct nf_conntrack_tuple *tuple,
 		  const struct nf_conn *ignored_conntrack)
@@ -95,12 +101,16 @@ nf_nat_used_tuple(const struct nf_conntrack_tuple *tuple,
 	struct nf_conntrack_tuple reply;
 
 	nf_ct_invert_tuplepr(&reply, tuple);
+	
 	return nf_conntrack_tuple_taken(&reply, ignored_conntrack);
 }
 EXPORT_SYMBOL(nf_nat_used_tuple);
 
 /* If we source map this tuple so reply looks like reply_tuple, will
- * that meet the constraints of range. */
+ * that meet the constraints of range. 
+ *
+ * 是判断一个tuple中的源ip地址是否在range范围内。
+ */
 static int
 in_range(const struct nf_conntrack_tuple *tuple,
 	 const struct nf_nat_range *range)
@@ -117,7 +127,14 @@ in_range(const struct nf_conntrack_tuple *tuple,
 	}
 
 	rcu_read_lock();
+	
+	/*根据四层协议号，在nf_nat_protos[]数组中找到相应的nf_nat_protocol变量*/
 	proto = __nf_nat_proto_find(tuple->dst.protonum);
+	
+    /*
+     * 当range没有标识四层相关的关键字检查标签或者
+     * 设置四层检查的标签，且调用相应四层nf_nat_protocol变量的in_range函数后，检查通过时，则返回1
+     */
 	if (!(range->flags & IP_NAT_RANGE_PROTO_SPECIFIED) ||
 	    proto->in_range(tuple, IP_NAT_MANIP_SRC,
 			    &range->min, &range->max))
@@ -277,6 +294,18 @@ out:
  * ipt_snat_target()
  *  nf_nat_setup_info()
  *
+ * ipt_dnat_target()
+ *  nf_nat_setup_info()
+ *
+ * nf_nat_fn()
+ *  alloc_null_binding_confirmed()
+ *   nf_nat_setup_info()
+ *
+ * nf_nat_fn()
+ *  alloc_null_binding()
+ *   nf_nat_setup_info()
+ * 
+ * 实现地址转换
  */
 unsigned int
 nf_nat_setup_info(struct nf_conn *ct,
@@ -327,8 +356,10 @@ nf_nat_setup_info(struct nf_conn *ct,
 			     &ct->tuplehash[IP_CT_DIR_REPLY].tuple);
 
 	 /* 
-	 得到SNAT后的tuple。get_unique_tuple留在后面学习。
-	 */
+	  * 得到SNAT后的tuple。get_unique_tuple留在后面学习。
+	  *
+	  * 获取一个唯一的且未被其他已经进行NAT转换的连接跟踪项使用的nf_conntrack_tuple变量
+	  */
 	get_unique_tuple(&new_tuple, &curr_tuple, range, ct, maniptype);
 
 	if (!nf_ct_tuple_equal(&new_tuple, &curr_tuple)) {
@@ -376,7 +407,12 @@ EXPORT_SYMBOL(nf_nat_setup_info);
 
 /* Returns true if succeeded. 
  *
- * 在manip_pkt()里主要完成对数据包skb结构中源/目的IP和源/目的端口的修改，并且修改了IP字段的校验和。从mainip_pkt()函数中返回就回到了ip_nat_in()函数中
+ * 在manip_pkt()里主要完成对数据包skb结构中源/目的IP和源/目的端口的修改，
+ * 并且修改了IP字段的校验和。从mainip_pkt()函数中返回就回到了ip_nat_in()函数中
+ *
+ * nf_nat_fn()
+ *  nf_nat_packet()
+ *   manip_pkt()
  */
 static int
 manip_pkt(u_int16_t proto,
@@ -412,7 +448,13 @@ manip_pkt(u_int16_t proto,
 	return 1;
 }
 
-/* Do packet manipulations according to nf_nat_setup_info. */
+/* Do packet manipulations according to nf_nat_setup_info.
+ *
+ * nf_nat_fn()
+ *  nf_nat_packet()
+ *
+ *
+ */
 unsigned int nf_nat_packet(struct nf_conn *ct,
 			   enum ip_conntrack_info ctinfo,
 			   unsigned int hooknum,
@@ -441,6 +483,7 @@ unsigned int nf_nat_packet(struct nf_conn *ct,
 		if (!manip_pkt(target.dst.protonum, skb, 0, &target, mtype))
 			return NF_DROP;
 	}
+	
 	return NF_ACCEPT;
 }
 EXPORT_SYMBOL_GPL(nf_nat_packet);

@@ -14,21 +14,32 @@
 
 struct module;
 
+/*
+ * 通过这个结构的help指针，能够实现期望连接的建立以及ALG的功能
+ */
 struct nf_conntrack_helper
 {
+    
+	/*链表结构，实现将所有的nf_conntrack_helper变量链接在一起*/	
 	struct hlist_node hnode;	/* Internal use. */
-
+    
+	/* helper变量的名称*/
 	const char *name;		/* name of the module */
 	struct module *me;		/* pointer to self */
+	
+	/*允许的最大期望连接*/
 	unsigned int max_expected;	/* Maximum number of concurrent 
 					 * expected connections */
+    /*超时定时器*/				 	
 	unsigned int timeout;		/* timeout for expecteds */
 
 	/* Tuple of things we will help (compared against server response) */
+    /* 该helper结构属于哪几条数据流，通过tuple，能够判断出一个连接跟踪项是否可以拥有该helper变量。*/	
 	struct nf_conntrack_tuple tuple;
 
 	/* Function to call when data passes; return verdict, or -1 to
            invalidate. */
+    /* help函数指针，实现创建期望连接与ALG等功能的函数 */	           
 	int (*help)(struct sk_buff *skb,
 		    unsigned int protoff,
 		    struct nf_conn *ct,

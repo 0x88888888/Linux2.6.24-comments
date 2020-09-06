@@ -431,7 +431,7 @@ struct sk_buff {
 #if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
 /*
  * netfilter用于跟踪一个链接
- * Neftilter框架用ip_conntrack{}来记录一个数据包与其连接的状态关系。
+ * Neftilter框架用nf_conntrack{}来记录一个数据包与其连接的状态关系。
  */
 	struct nf_conntrack	*nfct;
 	struct sk_buff  *nfct_reasm;

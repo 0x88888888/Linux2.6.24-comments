@@ -182,6 +182,10 @@ static bool ipt_dnat_checkentry(const char *tablename,
 	return true;
 }
 
+/*
+ * nf_nat_fn()
+ *  alloc_null_binding()
+ */
 unsigned int
 alloc_null_binding(struct nf_conn *ct, unsigned int hooknum)
 {
@@ -201,6 +205,10 @@ alloc_null_binding(struct nf_conn *ct, unsigned int hooknum)
 	return nf_nat_setup_info(ct, &range, hooknum);
 }
 
+/*
+ * nf_nat_fn()
+ *  alloc_null_binding_confirmed()
+ */
 unsigned int
 alloc_null_binding_confirmed(struct nf_conn *ct, unsigned int hooknum)
 {
@@ -235,6 +243,7 @@ int nf_nat_rule_find(struct sk_buff *skb,
 			/* NUL mapping */
 			ret = alloc_null_binding(ct, hooknum);
 	}
+	
 	return ret;
 }
 

@@ -267,6 +267,10 @@ static enum tcp_conntrack tcp_conntracks[2][6][TCP_CONNTRACK_MAX] = {
 	}
 };
 
+/*
+ * nf_ct_get_tuple()
+ *  tcp_pkt_to_tuple()
+ */
 static int tcp_pkt_to_tuple(const struct sk_buff *skb,
 			    unsigned int dataoff,
 			    struct nf_conntrack_tuple *tuple)

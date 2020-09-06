@@ -35,6 +35,9 @@ union nf_conntrack_address {
 union nf_conntrack_man_proto
 {
 	/* Add other protocols here. */
+    /* 其他四层协议对应的识别信息，当不是tcp、udp、icmp、sctp时，
+     * 使用该成员存储四层协议的识别信息
+     */
 	__be16 all;
 
 	struct {
@@ -54,25 +57,46 @@ union nf_conntrack_man_proto
 	} gre;
 };
 
-/* The manipulable part of the tuple. */
+/* The manipulable part of the tuple. 
+ * 该结构体主要用来存储一个三层ip地址、四层端口号、三层协议号等信息
+ */
 struct nf_conntrack_man
 {
+    
+	/*三层协议相关的识别信息*/	
 	union nf_conntrack_address u3;
+	/*四层协议相关的识别信息*/
 	union nf_conntrack_man_proto u;
-	/* Layer 3 protocol */
+	/* Layer 3 protocol */	
+	/* 三层协议号 */	
 	u_int16_t l3num;
 };
 
-/* This contains the information to distinguish a connection. */
+/* This contains the information to distinguish a connection.  
+ *
+ * 该数据结构为将数据流抽象成连接跟踪项的归纳依据，
+ * 根据该结构成员值，我们能唯一确定一个数据流。
+ *
+ * 该结构成员包括源ip地址、目的ip地址、源端口号/源序列、
+ * 目的端口号/目的序列号、协议号等信息。以及最重要的，
+ * 该tuple结构在所属的连接中是属于origin还是reply方向
+ */
 struct nf_conntrack_tuple
 {
+    
+	/*源方向上的三层、四层协议相关的识别信息*/	
 	struct nf_conntrack_man src;
 
 	/* These are the parts of the tuple which are fixed. */
+	
+	/* 下面的信息时目的方向的三层、四层协议相关的识别信息*/	
 	struct {
 		union nf_conntrack_address u3;
 		union {
-			/* Add other protocols here. */
+			/* Add other protocols here. */		    
+            /* 当四层协议不是tcp、udp、icmp、stcp时，
+             * 则使用该成员存储四层协议识别信息
+             */		
 			__be16 all;
 
 			struct {
@@ -93,6 +117,7 @@ struct nf_conntrack_tuple
 		} u;
 
 		/* The protocol. */
+		/* 四层协议号 */
 		u_int8_t protonum;
 
 		/* The direction (for tuplehash) */
@@ -130,7 +155,9 @@ pr_debug("tuple %p: %u %u " NIP6_FMT " %hu -> " NIP6_FMT " %hu\n",	     \
 #define NF_CT_DIRECTION(h)						\
 	((enum ip_conntrack_dir)(h)->tuple.dst.dir)
 
-/* Connections have two entries in the hash table: one for each way */
+/* Connections have two entries in the hash table: one for each way
+ * 存放nf_conntrack_tuple
+ */
 struct nf_conntrack_tuple_hash
 {
 	struct hlist_node hnode;
@@ -163,6 +190,12 @@ static inline int nf_ct_tuple_dst_equal(const struct nf_conntrack_tuple *t1,
 		t1->dst.protonum == t2->dst.protonum);
 }
 
+/*
+ * nf_conntrack_find_get()
+ *	__nf_conntrack_find()
+ *   nf_ct_tuple_equal()
+ *
+ */
 static inline int nf_ct_tuple_equal(const struct nf_conntrack_tuple *t1,
 				    const struct nf_conntrack_tuple *t2)
 {

@@ -27,7 +27,10 @@
 
 #include <net/netfilter/nf_conntrack_tuple.h>
 
-/* per conntrack: protocol private data */
+/* per conntrack: protocol private data 
+ *
+ * netfilter中conntrack功能使用这个结构,跟踪4层协议
+ */
 union nf_conntrack_proto {
 	/* insert conntrack proto private data here */
 	struct ip_ct_sctp sctp;
@@ -92,6 +95,11 @@ struct nf_conn_help {
 #include <net/netfilter/ipv4/nf_conntrack_ipv4.h>
 #include <net/netfilter/ipv6/nf_conntrack_ipv6.h>
 
+/*
+ * 这个结构即是连接跟踪项的抽象，这个结构中包括数据连接项的两个方向的tuple值，
+ * tuple变量可以唯一确定一个数据包属于哪一条数据连接，
+ * 而且也用来查找已注册的helper函数、NAT转换也以tuple变量中的ip地址、端口号等值实现功能。
+ */
 struct nf_conn
 {
 	/* Usage count in here is 1 for hash table/destruct timer, 1 per skb,
@@ -100,15 +108,23 @@ struct nf_conn
 	struct nf_conntrack ct_general;
 
 	/* XXX should I move this to the tail ? - Y.K */
-	/* These are my tuples; original and reply */
+	/* These are my tuples; original and reply
+	 *
+	 * hash表中存放nf_conntrack_tuple对象
+	 */
 	struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
 
 	/* Have we seen traffic both ways yet? (bitset) */
-	// 数据包连接的状态，是一个比特位图。
+	/*连接跟踪项的状态，包括连接跟踪项的状态以及NAT转换是否设置的状态*/
 	unsigned long status;
 
 	/* If we were expected by an expectation, this will be it */
-	// 该成员指向另外一个ip_conntrack{}。一般用于期望连接场景。即如果当前连接是另外某条连接的期望连接的话，那么该成员就指向那条我们所属的主连接。
+    /* 当一个连接跟踪模块是一个期望连接跟踪项时，则该成员
+     * 指向该连接跟踪项的主连接跟踪项。这个牵扯到期望连接
+     *
+     * 跟踪FTP协议时会用到
+     */	
+	// 该成员指向另外一个nf_conn{}。一般用于期望连接场景。即如果当前连接是另外某条连接的期望连接的话，那么该成员就指向那条我们所属的主连接。
 	struct nf_conn *master;
 
 	/* Timer function; drops refcnt when it goes off. */
@@ -121,6 +137,7 @@ struct nf_conn
 	struct ip_conntrack_counter counters[IP_CT_DIR_MAX];
 #endif
 
+   /*用于防火墙的mark，通过iptables的mark模块，能够实现对数据流打mark的功 能*/
 #if defined(CONFIG_NF_CONNTRACK_MARK)
 	u_int32_t mark;
 #endif
@@ -130,13 +147,20 @@ struct nf_conn
 #endif
 
 	/* Storage reserved for other modules: */
-
+    
+	/*该数据连接跟踪项所关联的四层协议相关数据结构*/	
 	union nf_conntrack_proto proto;
 
 	/* Extensions */
 	struct nf_ct_ext *ext;
 };
 
+/*
+ * nf_conntrack_find_get()
+ *  __nf_conntrack_find()
+ *   nf_ct_tuplehash_to_ctrack()
+ *
+ */
 static inline struct nf_conn *
 nf_ct_tuplehash_to_ctrack(const struct nf_conntrack_tuple_hash *hash)
 {

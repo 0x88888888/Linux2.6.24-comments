@@ -10,15 +10,23 @@ extern struct hlist_head *nf_ct_expect_hash;
 extern unsigned int nf_ct_expect_hsize;
 extern unsigned int nf_ct_expect_max;
 
+/*
+ * 
+ * 该数据结构是对一个期望连接的抽象
+ */
 struct nf_conntrack_expect
 {
-	/* Conntrack expectation list member */
+	/* Conntrack expectation list member */    
+	/*将该变量连接到一个链表中 */	
 	struct hlist_node lnode;
 
 	/* Hash member */
 	struct hlist_node hnode;
 
 	/* We expect this tuple, with the following mask */
+    /* 确定一条期望连接所对应的tuple与mask，
+     * 与helper结构体中的tuple、mask的作用类似 
+     */	
 	struct nf_conntrack_tuple tuple;
 	struct nf_conntrack_tuple_mask mask;
 
@@ -29,7 +37,8 @@ struct nf_conntrack_expect
 	/* Helper to assign to new connection */
 	struct nf_conntrack_helper *helper;
 
-	/* The conntrack of the master connection */
+	/* The conntrack of the master connection */	
+	/* 指向主数据连接跟踪项 */
 	struct nf_conn *master;
 
 	/* Timer function; deletes the expectation. */

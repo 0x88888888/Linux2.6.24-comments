@@ -6,6 +6,9 @@
 
 struct nf_nat_range;
 
+/*
+ * nf_nat_protocol , nf_nat_protos[]
+ */
 struct nf_nat_protocol
 {
 	/* Protocol name */
@@ -18,12 +21,16 @@ struct nf_nat_protocol
 
 	/* Translate a packet to the target according to manip type.
 	   Return true if succeeded. */
+	/*对数据包进行四层协议相关的关键字的NAT转换*/   	   
 	int (*manip_pkt)(struct sk_buff *skb,
 			 unsigned int iphdroff,
 			 const struct nf_conntrack_tuple *tuple,
 			 enum nf_nat_manip_type maniptype);
 
 	/* Is the manipable part of the tuple between min and max incl? */
+    /*
+     * 判断一个连接跟踪的四层协议相关的关键字的值是否在合理的范围内
+     */			 
 	int (*in_range)(const struct nf_conntrack_tuple *tuple,
 			enum nf_nat_manip_type maniptype,
 			const union nf_conntrack_man_proto *min,
@@ -33,11 +40,16 @@ struct nf_nat_protocol
 	   maniptype), to give a unique tuple in the given range if
 	   possible; return false if not.  Per-protocol part of tuple
 	   is initialized to the incoming packet. */
+    /*
+     * 根据传递的tuple变量与range值，通过随机获取四层协议相关的关键字
+     * 找到一个唯一的未被其他连接跟踪项使用的tuple变量。
+     */ 	   
 	int (*unique_tuple)(struct nf_conntrack_tuple *tuple,
 			    const struct nf_nat_range *range,
 			    enum nf_nat_manip_type maniptype,
 			    const struct nf_conn *ct);
 
+	/*netlink相关*/
 	int (*range_to_nlattr)(struct sk_buff *skb,
 			       const struct nf_nat_range *range);
 
