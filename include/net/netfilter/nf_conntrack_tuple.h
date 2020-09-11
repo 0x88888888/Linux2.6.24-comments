@@ -120,7 +120,9 @@ struct nf_conntrack_tuple
 		/* 四层协议号 */
 		u_int8_t protonum;
 
-		/* The direction (for tuplehash) */
+		/* The direction (for tuplehash) 
+		 * 数据包的方向
+		 */
 		u_int8_t dir;
 	} dst;
 };

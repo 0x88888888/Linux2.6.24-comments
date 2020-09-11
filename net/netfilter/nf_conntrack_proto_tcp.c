@@ -809,7 +809,15 @@ static int tcp_error(struct sk_buff *skb,
 	return NF_ACCEPT;
 }
 
-/* Returns verdict for packet, or -1 for invalid. */
+/* Returns verdict for packet, or -1 for invalid. 
+ *
+ * ipv4_conntrack_local()
+ *  nf_conntrack_in()
+ *   resolve_normal_ct()
+ *    tcp_packet()
+ *
+ * tcp状态跟踪
+ */
 static int tcp_packet(struct nf_conn *conntrack,
 		      const struct sk_buff *skb,
 		      unsigned int dataoff,
@@ -829,8 +837,13 @@ static int tcp_packet(struct nf_conn *conntrack,
 
 	write_lock_bh(&tcp_lock);
 	old_state = conntrack->proto.tcp.state;
+	//得到direction
 	dir = CTINFO2DIR(ctinfo);
+
+	//得到tcp_conntracks[dir]的状态
 	index = get_conntrack_index(th);
+
+	
 	new_state = tcp_conntracks[dir][index][old_state];
 	tuple = &conntrack->tuplehash[dir].tuple;
 
@@ -1020,11 +1033,13 @@ static int tcp_new(struct nf_conn *conntrack,
 		conntrack->proto.tcp.seen[0].td_maxwin = ntohs(th->window);
 		if (conntrack->proto.tcp.seen[0].td_maxwin == 0)
 			conntrack->proto.tcp.seen[0].td_maxwin = 1;
+		
 		conntrack->proto.tcp.seen[0].td_maxend =
 			conntrack->proto.tcp.seen[0].td_end;
 
 		tcp_options(skb, dataoff, th, &conntrack->proto.tcp.seen[0]);
 		conntrack->proto.tcp.seen[1].flags = 0;
+		
 	} else if (nf_ct_tcp_loose == 0) {
 		/* Don't try to pick up connections. */
 		return 0;
@@ -1038,8 +1053,10 @@ static int tcp_new(struct nf_conn *conntrack,
 			segment_seq_plus_len(ntohl(th->seq), skb->len,
 					     dataoff, th);
 		conntrack->proto.tcp.seen[0].td_maxwin = ntohs(th->window);
+		
 		if (conntrack->proto.tcp.seen[0].td_maxwin == 0)
 			conntrack->proto.tcp.seen[0].td_maxwin = 1;
+		
 		conntrack->proto.tcp.seen[0].td_maxend =
 			conntrack->proto.tcp.seen[0].td_end +
 			conntrack->proto.tcp.seen[0].td_maxwin;
@@ -1067,6 +1084,7 @@ static int tcp_new(struct nf_conn *conntrack,
 		 sender->td_scale,
 		 receiver->td_end, receiver->td_maxend, receiver->td_maxwin,
 		 receiver->td_scale);
+	
 	return 1;
 }
 

@@ -38,6 +38,10 @@ EXPORT_SYMBOL(net_msg_warn);
 
 /*
  * All net warning printk()s should be guarded by this function.
+ *
+ * ip_push_pending_frames()
+ *  ipv4_conntrack_local()
+ *   net_ratelimit()
  */
 int net_ratelimit(void)
 {

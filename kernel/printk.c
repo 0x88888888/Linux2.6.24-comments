@@ -1241,6 +1241,11 @@ void tty_write_message(struct tty_struct *tty, char *msg)
  * This enforces a rate limit: not more than one kernel message
  * every printk_ratelimit_jiffies to make a denial-of-service
  * attack impossible.
+ *
+ * ip_push_pending_frames()
+ *  ipv4_conntrack_local()
+ *   net_ratelimit()
+ *    __printk_ratelimit()
  */
 int __printk_ratelimit(int ratelimit_jiffies, int ratelimit_burst)
 {
@@ -1256,6 +1261,7 @@ int __printk_ratelimit(int ratelimit_jiffies, int ratelimit_burst)
 	last_msg = now;
 	if (toks > (ratelimit_burst * ratelimit_jiffies))
 		toks = ratelimit_burst * ratelimit_jiffies;
+	
 	if (toks >= ratelimit_jiffies) {
 		int lost = missed;
 

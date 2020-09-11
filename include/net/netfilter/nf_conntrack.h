@@ -111,8 +111,10 @@ struct nf_conn
 	/* These are my tuples; original and reply
 	 *
 	 * hash表中存放nf_conntrack_tuple对象
+	 *
+	 * nf_conn->tuplehash[].dst.dir
 	 */
-	struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
+	struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX]; //两个方向
 
 	/* Have we seen traffic both ways yet? (bitset) */
 	/*连接跟踪项的状态，包括连接跟踪项的状态以及NAT转换是否设置的状态*/

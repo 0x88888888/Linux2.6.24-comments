@@ -399,6 +399,7 @@ struct sk_buff {
                      * 也不能通过skb->data访问协议首部
                      */
                     nohdr:1, 
+                    //conntrack的状态,在resolve_normal_ct中设置
                     nfctinfo:3; /* netfilter conntrack info */
 	/*
 	 * 由二层目的地址来决定，在eth_type_trans中设定,

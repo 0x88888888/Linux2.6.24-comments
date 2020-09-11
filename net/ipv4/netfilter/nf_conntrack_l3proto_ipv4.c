@@ -136,6 +136,10 @@ static unsigned int ipv4_confirm(unsigned int hooknum,
 
  /*
   * netfilter挂载函数，挂载点为NF_IP_LOCAL_IN和NF_IP_POST_ROUTING
+  *
+  * ip_output()
+  *  ipv4_conntrack_help()
+  *  
   */
 static unsigned int ipv4_conntrack_help(unsigned int hooknum,
 				      struct sk_buff *skb,
@@ -160,6 +164,7 @@ static unsigned int ipv4_conntrack_help(unsigned int hooknum,
 	helper = rcu_dereference(help->helper);
 	if (!helper)
 		return NF_ACCEPT;
+	
 	return helper->help(skb, skb_network_offset(skb) + ip_hdrlen(skb),
 			    ct, ctinfo);
 }
@@ -169,6 +174,14 @@ static unsigned int ipv4_conntrack_help(unsigned int hooknum,
  *
  * 这个函数主要是完成IP报文分片的重新组装，将属于一个IP报文的多个分片重组成一个真正的报文
  * 连接跟踪只跟踪完整的IP报文，不对IP分片进行跟踪，所有的IP分片都必须被还原成原始报文，才能进入连接跟踪系统
+
+ *
+ * ip_rcv()
+ *  ipv4_conntrack_defrag()
+ *
+ * ip_push_pending_frames()
+ *  ipv4_conntrack_defrag()
+ *
  */
 static unsigned int ipv4_conntrack_defrag(unsigned int hooknum,
 					  struct sk_buff *skb,
@@ -214,6 +227,9 @@ static unsigned int ipv4_conntrack_in(unsigned int hooknum,
  * b)当已经为传递过来的数据包创建了连接跟踪项，则进入c
  * c）更新连接跟踪项的状态
  * d）为数据包的nfct指针赋值
+ *
+ * ip_push_pending_frames()
+ *  ipv4_conntrack_local()
  */
 static unsigned int ipv4_conntrack_local(unsigned int hooknum,
 					 struct sk_buff *skb,
@@ -224,6 +240,7 @@ static unsigned int ipv4_conntrack_local(unsigned int hooknum,
 	/* root is playing with raw sockets. */
 	if (skb->len < sizeof(struct iphdr) ||
 	    ip_hdrlen(skb) < sizeof(struct iphdr)) {
+	    
 		if (net_ratelimit())
 			printk("ipt_hook: happy cracking.\n");
 		return NF_ACCEPT;

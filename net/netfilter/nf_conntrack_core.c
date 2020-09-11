@@ -751,7 +751,9 @@ resolve_normal_ct(struct sk_buff *skb,
 	/* It exists; we have (non-exclusive) reference. */
 	/*
      * 根据tuple的dst.dir，确定当前进来的数据包对应于连接跟踪项的哪一个方向，
-     * 然后设置set_reply的值，
+     * 然后设置set_reply的值
+     *
+     * 切换conntrack状态
      */
 	if (NF_CT_DIRECTION(h) == IP_CT_DIR_REPLY) {
         /* 
@@ -766,11 +768,11 @@ resolve_normal_ct(struct sk_buff *skb,
 
 		/* 当是连接跟踪项原始方向的数据包时，则有以下几种情况
          * 1.当发送的数据包到达连接跟踪模块时，其reply方向没有收到对应的数据包之前
-         * a)连接跟踪项不是期望连接，此时将skb->nfctinfo设置为IP_CT_NEW
-         * b)连接跟踪项是期望连接，此时将skb->nfctinfo设置为IP_CT_RELATED
+         *  a)连接跟踪项不是期望连接，此时将skb->nfctinfo设置为IP_CT_NEW
+         *  b)连接跟踪项是期望连接，此时将skb->nfctinfo设置为IP_CT_RELATED
          * 2.当原始方向发送的数据包到达连接跟踪模块时，其reply方向已经收到过对应的数据包
-         * 即连接跟踪项的状态的IPS_SEEN_REPLY_BIT位已经置位了。
-         * 此时将skb->nfctinfo设置为IP_CT_ESTABLISHED
+         *  即连接跟踪项的状态的IPS_SEEN_REPLY_BIT位已经置位了。
+         *  此时将skb->nfctinfo设置为IP_CT_ESTABLISHED
          */
 		if (test_bit(IPS_SEEN_REPLY_BIT, &ct->status)) {
 			pr_debug("nf_conntrack_in: normal packet for %p\n", ct);
@@ -787,12 +789,18 @@ resolve_normal_ct(struct sk_buff *skb,
 	}
 	
 	skb->nfct = &ct->ct_general;
+
+	// conntrack的状态
 	skb->nfctinfo = *ctinfo;
 	return ct;
 }
 
 /*
- * ipv4_conntrack_local()
+ * ip_push_pending_frames()
+ *  ipv4_conntrack_local()
+ *   nf_conntrack_in()
+ *
+ * ipv4_conntrack_in()
  *  nf_conntrack_in()
  *
  */
@@ -820,6 +828,7 @@ nf_conntrack_in(int pf, unsigned int hooknum, struct sk_buff *skb)
 	l3proto = __nf_ct_l3proto_find((u_int16_t)pf);
 	ret = l3proto->get_l4proto(skb, skb_network_offset(skb),
 				   &dataoff, &protonum);
+	
 	if (ret <= 0) {
 		pr_debug("not prepared to track yet or error occured\n");
 		NF_CT_STAT_INC_ATOMIC(error);
@@ -840,7 +849,7 @@ nf_conntrack_in(int pf, unsigned int hooknum, struct sk_buff *skb)
 		return -ret;
 	}
 
-    //根据l3proto,l4proto 对象，创建或者查找到nf_conn对象
+    //根据l3proto,l4proto 对象，创建或者查找到nf_conn对象,切换nf_conn的状态
 	ct = resolve_normal_ct(skb, dataoff, pf, protonum, l3proto, l4proto,
 			       &set_reply, &ctinfo);
 	if (!ct) {
