@@ -414,6 +414,7 @@ ipt_do_table(struct sk_buff *skb,
 
 	read_lock_bh(&table->lock);
 	IP_NF_ASSERT(table->valid_hooks & (1 << hook));
+	//得到xt_table_info对象
 	private = table->private;
 	
 	/*获取表的首个规则的地址*/	

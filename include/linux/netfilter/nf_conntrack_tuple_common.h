@@ -4,6 +4,7 @@
 enum ip_conntrack_dir
 {
 	IP_CT_DIR_ORIGINAL,
+	//在ctnetlink_parse_tuple()中修改
 	IP_CT_DIR_REPLY,
 	IP_CT_DIR_MAX
 };

@@ -84,7 +84,10 @@ struct xt_entry_target
    /*target 所占用的内存大小*/
    u_int16_t target_size;
    /* Used inside the kernel */
-   /* 扩展target使用，用于指向xt_target */
+   /* 扩展target使用，用于指向xt_target 
+    *
+    * 对于标准target来说,这个值为NULL。
+    */
    struct xt_target *target;
   } kernel;
 
@@ -111,6 +114,7 @@ struct xt_entry_target
 struct xt_standard_target
 {
 	struct xt_entry_target target;
+	//根据verdict的值再划分为内建的动作或者跳转到自定义链中
 	int verdict;
 };
 
@@ -178,8 +182,8 @@ struct xt_counters_info
 
 /*
  * 就是 ipt_match
- * 核心用struct ipt_match表征一个Match数据结构：
- *
+ * 内核用struct ipt_match表征一个Match数据结构：
+ * 用户态用iptables_match来表示一个match数据结构
  * 
  *
  */
@@ -267,6 +271,10 @@ struct xt_target
     /*
      * target处理函数，对于SNAT、DNAT即在其target函数里，
      * 更新request或者reply方向 ip_conntrack_tuple值
+     *
+     * 如果ipt_target.target()函数是空的，那就是标准target，
+     * 因为它不需要用户再去提供新的target函数了；
+     * 反之，如果有target函数那就是扩展的target。
      */	   
 	unsigned int (*target)(struct sk_buff *skb,
 			       const struct net_device *in,

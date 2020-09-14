@@ -16,6 +16,8 @@ struct module;
 
 /*
  * 通过这个结构的help指针，能够实现期望连接的建立以及ALG的功能
+ *
+ * 所有的helper都存储在nf_ct_helper_hash[]中
  */
 struct nf_conntrack_helper
 {

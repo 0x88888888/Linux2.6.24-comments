@@ -30,6 +30,8 @@
 /* per conntrack: protocol private data 
  *
  * netfilter中conntrack功能使用这个结构,跟踪4层协议
+ *
+ * nf_conn中的成员
  */
 union nf_conntrack_proto {
 	/* insert conntrack proto private data here */
@@ -99,6 +101,8 @@ struct nf_conn_help {
  * 这个结构即是连接跟踪项的抽象，这个结构中包括数据连接项的两个方向的tuple值，
  * tuple变量可以唯一确定一个数据包属于哪一条数据连接，
  * 而且也用来查找已注册的helper函数、NAT转换也以tuple变量中的ip地址、端口号等值实现功能。
+ *
+ * 
  */
 struct nf_conn
 {

@@ -39,6 +39,8 @@ MODULE_DESCRIPTION("[ip,ip6,arp]_tables backend module");
  * 该结构体中存储的是内核中当前可用的所有match，target和table，
  * 它们都是以双向链表的形式被组织起来的。
  * 这个全局的结构体变量static struct xt_af *xt定义在net/netfilter/x_tables.c当中
+ *
+ * 
  */
 struct xt_af {
 	struct mutex mutex;

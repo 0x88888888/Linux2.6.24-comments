@@ -382,6 +382,7 @@ __nf_conntrack_confirm(struct sk_buff *skb)
 	struct hlist_node *n;
 	enum ip_conntrack_info ctinfo;
 
+    //得到ip_conntrack_info和nf_conn对象
 	ct = nf_ct_get(skb, &ctinfo);
 
 	/* ipt_REJECT uses nf_conntrack_attach to attach related
@@ -436,10 +437,13 @@ __nf_conntrack_confirm(struct sk_buff *skb)
 		if (nf_ct_tuple_equal(&ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple,
 				      &h->tuple))
 			goto out;
+		
 	hlist_for_each_entry(h, n, &nf_conntrack_hash[repl_hash], hnode)
 		if (nf_ct_tuple_equal(&ct->tuplehash[IP_CT_DIR_REPLY].tuple,
 				      &h->tuple))
 			goto out;
+
+    //到这里，说明在ORIGINAL和reply中都没有找到
 
 	/* Remove from unconfirmed list */
 	hlist_del(&ct->tuplehash[IP_CT_DIR_ORIGINAL].hnode);
@@ -451,6 +455,7 @@ __nf_conntrack_confirm(struct sk_buff *skb)
 	ct->timeout.expires += jiffies;
 	add_timer(&ct->timeout);
 	atomic_inc(&ct->ct_general.use);
+	
 	set_bit(IPS_CONFIRMED_BIT, &ct->status);
 	NF_CT_STAT_INC(insert);
 	write_unlock_bh(&nf_conntrack_lock);
@@ -796,11 +801,11 @@ resolve_normal_ct(struct sk_buff *skb,
 }
 
 /*
- * ip_push_pending_frames()
+ * ip_push_pending_frames() LOCAL_OUT
  *  ipv4_conntrack_local()
  *   nf_conntrack_in()
  *
- * ipv4_conntrack_in()
+ * ipv4_conntrack_in()   LOCAL_IN
  *  nf_conntrack_in()
  *
  */
@@ -868,7 +873,7 @@ nf_conntrack_in(int pf, unsigned int hooknum, struct sk_buff *skb)
 
 	/*
      * 创建连接跟踪项后，再调用四层协议的packet函数进行处理。
-     * tcp_packet
+     * tcp_packet,udp_packet,icmp_packet
 	*/
 	ret = l4proto->packet(ct, skb, dataoff, ctinfo, pf, hooknum);
 	if (ret < 0) {
@@ -1257,6 +1262,8 @@ module_param_call(hashsize, nf_conntrack_set_hashsize, param_get_uint,
 /*
  * nf_conntrack_standalone_init()
  *  nf_conntrack_init()
+ *
+ * 链接跟踪模块初始化
  */
 int __init nf_conntrack_init(void)
 {

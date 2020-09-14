@@ -346,6 +346,11 @@ void nf_conntrack_l4proto_unregister(struct nf_conntrack_l4proto *l4proto)
 }
 EXPORT_SYMBOL_GPL(nf_conntrack_l4proto_unregister);
 
+/*
+ * nf_conntrack_standalone_init()
+ *  nf_conntrack_init()
+ *   nf_conntrack_proto_init()
+ */
 int nf_conntrack_proto_init(void)
 {
 	unsigned int i;
