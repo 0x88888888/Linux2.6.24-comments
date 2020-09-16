@@ -185,7 +185,25 @@ struct xt_counters_info
  * 内核用struct ipt_match表征一个Match数据结构：
  * 用户态用iptables_match来表示一个match数据结构
  * 
+ * ah_match, ecn_match, iprange_match
+ * owner_match, recent_match, tos_match
+ * ttl_match,icmp_matchstruct, conntrack_match
+ * realm_match, 
  *
+ * xt_comment_match[], xt_connbytes_match[]
+ * connlimit_reg[], xt_hashlimit[]
+ * xt_helper_match[], xt_length_match[]
+ * xt_limit_match[], xt_mac_match[]
+ * xt_mark_match[], xt_multiport_match[]
+ * xt_string_match[], xt_tcpmss_match[]
+ * xt_tcpudp_match[], xt_time_reg[]
+ * u32_reg[], xt_statistic_match[]
+ * xt_state_match[], xt_sctp_match[]
+ * xt_quota_match[], xt_policy_match[]
+ * xt_pkttype_match[], xt_physdev_match[]
+ * 
+ *
+ * 所有的xt_match都通过xt_register_match(), xt_register_matchs()来注册到xt[]数组中去
  */
 struct xt_match
 {

@@ -144,7 +144,9 @@ ip_packet_match(const struct iphdr *ip,
 		return 0;
 	}
 
-	/* Look for ifname matches; this should unroll nicely. */
+	/* Look for ifname matches; this should unroll nicely.
+	 * 网卡是否匹配
+	 */
 	for (i = 0, ret = 0; i < IFNAMSIZ/sizeof(unsigned long); i++) {
 		ret |= (((const unsigned long *)indev)[i]
 			^ ((const unsigned long *)ipinfo->iniface)[i])
@@ -181,7 +183,10 @@ ip_packet_match(const struct iphdr *ip,
 	}
 
 	/* If we have a fragment rule but the packet is not a fragment
-	 * then we return zero */
+	 * then we return zero 
+	 *
+	 * 当 fragment rule 碰上 一个不是fragment的包时
+	 */
 	if (FWINV((ipinfo->flags&IPT_F_FRAG) && !isfrag, IPT_INV_FRAG)) {
 		dprintf("Fragment rule but not fragment.%s\n",
 			ipinfo->invflags & IPT_INV_FRAG ? " (INV)" : "");
