@@ -520,6 +520,7 @@ struct xt_table_info *xt_alloc_table_info(unsigned int size)
 
 	newinfo->size = size;
 
+    //给每个cpu分配xt_table_info->entries[cpuid] 
 	for_each_possible_cpu(cpu) {
 		if (size <= PAGE_SIZE)
 			newinfo->entries[cpu] = kmalloc_node(size,

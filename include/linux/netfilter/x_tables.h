@@ -203,7 +203,7 @@ struct xt_counters_info
  * xt_pkttype_match[], xt_physdev_match[]
  * 
  *
- * 所有的xt_match都通过xt_register_match(), xt_register_matchs()来注册到xt[]数组中去
+ * 所有的xt_match都通过xt_register_match(), xt_register_matchs()来注册到xt[]->match中去
  */
 struct xt_match
 {
@@ -264,6 +264,10 @@ struct xt_match
 
 /* Registration hooks for targets. 
  *
+ * 通过xt_register_target,xt_register_targets注册到xt[af].target
+ *
+ * arpt_standard_target,arpt_error_target
+ * 
  * ipt_snat_reg, ipt_dnat_reg
  * clusterip_tgt, ipt_log_reg,
  * masquerade, target_module,
@@ -340,7 +344,7 @@ struct xt_target
  * ipt_table 是这个结构体的别名
  *
  * 该结构体对应于iptables中的表，目前内核注册的table有filter、mangle、nat、raw表，
- * 而这些table根据pf值添加到xt_af[pf].tables链表中。
+ * 而这些table 使用xt_register_table() 根据pf值添加到xt_af[pf].tables链表中。
  * 而一个xt_table中包含了该表所支持的hook点与该表里已添加的所有rule规则
  */
 struct xt_table
@@ -403,7 +407,7 @@ struct xt_table_info
 
 	/* ipt_entry tables: one per CPU */
 	/*
-	 * ipt_entry | ipt_entry_match | ipt_standard_target(xt_entry_target | verdict) | ipt_standard_target(xt_entry_target | verdict) |...
+	 * ipt_entry | ipt_entry_match(xt_entry_match) | ipt_standard_target(xt_entry_target | verdict) | ipt_standard_target(xt_entry_target | verdict) |...
 	 */
 	char *entries[NR_CPUS];
 };

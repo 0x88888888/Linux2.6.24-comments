@@ -367,19 +367,19 @@ static void trace_packet(struct sk_buff *skb,
  * filter 类的几个函数，最后都调用了ipt_do_table
  *
  * ipt_hook() [iptable_filter.c, iptable_raw.c]
- *  ipt_do_table()
+ *  ipt_do_table( table == packet_filter)
  *
- * ipt_local_hook() [iptable_raw.c]
- *  ipt_do_table()
+ * ipt_local_hook( ) [iptable_raw.c]
+ *  ipt_do_table( table == packet_mangler)
  *
- * ipt_local_out_hook() [iptable_filter.c, iptable_raw.c]
- *  ipt_do_table()
+ * ipt_local_out_hook( ) [iptable_filter.c, iptable_raw.c]
+ *  ipt_do_table( table == packet_filter)
  *
  * ipt_route_hook() [ iptable_mangle.c  ]
- *  ipt_do_table()
+ *  ipt_do_table( table == packet_mangler)
  *
  * nf_nat_rule_find()
- *  ipt_do_table()
+ *  ipt_do_table( table == nat_table)
  *
  * 
  * 功能:
@@ -409,12 +409,14 @@ ipt_do_table(struct sk_buff *skb,
 	datalen = skb->len - ip->ihl * 4;
 	indev = in ? in->name : nulldevname;
 	outdev = out ? out->name : nulldevname;
+	
 	/* We handle fragments by dealing with the first fragment as
 	 * if it was a normal packet.  All other fragments are treated
 	 * normally, except that they will NEVER match rules that ask
 	 * things we don't know, ie. tcp syn flag or ports).  If the
 	 * rule is also a fragment-specific rule, non-fragments won't
-	 * match it. */
+	 * match it. 
+	 */
 	offset = ntohs(ip->frag_off) & IP_OFFSET;
 
 	read_lock_bh(&table->lock);
@@ -1138,6 +1140,11 @@ static inline struct xt_counters * alloc_counters(struct xt_table *table)
 	return counters;
 }
 
+/*
+ * do_ipt_get_ctl()
+ *  get_entries()
+ *   copy_entries_to_user()
+ */
 static int
 copy_entries_to_user(unsigned int total_size,
 		     struct xt_table *table,
@@ -1399,6 +1406,10 @@ static int get_info(void __user *user, int *len, int compat)
 	return ret;
 }
 
+/*
+ * do_ipt_get_ctl()
+ *  get_entries()
+ */
 static int
 get_entries(struct ipt_get_entries __user *uptr, int *len)
 {
@@ -1421,10 +1432,14 @@ get_entries(struct ipt_get_entries __user *uptr, int *len)
 	}
 
 	t = xt_find_table_lock(AF_INET, get.name);
+	
 	if (t && !IS_ERR(t)) {
+		//得到xt_table_info对象
 		struct xt_table_info *private = t->private;
 		duprintf("t->private->number = %u\n",
 			 private->number);
+
+		//复制xt_table_info到用户空间
 		if (get.size == private->size)
 			ret = copy_entries_to_user(private->size,
 						   t, uptr->entrytable);
@@ -2333,17 +2348,17 @@ do_ipt_get_ctl(struct sock *sk, int cmd, void __user *user, int *len)
 }
 
 /*
- * iptable_filter_init(&packet_filter, &initial_table.repl)
- *  ipt_register_table()
+ * iptable_filter_init()
+ *  ipt_register_table(&packet_filter, &initial_table.repl)
  *
- * iptable_mangle_init(&packet_mangler, &initial_table.repl)
- *  ipt_register_table()
+ * iptable_mangle_init()
+ *  ipt_register_table(&packet_mangler, &initial_table.repl)
  *
- * iptable_raw_init(&packet_raw, &initial_table.repl)
- *  ipt_register_table()
+ * iptable_raw_init()
+ *  ipt_register_table(&packet_raw, &initial_table.repl)
  *
- * nf_nat_rule_init(&nat_table, &nat_initial_table.repl)
- *  ipt_register_table()
+ * nf_nat_rule_init()
+ *  ipt_register_table(&nat_table, &nat_initial_table.repl)
  */
 int ipt_register_table(struct xt_table *table, const struct ipt_replace *repl)
 {
@@ -2353,7 +2368,7 @@ int ipt_register_table(struct xt_table *table, const struct ipt_replace *repl)
 		= { 0, 0, 0, { 0 }, { 0 }, { } };
 	void *loc_cpu_entry;
 
-    //为filter表申请存储空间
+    //为filter表申请存储空间xt_tableinfo + entries
 	newinfo = xt_alloc_table_info(repl->size);
 	if (!newinfo)
 		return -ENOMEM;
@@ -2374,7 +2389,8 @@ int ipt_register_table(struct xt_table *table, const struct ipt_replace *repl)
 			      repl->num_entries,
 			      repl->hook_entry,
 			      repl->underflow);
-	if (ret != 0) {
+	
+	if (ret != 0) { // 出错
 		xt_free_table_info(newinfo);
 		return ret;
 	}
