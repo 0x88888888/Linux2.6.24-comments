@@ -653,6 +653,7 @@ void __init acpi_early_init(void)
 	}
 #endif
 
+    // 设置acpi中断处理函数为acpi_ev_sci_xrupt_handler
 	status =
 	    acpi_enable_subsystem(~
 				  (ACPI_NO_HARDWARE_INIT |

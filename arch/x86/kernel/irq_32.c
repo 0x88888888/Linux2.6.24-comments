@@ -169,6 +169,7 @@ fastcall unsigned int do_IRQ(struct pt_regs *regs)
      * handle_level_irq负责调用所有该irq的所有的中断服务例程
      * handle_edge_irq
      * 
+     * PCI设备，handle_fasteoi_irq,在ioapic_register_intr中注册
      */
 	desc->handle_irq(irq, desc);
 

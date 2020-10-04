@@ -56,7 +56,7 @@ static int __init pci_legacy_init(void)
 	//完成对pci总线树的枚举
 	pci_root_bus = pcibios_scan_root(0);
 	if (pci_root_bus) //添加总线设备到sysfs中
-		pci_bus_add_devices(pci_root_bus);
+		pci_bus_add_devices(pci_root_bus); 
 
 	pcibios_fixup_peer_bridges();
 

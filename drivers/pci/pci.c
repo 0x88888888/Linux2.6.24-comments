@@ -746,6 +746,25 @@ pci_enable_device_bars(struct pci_dev *dev, int bars)
  *
  *  Note we don't actually enable the device many times if we call
  *  this function repeatedly (we just increment the count).
+ *
+ * vortex_resume()
+ * vortex_init_one()
+ * vortex_up()
+ *  pci_enable_device()
+ *
+ * ioapic_add()
+ *  pci_enable_device()
+ *
+ * e100_probe()
+ * e100_io_slot_reset()
+ *  pci_enable_device()
+ *
+ * e1000_probe()
+ * e1000_io_slot_reset() 
+ * e1000_resume()
+ *  pci_enable_device()
+ *
+ *
  */
 int pci_enable_device(struct pci_dev *dev)
 {

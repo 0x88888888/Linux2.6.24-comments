@@ -2437,11 +2437,11 @@ void show_free_areas(void)
  *
  *
  * start_kernel()
- *	 build_all_zonelists()
- *      __build_all_zonelists()
- *         build_zonelists() 
- *           build_zonelists_in_node_order()
- *             build_zonelists_node()
+ *	build_all_zonelists()
+ *   __build_all_zonelists()
+ *    build_zonelists() 
+ *     build_zonelists_in_node_order()
+ *      build_zonelists_node()
  *
  * 将pgdat->zones[zone_type]以下的zone都放入到zonelist->zones[]中去
  */
@@ -2706,10 +2706,10 @@ static int node_order[MAX_NUMNODES];
 /*
  *
  * start_kernel()
- *	 build_all_zonelists()
- *      __build_all_zonelists()
- *         build_zonelists() 
- *           build_zonelists_in_zone_order()
+ *	build_all_zonelists()
+ *   __build_all_zonelists()
+ *    build_zonelists() 
+ *     build_zonelists_in_zone_order()
  *
  * 在pgdat->node_zonelists中插入node1->zones[]和node2->zones[]的值
  * 将形成如下的局面:
@@ -2983,8 +2983,8 @@ static void build_zonelist_cache(pg_data_t *pgdat)
 /* return values int ....just for stop_machine_run() 
 对系统中的各个内存node调用build_zonelists
 * start_kernel()
-*	 build_all_zonelists()
-*        __build_all_zonelists()
+*  build_all_zonelists()
+*   __build_all_zonelists()
 */
 static int __build_all_zonelists(void *dummy)
 {
@@ -3004,6 +3004,8 @@ static int __build_all_zonelists(void *dummy)
  * start_kernel调用这个函数
  * start_kernel()
  *  build_all_zonelists()
+ *
+ * 设置pg_data_t->node_zonelists[]中的数据
  */
 void build_all_zonelists(void)
 {

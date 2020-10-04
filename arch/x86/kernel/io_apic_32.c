@@ -2622,10 +2622,17 @@ static struct irq_chip msi_chip = {
 	.retrigger	= ioapic_retrigger_irq,
 };
 
+/*
+ * pci_enable_msi()
+ *  msi_capability_init()
+ *   arch_setup_msi_irqs()
+ *    arch_setup_msi_irq()
+ */
 int arch_setup_msi_irq(struct pci_dev *dev, struct msi_desc *desc)
 {
 	struct msi_msg msg;
 	int irq, ret;
+	//分配irq号
 	irq = create_irq();
 	if (irq < 0)
 		return irq;
@@ -2636,6 +2643,7 @@ int arch_setup_msi_irq(struct pci_dev *dev, struct msi_desc *desc)
 		return ret;
 	}
 
+    //设置entry->irq == irq;
 	set_irq_msi(irq, desc);
 	write_msi_msg(irq, &msg);
 

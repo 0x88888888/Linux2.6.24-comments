@@ -34,6 +34,17 @@
 #define DBG(x...)
 #endif
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pcibios_assign_resources()
+ *      pci_assign_unassigned_resources()
+ *       pci_bus_assign_resources()
+ *
+ * 遍历并初始化当前PCI总线上的所有PCI设备的BAR寄存器，包括PCI Agent设备和PCI桥
+ */
 static void pbus_assign_resources_sorted(struct pci_bus *bus)
 {
 	struct pci_dev *dev;
@@ -139,7 +150,19 @@ EXPORT_SYMBOL(pci_setup_cardbus);
    of bridges which support 32-bit I/O. This update requires two
    config space writes, so it's quite possible that an I/O window of
    the bridge will have some undesirable address (e.g. 0) after the
-   first write. Ditto 64-bit prefetchable MMIO.  */
+   first write. Ditto 64-bit prefetchable MMIO.  
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pcibios_assign_resources()
+ *      pci_assign_unassigned_resources()
+ *       pci_bus_assign_resources()
+ *        pci_setup_bridge()
+ *
+ * 初始化PCI桥的存储器和I/O base，limit寄存器
+ */
 static void __devinit
 pci_setup_bridge(struct pci_bus *bus)
 {
@@ -440,6 +463,15 @@ pci_bus_size_cardbus(struct pci_bus *bus)
 	}
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pcibios_assign_resources()
+ *      pci_assign_unassigned_resources()
+ *       pci_bus_size_bridges()
+ */
 void pci_bus_size_bridges(struct pci_bus *bus)
 {
 	struct pci_dev *dev;
@@ -455,8 +487,9 @@ void pci_bus_size_bridges(struct pci_bus *bus)
 			pci_bus_size_cardbus(b);
 			break;
 
+        //递归，找到最后一个pci桥
 		case PCI_CLASS_BRIDGE_PCI:
-		default:
+		default: 
 			pci_bus_size_bridges(b);
 			break;
 		}
@@ -479,15 +512,17 @@ void pci_bus_size_bridges(struct pci_bus *bus)
 		pci_bridge_check_ranges(bus);
 		/* fall through */
 	default:
-		pbus_size_io(bus);
+		pbus_size_io(bus); //设置设备的I/O映射空间
 		/* If the bridge supports prefetchable range, size it
 		   separately. If it doesn't, or its prefetchable window
 		   has already been allocated by arch code, try
 		   non-prefetchable range for both types of PCI memory
 		   resources. */
+
+		//设置PCI设备的存储器映射空间
 		mask = IORESOURCE_MEM;
 		prefmask = IORESOURCE_MEM | IORESOURCE_PREFETCH;
-		if (pbus_size_mem(bus, prefmask, prefmask))
+		if (pbus_size_mem(bus, prefmask, prefmask)) 
 			mask = prefmask; /* Success, size non-prefetch only. */
 		pbus_size_mem(bus, mask, IORESOURCE_MEM);
 		break;
@@ -495,11 +530,23 @@ void pci_bus_size_bridges(struct pci_bus *bus)
 }
 EXPORT_SYMBOL(pci_bus_size_bridges);
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pcibios_assign_resources()
+ *      pci_assign_unassigned_resources()
+ *       pci_bus_assign_resources()
+ *
+ * 
+ */
 void pci_bus_assign_resources(struct pci_bus *bus)
 {
 	struct pci_bus *b;
 	struct pci_dev *dev;
 
+    //遍历并初始化当前PCI总线上的所有PCI设备的BAR寄存器，包括PCI Agent设备和PCI桥
 	pbus_assign_resources_sorted(bus);
 
 	list_for_each_entry(dev, &bus->devices, bus_list) {
@@ -507,11 +554,12 @@ void pci_bus_assign_resources(struct pci_bus *bus)
 		if (!b)
 			continue;
 
+		//递归
 		pci_bus_assign_resources(b);
 
 		switch (dev->class >> 8) {
 		case PCI_CLASS_BRIDGE_PCI:
-			pci_setup_bridge(b);
+			pci_setup_bridge(b);//初始化PCI桥的存储器和I/O base，limit寄存器
 			break;
 
 		case PCI_CLASS_BRIDGE_CARDBUS:
@@ -535,7 +583,7 @@ EXPORT_SYMBOL(pci_bus_assign_resources);
  *     pcibios_assign_resources()
  *      pci_assign_unassigned_resources()
  * 
- * 对pci设备使用的存储器和io资源进行设置
+ * 对pci设备使用的存储器(BAR寄存器)和io资源进行设置
  */
 void __init
 pci_assign_unassigned_resources(void)

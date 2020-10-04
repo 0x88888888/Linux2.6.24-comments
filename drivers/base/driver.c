@@ -160,6 +160,15 @@ void put_driver(struct device_driver * drv)
  *  pci_register_driver(e1000_driver) 
  *   __pci_register_driver(e1000_driver, THIS_MODULE, KBUILD_MODNAME) 
  *    driver_register(e1000_driver->driver)
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_root_init()
+ *      acpi_bus_register_driver( driver == acpi_pci_root_driver)
+ *       driver_register(drv== acpi_pci_root_driver->drv)
+ *
  */
 int driver_register(struct device_driver * drv)
 {

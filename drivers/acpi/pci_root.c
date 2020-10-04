@@ -169,6 +169,14 @@ static acpi_status try_get_root_bridge_busnr(acpi_handle handle, int *busnum)
 	return AE_OK;
 }
 
+/*
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *   acpi_pci_root_add()
+ *    acpi_pci_bridge_scan()
+ *
+ * 分析并加载每一个PCI桥的中断路由表
+ */
 static void acpi_pci_bridge_scan(struct acpi_device *device)
 {
 	int status;
@@ -179,7 +187,7 @@ static void acpi_pci_bridge_scan(struct acpi_device *device)
 			status = device->parent->ops.bind(device);
 			if (!status) {
 				list_for_each_entry(child, &device->children, node)
-					acpi_pci_bridge_scan(child);
+					acpi_pci_bridge_scan(child); //递归
 			}
 		}
 }
@@ -188,6 +196,8 @@ static void acpi_pci_bridge_scan(struct acpi_device *device)
  * acpi_device_probe()
  *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
  *   acpi_pci_root_add()
+ *
+ * 遍历pci总线树
  */
 static int acpi_pci_root_add(struct acpi_device *device)
 {
@@ -306,7 +316,7 @@ static int acpi_pci_root_add(struct acpi_device *device)
 	 * PCI namespace does not get created until this call is made (and 
 	 * thus the root bridge's pci_dev does not exist).
 	 *
-	 * 扫描host 主桥
+	 * 扫描host 主桥,这个函数在 arch/x86/pci/acpi.c中
 	 */
 	root->bus = pci_acpi_scan_root(device, root->id.segment, root->id.bus);
 	if (!root->bus) {
@@ -342,7 +352,7 @@ static int acpi_pci_root_add(struct acpi_device *device)
 	 * Scan and bind all _ADR-Based Devices
 	 */
 	list_for_each_entry(child, &device->children, node)
-		acpi_pci_bridge_scan(child);
+		acpi_pci_bridge_scan(child); //分析并加载每一个PCI桥的中断路由表
 
       end:
 	if (result) {
@@ -354,6 +364,23 @@ static int acpi_pci_root_add(struct acpi_device *device)
 	return result;
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_root_init()
+ *      acpi_bus_register_driver( driver == acpi_pci_root_driver)
+ *       driver_register(drv== acpi_pci_root_driver->drv)
+ *        bus_add_driver(drv== acpi_pci_root_driver->drv)
+ *         driver_attach(drv== acpi_pci_root_driver->drv)
+ *	        __driver_attach(data==acpi_pci_root_driver->drv)
+ *	         driver_probe_device(drv== acpi_pci_root_driver->drv)
+ *            really_probe(, drv== acpi_pci_root_driver->drv)
+ *             acpi_device_probe()
+ *              acpi_start_single_object()
+ *               acpi_pci_root_start()
+ */
 static int acpi_pci_root_start(struct acpi_device *device)
 {
 	struct acpi_pci_root *root;
@@ -391,6 +418,8 @@ static int acpi_pci_root_remove(struct acpi_device *device, int type)
  *   do_basic_setup()
  *    do_initcalls()
  *     acpi_pci_root_init()
+ *
+ * 与pci总线的中断路由相关
  */
 static int __init acpi_pci_root_init(void)
 {

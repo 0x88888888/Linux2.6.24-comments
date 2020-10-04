@@ -1185,6 +1185,8 @@ static struct dmi_system_id __initdata acpi_dmi_table[] = {
  * start_kernel() [init/main.c]
  *  setup_arch()
  *   acpi_boot_table_init()
+ *
+ * 在内存中找到RSDP和RSDT/XSDT，从而定位ACPI表
  */
 int __init acpi_boot_table_init(void)
 {
@@ -1203,6 +1205,8 @@ int __init acpi_boot_table_init(void)
 
 	/*
 	 * Initialize the ACPI boot-time table parser.
+	 *
+	 * 在内存中找到RSDP和RSDT/XSDT，从而定位ACPI表
 	 */
 	error = acpi_table_init();
 	if (error) {

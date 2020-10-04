@@ -357,6 +357,9 @@ struct rq {
 	int push_cpu;
 	/* cpu of this runqueue: 
      * 该就绪队列的cpu id
+     *
+     * 如果需要主动均衡(active balancing),则将active_balance设置为非0
+     * 将cpu设置为发起主动均衡的cpu
 	 */
 	int cpu;
 
@@ -2494,6 +2497,17 @@ int can_migrate_task(struct task_struct *p, struct rq *rq, int this_cpu,
 	return 1;
 }
 
+/*
+ *
+ * run_rebalance_domains()  SCHEDULE_SOFTIRQ 软中断调用
+ *  rebalance_domains()
+ *   load_balance()
+ *    move_tasks()
+ * 	   load_balance_fair()
+ *      balance_tasks()
+ *
+ * cpu工作太忙，迁移线程
+ */
 static unsigned long
 balance_tasks(struct rq *this_rq, int this_cpu, struct rq *busiest,
 	      unsigned long max_load_move, struct sched_domain *sd,
@@ -2641,6 +2655,7 @@ static int move_one_task(struct rq *this_rq, int this_cpu, struct rq *busiest,
 	const struct sched_class *class;
 
 	for (class = sched_class_highest; class; class = class->next)
+		//move_one_task_fair
 		if (class->move_one_task(this_rq, this_cpu, busiest, sd, idle))
 			return 1;
 
@@ -2953,6 +2968,8 @@ ret:
 
 /*
  * find_busiest_queue - find the busiest runqueue among the cpus in group.
+ *
+ * 找到业务最繁忙的cpu的rq
  */
 static struct rq *
 find_busiest_queue(struct sched_group *group, enum cpu_idle_type idle,
@@ -3035,7 +3052,7 @@ redo:
 		goto out_balanced;
 	}
 
-	/* 查找到那个队列工作量最大 */
+	/* 查找到队列工作量最大rq */
 	busiest = find_busiest_queue(group, idle, imbalance, &cpus);
 	if (!busiest) {
 		schedstat_inc(sd, lb_nobusyq[idle]);
@@ -3290,8 +3307,15 @@ static void idle_balance(int this_cpu, struct rq *this_rq)
  *
  * Called with busiest_rq locked.
  *
- * migration_thread()
- *  active_load_balance()
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    do_pre_smp_initcalls()
+ *     migration_init()
+ *      migration_call()
+ *       kthread_create(migration_thread) 
+ *        migration_thread()
+ *         active_load_balance()
  */
 static void active_load_balance(struct rq *busiest_rq, int busiest_cpu)
 {
@@ -5516,9 +5540,15 @@ EXPORT_SYMBOL_GPL(set_cpus_allowed);
  *
  * Returns non-zero if task was successfully migrated.
  *
- * migration_thread()
- *  active_load_balance() 
- *   __migrate_task()
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    do_pre_smp_initcalls()
+ *     migration_init()
+ *      migration_call()
+ *       kthread_create(migration_thread) 
+ *        migration_thread()
+ *         __migrate_task()
  */
 static int __migrate_task(struct task_struct *p, int src_cpu, int dest_cpu)
 {
@@ -5535,17 +5565,20 @@ static int __migrate_task(struct task_struct *p, int src_cpu, int dest_cpu)
 	/* Already moved. */
 	if (task_cpu(p) != src_cpu)
 		goto out;
-	/* Affinity changed (again). */
+	/* Affinity changed (again).这个进程不允许在dest_cpu上运行，死翘翘 */
 	if (!cpu_isset(dest_cpu, p->cpus_allowed))
 		goto out;
 
 	on_rq = p->se.on_rq;
-	if (on_rq)
+	if (on_rq)// 从scr_cpu的rq上剥离
 		deactivate_task(rq_src, p, 0);
 
+    //设置cpu的亲和性
 	set_task_cpu(p, dest_cpu);
 	if (on_rq) {
+		//进入dest_cpu上的rq
 		activate_task(rq_dest, p, 0);
+        //去试图抢占当前进程
 		check_preempt_curr(rq_dest, p);
 	}
 	ret = 1;
@@ -5558,6 +5591,15 @@ out:
  * migration_thread - this is a highprio system thread that performs
  * thread migration by bumping thread off CPU then 'pushing' onto
  * another runqueue.
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    do_pre_smp_initcalls()
+ *     migration_init()
+ *      migration_call()
+ *       kthread_create(migration_thread) 
+ *        migration_thread()
  *
  * 迁移进程的线程入口函数
  */
@@ -5601,14 +5643,16 @@ static int migration_thread(void *data)
 			set_current_state(TASK_INTERRUPTIBLE);
 			continue;
 		}
+		//得到migration_req对象
 		req = list_entry(head->next, struct migration_req, list);
 		list_del_init(head->next);
 
 		spin_unlock(&rq->lock);
-		//迁移一个task_struct
+		//迁移一个task_struct 到migration_req->dest_cpu
 		__migrate_task(req->task, cpu, req->dest_cpu);
 		local_irq_enable();
 
+		//唤醒等待的进程
 		complete(&req->done);
 	}
 	__set_current_state(TASK_RUNNING);
@@ -5981,6 +6025,13 @@ static void unregister_sched_domain_sysctl(void)
 /*
  * migration_call - callback that gets triggered when a CPU is added.
  * Here we can start up the necessary migration thread for the new CPU.
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    do_pre_smp_initcalls()
+ *     migration_init()
+ *      migration_call()
  */
 static int __cpuinit
 migration_call(struct notifier_block *nfb, unsigned long action, void *hcpu)

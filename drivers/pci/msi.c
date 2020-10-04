@@ -298,6 +298,11 @@ void pci_restore_msi_state(struct pci_dev *dev)
  * MSI irq, regardless of device function is capable of handling
  * multiple messages. A return of zero indicates the successful setup
  * of an entry zero with the new MSI irq or non-zero for otherwise.
+ *
+ * pci_enable_msi()
+ *  msi_capability_init()
+ *
+ *
  **/
 static int msi_capability_init(struct pci_dev *dev)
 {
@@ -309,7 +314,14 @@ static int msi_capability_init(struct pci_dev *dev)
 
    	pos = pci_find_capability(dev, PCI_CAP_ID_MSI);
 	pci_read_config_word(dev, msi_control_reg(pos), &control);
-	/* MSI Entry Initialization */
+
+	
+	/* MSI Entry Initialization 
+	 *
+	 * 分配msi_desc，用于存放该 pci设备使用的 MSI中断机制的详情
+	 *
+	 * 分配的时候entry->irq == 0
+	 */
 	entry = alloc_msi_entry();
 	if (!entry)
 		return -ENOMEM;
@@ -341,7 +353,10 @@ static int msi_capability_init(struct pci_dev *dev)
 	}
 	list_add_tail(&entry->list, &dev->msi_list);
 
-	/* Configure MSI capability structure */
+	/* Configure MSI capability structure 
+	 *
+	 * 分配irq号
+	 */
 	ret = arch_setup_msi_irqs(dev, 1, PCI_CAP_ID_MSI);
 	if (ret) {
 		msi_free_irqs(dev);
@@ -349,10 +364,12 @@ static int msi_capability_init(struct pci_dev *dev)
 	}
 
 	/* Set MSI enabled bits	 */
-	pci_intx_for_msi(dev, 0);
-	msi_set_enable(dev, 1);
+	pci_intx_for_msi(dev, 0);//不是用INTx中断机制，使用MSI中断机制
+	
+	msi_set_enable(dev, 1);//使能MSI
 	dev->msi_enabled = 1;
 
+    //记录irq号
 	dev->irq = entry->irq;
 	return 0;
 }
@@ -366,6 +383,11 @@ static int msi_capability_init(struct pci_dev *dev)
  * Setup the MSI-X capability structure of device function with a
  * single MSI-X irq. A return of zero indicates the successful setup of
  * requested MSI-X entries with allocated irqs or non-zero for otherwise.
+ *
+ * pci_enable_msix()
+ *  msix_capability_init()
+ *
+ * 为PCIe设备分配多个irq号
  **/
 static int msix_capability_init(struct pci_dev *dev,
 				struct msix_entry *entries, int nvec)
@@ -383,7 +405,7 @@ static int msix_capability_init(struct pci_dev *dev,
    	pos = pci_find_capability(dev, PCI_CAP_ID_MSIX);
 	/* Request & Map MSI-X table region */
  	pci_read_config_word(dev, msi_control_reg(pos), &control);
-	nr_entries = multi_msix_capable(control);
+	nr_entries = multi_msix_capable(control);//从control中得到中断irq的数量的
 
  	pci_read_config_dword(dev, msix_table_offset_reg(pos), &table_offset);
 	bir = (u8)(table_offset & PCI_MSIX_FLAGS_BIRMASK);
@@ -432,6 +454,7 @@ static int msix_capability_init(struct pci_dev *dev,
 		return avail;
 	}
 
+    //设置irq
 	i = 0;
 	list_for_each_entry(entry, &dev->msi_list, list) {
 		entries[i].vector = entry->irq;
@@ -455,6 +478,8 @@ static int msix_capability_init(struct pci_dev *dev,
  * Look at global flags, the device itself, and its parent busses
  * to determine if MSI/-X are supported for the device. If MSI/-X is
  * supported return 0, else return an error code.
+ *
+ * 检查是否可以启用MSI或者MSI-X 处理中断机制
  **/
 static int pci_msi_check_device(struct pci_dev* dev, int nvec, int type)
 {
@@ -502,11 +527,23 @@ static int pci_msi_check_device(struct pci_dev* dev, int nvec, int type)
  * MSI mode enabled on its hardware device function. A return of zero
  * indicates the successful setup of an entry zero with the new MSI
  * irq or non-zero for otherwise.
+ *
+ * e1000_request_irq()
+ *  pci_enable_msi()
+ *
+ * cxgb_up()
+ *  pci_enable_msi()
+ * 
+ * ixgbe_request_irq()
+ *  pci_enable_msi()
+ *
+ *
  **/
 int pci_enable_msi(struct pci_dev* dev)
 {
 	int status;
 
+	//检查是否支持msi机制
 	status = pci_msi_check_device(dev, 1, PCI_CAP_ID_MSI);
 	if (status)
 		return status;
@@ -592,6 +629,13 @@ static int msi_free_irqs(struct pci_dev* dev)
  * Or a return of > 0 indicates that driver request is exceeding the number
  * of irqs available. Driver should use the returned value to re-send
  * its request.
+ *
+ * cxgb_enable_msix()
+ *  pci_enable_msix()
+ *
+ * ixgbe_setup_msix()
+ *  pci_enable_msix()
+ *
  **/
 int pci_enable_msix(struct pci_dev* dev, struct msix_entry *entries, int nvec)
 {
@@ -608,6 +652,8 @@ int pci_enable_msix(struct pci_dev* dev, struct msix_entry *entries, int nvec)
 
 	pos = pci_find_capability(dev, PCI_CAP_ID_MSIX);
 	pci_read_config_word(dev, msi_control_reg(pos), &control);
+
+	
 	nr_entries = multi_msix_capable(control);
 	if (nvec > nr_entries)
 		return -EINVAL;
@@ -630,6 +676,7 @@ int pci_enable_msix(struct pci_dev* dev, struct msix_entry *entries, int nvec)
 		       pci_name(dev));
 		return -EINVAL;
 	}
+	//为PCIe设备分配多个irq号
 	status = msix_capability_init(dev, entries, nvec);
 	return status;
 }
@@ -699,6 +746,17 @@ arch_setup_msi_irq(struct pci_dev *dev, struct msi_desc *entry)
 	return 0;
 }
 
+/*
+ * pci_enable_msi()
+ *  msi_capability_init()
+ *   arch_setup_msi_irqs()
+ *
+ * pci_enable_msix()
+ *  msix_capability_init()
+ *   arch_setup_msi_irqs()
+ *
+ * 分配nvec个中断irq号
+ */
 int __attribute__ ((weak))
 arch_setup_msi_irqs(struct pci_dev *dev, int nvec, int type)
 {

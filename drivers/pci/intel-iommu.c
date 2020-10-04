@@ -2238,6 +2238,16 @@ static void __init init_no_remapping_devices(void)
 	}
 }
 
+
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pci_iommu_init()
+ *      intel_iommu_init()
+ *
+ */
 int __init intel_iommu_init(void)
 {
 	int ret = 0;

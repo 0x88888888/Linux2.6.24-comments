@@ -342,6 +342,17 @@ static struct dmi_system_id __devinitdata pciprobe_dmi_table[] = {
 	{}
 };
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pci_legacy_init()
+ *      pcibios_scan_root(0)
+ *
+ * 完成对pci总线的枚举
+ *
+ */
 struct pci_bus * __devinit pcibios_scan_root(int busnum)
 {
 	struct pci_bus *bus = NULL;
@@ -379,6 +390,8 @@ extern u8 pci_cache_line_size;
  *   do_basic_setup()
  *    do_initcalls()
  *     pcibios_init()
+ *
+ * 
  */
 static int __init pcibios_init(void)
 {

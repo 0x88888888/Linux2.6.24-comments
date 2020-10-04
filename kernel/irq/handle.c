@@ -134,6 +134,10 @@ irqreturn_t no_action(int cpl, void *dev_id)
  *  handle_edge_irq()
  *   handle_IRQ_event()
  *
+ * do_IRQ()
+ *  handle_fasteoi_irq()  PCI设备
+ *   handle_IRQ_event()
+ *
  * 无论handle_edge_irq还是handle_level_irq，都调用这个通用的中断处理函数
  */
 irqreturn_t handle_IRQ_event(unsigned int irq, struct irqaction *action)

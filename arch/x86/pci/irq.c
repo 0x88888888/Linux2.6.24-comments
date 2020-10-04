@@ -1093,6 +1093,16 @@ static struct dmi_system_id __initdata pciirq_dmi_table[] = {
 	{ }
 };
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pcibios_irq_init()
+ *
+ * 使用bios提供的中断路由表,初始化当前处理器系统的中断路由表，
+ * 同时确定PCI设备使用的中断向量
+ */
 static int __init pcibios_irq_init(void)
 {
 	DBG(KERN_DEBUG "PCI: IRQ init\n");

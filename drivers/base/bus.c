@@ -670,6 +670,15 @@ static DRIVER_ATTR(uevent, S_IWUSR, NULL, driver_uevent_store);
  *    driver_register(e1000_driver->driver) 
  *     bus_add_driver(vertex_driver->driver)
  *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_root_init()
+ *      acpi_bus_register_driver( driver == acpi_pci_root_driver)
+ *       driver_register(drv== acpi_pci_root_driver->drv)
+ *        bus_add_driver(drv== acpi_pci_root_driver->drv)
+ *
  * 将device_driver加入到bus上
  */
 int bus_add_driver(struct device_driver *drv)
@@ -693,7 +702,7 @@ int bus_add_driver(struct device_driver *drv)
 
     // 总线支持auto probe
 	if (drv->bus->drivers_autoprobe) {
-		error = driver_attach(drv);
+		error = driver_attach(drv);  //这个重要
 		if (error)
 			goto out_unregister;
 	}

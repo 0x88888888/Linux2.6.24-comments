@@ -611,6 +611,8 @@ asmlinkage void __init start_kernel(void)
      * 也将boot_command_line所指的字符串复制给boot_command_line
      *
      * 启动acpi?
+     *
+     * 用前896M的物理内存初始化swapper_pg_dir，并且切换到swapper_pg_dir页表
 	 */
 	setup_arch(&command_line);   
 	/* 复制参数到saved_command_line和static_command_line中 */
@@ -807,7 +809,7 @@ asmlinkage void __init start_kernel(void)
     //检测硬件是否有bug
 	check_bugs();
 
-    /* 从BIOS上读取ACPI信息? */
+    /* 从BIOS上读取ACPI信息,设置acpi中断处理函数为acpi_ev_sci_xrupt_handler */
 	acpi_early_init(); /* before LAPIC and SMP init */
 
 	/* Do the rest non-__init'ed, we're now alive */
@@ -867,20 +869,23 @@ static void __init do_initcalls(void)
      * 2. postcore_initcall( pcibus_class_init), 
      * 2. postcore_initcall( pci_driver_init),
      * 3. arch_initcall( pci_access_init)
-     *
-     * 4. subsys_initcall( pci_legacy_init), 
-     * 4. subsys_initcall( pcibios_init), 
+     * 3. arch_initcall( acpi_pci_init ) 确定是否使能MSI中断机制和PCIe设备的ASPM机制
+     * 
+     * 4. subsys_initcall( pci_legacy_init), 完成对PCI总线的初始化
+     * 4. subsys_initcall( pcibios_init), 检查pci设备使用的存储器以及I/0资源
      * 4. subsys_initcall( acpi_pci_root_init)
-     * 4. subsys_initcall( pci_acpi_init)
+     * 4. subsys_initcall( acpi_pci_link_init) 与acpi中断路由相关
+     * 4. subsys_initcall( pci_acpi_init)      
      * 4. subsys_initcall( fib_rules_init), //netlink机制管理rules
-     *
-     * 5. fs_initcall( pci_iommu_init),
+     * 4. subsys_initcall( pcibios_irq_init);  使用bios提供的中断路由表,初始化当前处理器系统的中断路由表，同时确定PCI设备使用的中断向量	
+     * 5. fs_initcall( pci_iommu_init), 初始化处理器系统 IOMMU,配置intel 的vt-d和AMDd IOMMU使用的页表
      * 5. fs_initcall( pcibios_assign_resources), 
      * 5. fs_initcall( inet_init),  tcp/ip 网络协议初始化
-     * 6. device_initcall( pci_init), 
+     * 6. device_initcall( pci_init),  对已完成枚举的pci设备进行一些修复工作
      *
      * 7. late_initcall( tcp_congestion_default) //tcp拥塞控制默认参数
-     *
+     * 7. late_initcall( pci_sysfs_init)
+     * 7. late_initcall( pci_mmcfg_late_insert_resources)
      * 
      * 
      */

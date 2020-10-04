@@ -642,15 +642,17 @@ out:
  * that we can trap those pesky NULL-reference errors in the kernel.
  *
  * start_kernel()
- *    setup_arch()
- *       paging_init()
+ *  setup_arch()
+ *    paging_init()
+ *
+ * 
  */
 void __init paging_init(void)
 {
 
 //是否启用PAE
 #ifdef CONFIG_X86_PAE
-	set_nx();
+	set_nx(); //只有启动了PAE，才可以设置NX标记
 	if (nx_enabled)
 		printk("NX (Execute Disable) protection: active\n");
 #endif

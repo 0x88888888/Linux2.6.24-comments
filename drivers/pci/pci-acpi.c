@@ -331,6 +331,13 @@ static struct acpi_bus_type acpi_pci_bus = {
 	.find_bridge = acpi_pci_find_root_bridge,
 };
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_init()
+ */
 static int __init acpi_pci_init(void)
 {
 	int ret;

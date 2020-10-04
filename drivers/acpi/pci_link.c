@@ -477,6 +477,15 @@ static int acpi_irq_penalty[ACPI_MAX_IRQS] = {
 	/* >IRQ15 */
 };
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pci_acpi_init()
+ *      acpi_irq_penalty_init()
+ * 更新 acpi_irq_penalty表
+ */
 int __init acpi_irq_penalty_init(void)
 {
 	struct list_head *node = NULL;
@@ -937,6 +946,18 @@ static int __init irqrouter_init_sysfs(void)
 
 device_initcall(irqrouter_init_sysfs);
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_link_init()
+ *
+ *处理PCI插槽的中断请求
+ *
+ * 如果系统使能了I/O APIC,acpi_pci_link_init执行的结果并不重要，
+ * 因为PCI设备在执行pci_enable_device后，该设备使用的irq号，还将发生变化
+ */
 static int __init acpi_pci_link_init(void)
 {
 

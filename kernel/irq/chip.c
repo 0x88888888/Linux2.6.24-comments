@@ -171,6 +171,16 @@ EXPORT_SYMBOL(set_irq_data);
  *	@irq:	Interrupt number
  *	@entry:	Pointer to MSI descriptor data
  *
+ * pci_enable_msi()
+ *  msi_capability_init()
+ *   arch_setup_msi_irqs()
+ *    arch_setup_msi_irq()
+ *     set_irq_msi()
+ *
+ * pci_enable_msix()
+ *  msix_capability_init()
+ *   set_irq_msi()
+ *
  *	Set the hardware irq controller data for an irq
  */
 int set_irq_msi(unsigned int irq, struct msi_desc *entry)
@@ -183,9 +193,12 @@ int set_irq_msi(unsigned int irq, struct msi_desc *entry)
 		       "Trying to install msi data for IRQ%d\n", irq);
 		return -EINVAL;
 	}
+	//确定使用的irq_desc对象
 	desc = irq_desc + irq;
+    //操作irq_desc,先得到lock
 	spin_lock_irqsave(&desc->lock, flags);
 	desc->msi_desc = entry;
+	
 	if (entry)
 		entry->irq = irq;
 	spin_unlock_irqrestore(&desc->lock, flags);
@@ -393,6 +406,8 @@ out_unlock:
  *	call when the interrupt has been serviced. This enables support
  *	for modern forms of interrupt handlers, which handle the flow
  *	details in hardware, transparently.
+ *
+ * PCI设备的处理函数
  *
  * do_IRQ()
  *  handle_fasteoi_irq()

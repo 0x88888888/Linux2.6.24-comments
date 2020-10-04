@@ -149,6 +149,8 @@ acpi_status acpi_ev_install_fadt_gpes(void)
  *   acpi_enable_subsystem()
  *    acpi_ev_install_xrupt_handlers()
  *
+ * 设置 acpi 的sci中断处理函数
+ *
  ******************************************************************************/
 
 acpi_status acpi_ev_install_xrupt_handlers(void)
@@ -229,6 +231,9 @@ static acpi_status acpi_ev_fixed_event_initialize(void)
  *
  * DESCRIPTION: Checks the PM status register for active fixed events
  *
+ * acpi_ev_sci_xrupt_handler()
+ *  acpi_ev_fixed_event_detect()
+ *
  ******************************************************************************/
 
 u32 acpi_ev_fixed_event_detect(void)
@@ -282,6 +287,10 @@ u32 acpi_ev_fixed_event_detect(void)
  *
  * DESCRIPTION: Clears the status bit for the requested event, calls the
  *              handler that previously registered for the event.
+ *
+ * acpi_ev_sci_xrupt_handler()
+ *  acpi_ev_fixed_event_detect()
+ *   acpi_ev_fixed_event_dispatch()
  *
  ******************************************************************************/
 

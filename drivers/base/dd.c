@@ -136,6 +136,19 @@ static DECLARE_WAIT_QUEUE_HEAD(probe_waitqueue);
  *      __device_attach()
  *       driver_probe_device()
  *        really_probe()
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_root_init()
+ *      acpi_bus_register_driver( driver == acpi_pci_root_driver)
+ *       driver_register(drv== acpi_pci_root_driver->drv)
+ *        bus_add_driver(drv== acpi_pci_root_driver->drv)
+ *         driver_attach(drv== acpi_pci_root_driver->drv)
+ *          __driver_attach(data==acpi_pci_root_driver->drv)
+ *           driver_probe_device(drv== acpi_pci_root_driver->drv)
+ *            really_probe(, drv== acpi_pci_root_driver->drv)
  */
 static int really_probe(struct device *dev, struct device_driver *drv)
 {
@@ -154,6 +167,7 @@ static int really_probe(struct device *dev, struct device_driver *drv)
 	}
 
     //ide_bus_type.probe = generic_ide_probe
+    //acpi_device_probe
 	if (dev->bus->probe) {
 		ret = dev->bus->probe(dev);
 		if (ret)
@@ -245,6 +259,18 @@ int driver_probe_done(void)
  *       bus_for_each_dev(fn == __driver_attach) 
  *        __driver_attach() 
  *         driver_probe_device()
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_root_init()
+ *      acpi_bus_register_driver( driver == acpi_pci_root_driver)
+ *       driver_register(drv== acpi_pci_root_driver->drv)
+ *        bus_add_driver(drv== acpi_pci_root_driver->drv)
+ *         driver_attach(drv== acpi_pci_root_driver->drv)
+ *          __driver_attach(data==acpi_pci_root_driver->drv)
+ *           driver_probe_device(drv== acpi_pci_root_driver->drv)
  */
 int driver_probe_device(struct device_driver * drv, struct device * dev)
 {
@@ -340,6 +366,17 @@ int device_attach(struct device * dev)
  *      driver_attach(vertex_driver->driver) 
  *       bus_for_each_dev(fn == __driver_attach) 
  *        __driver_attach()
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_root_init()
+ *      acpi_bus_register_driver( driver == acpi_pci_root_driver)
+ *       driver_register(drv== acpi_pci_root_driver->drv)
+ *        bus_add_driver(drv== acpi_pci_root_driver->drv)
+ *         driver_attach(drv== acpi_pci_root_driver->drv)
+ *          __driver_attach(data==acpi_pci_root_driver->drv)
  */
 static int __driver_attach(struct device * dev, void * data)
 {
@@ -359,8 +396,9 @@ static int __driver_attach(struct device * dev, void * data)
 		down(&dev->parent->sem);
 	down(&dev->sem);
 	
-	if (!dev->driver)
+	if (!dev->driver) //重要
 		driver_probe_device(drv, dev);
+	
 	up(&dev->sem);
 	if (dev->parent)
 		up(&dev->parent->sem);
@@ -390,6 +428,16 @@ static int __driver_attach(struct device * dev, void * data)
  *    driver_register(e1000_driver->driver) 
  *     bus_add_driver(vertex_driver->driver)
  *      driver_attach(vertex_driver->driver)
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_root_init()
+ *      acpi_bus_register_driver( driver == acpi_pci_root_driver)
+ *       driver_register(drv== acpi_pci_root_driver->drv)
+ *        bus_add_driver(drv== acpi_pci_root_driver->drv)
+ &         driver_attach(drv== acpi_pci_root_driver->drv)
  */
 int driver_attach(struct device_driver * drv)
 {

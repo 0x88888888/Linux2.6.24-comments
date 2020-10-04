@@ -312,8 +312,10 @@ static int e1000_request_irq(struct e1000_adapter *adapter)
 	int err;
 
 	if (adapter->hw.mac_type >= e1000_82571) {
+
+	    //使用msi中断处理方式
 		adapter->have_msi = !pci_enable_msi(adapter->pdev);
-		if (adapter->have_msi) {
+		if (adapter->have_msi) { //e1000网卡中断处理函数
 			handler = &e1000_intr_msi;
 			irq_flags = 0;
 		}

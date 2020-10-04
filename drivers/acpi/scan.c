@@ -337,6 +337,21 @@ static int acpi_device_uevent(struct device *dev, struct kobj_uevent_env *env)
 static int acpi_bus_driver_init(struct acpi_device *, struct acpi_driver *);
 static int acpi_start_single_object(struct acpi_device *);
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_root_init()
+ *      acpi_bus_register_driver( driver == acpi_pci_root_driver)
+ *       driver_register(drv== acpi_pci_root_driver->drv)
+ *        bus_add_driver(drv== acpi_pci_root_driver->drv)
+ *         driver_attach(drv== acpi_pci_root_driver->drv)
+ *          __driver_attach(data==acpi_pci_root_driver->drv)
+ *           driver_probe_device(drv== acpi_pci_root_driver->drv)
+ *            really_probe(, drv== acpi_pci_root_driver->drv)
+ *             acpi_device_probe()
+ */
 static int acpi_device_probe(struct device * dev)
 {
 	struct acpi_device *acpi_dev = to_acpi_device(dev);
@@ -344,9 +359,12 @@ static int acpi_device_probe(struct device * dev)
 	int ret;
 
 	ret = acpi_bus_driver_init(acpi_dev, acpi_drv);
+	
 	if (!ret) {
+		
 		if (acpi_dev->bus_ops.acpi_op_start)
 			acpi_start_single_object(acpi_dev);
+		
 		ACPI_DEBUG_PRINT((ACPI_DB_INFO,
 			"Found driver [%s] for device [%s]\n",
 			acpi_drv->name, acpi_dev->pnp.bus_id));
@@ -395,6 +413,12 @@ struct bus_type acpi_bus_type = {
 	.uevent		= acpi_device_uevent,
 };
 
+/*
+ * acpi_bus_add()
+ *  acpi_bus_scan()
+ *   acpi_add_single_object()
+ *    acpi_device_register()
+ */
 static int acpi_device_register(struct acpi_device *device,
 				 struct acpi_device *parent)
 {
@@ -421,6 +445,8 @@ static int acpi_device_register(struct acpi_device *device,
 	/*
 	 * Find suitable bus_id and instance number in acpi_bus_id_list
 	 * If failed, create one and link it into acpi_bus_id_list
+	 *
+	 * 遍历，不能重复
 	 */
 	list_for_each_entry(acpi_device_bus_id, &acpi_bus_id_list, node) {
 		if(!strcmp(acpi_device_bus_id->bus_id, device->flags.hardware_id? device->pnp.hardware_id : "device")) {
@@ -449,6 +475,7 @@ static int acpi_device_register(struct acpi_device *device,
 
 	if (device->parent)
 		device->dev.parent = &parent->dev;
+	
 	device->dev.bus = &acpi_bus_type;
 	device_initialize(&device->dev);
 	device->dev.release = &acpi_device_release;
@@ -471,6 +498,7 @@ static int acpi_device_register(struct acpi_device *device,
 		list_del(&device->g_list);
 	} else
 		list_del(&device->g_list);
+	
 	list_del(&device->wakeup_list);
 	spin_unlock(&acpi_device_lock);
 	return result;
@@ -506,9 +534,20 @@ static void acpi_device_unregister(struct acpi_device *device, int type)
  * driver is bound to a device.  Invokes the driver's add() ops.
  *
  *
- * acpi_device_probe()
- *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
- *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_root_init()
+ *      acpi_bus_register_driver( driver == acpi_pci_root_driver)
+ *       driver_register(drv== acpi_pci_root_driver->drv)
+ *        bus_add_driver(drv== acpi_pci_root_driver->drv)
+ *         driver_attach(drv== acpi_pci_root_driver->drv)
+ *          __driver_attach(data==acpi_pci_root_driver->drv)
+ *           driver_probe_device(drv== acpi_pci_root_driver->drv)
+ *            really_probe(, drv== acpi_pci_root_driver->drv)
+ *             acpi_device_probe()
+ *              acpi_bus_driver_init()
  */
 static int
 acpi_bus_driver_init(struct acpi_device *device, struct acpi_driver *driver)
@@ -523,6 +562,7 @@ acpi_bus_driver_init(struct acpi_device *device, struct acpi_driver *driver)
 		return -ENOSYS;
 
     //driver==acpi_pci_root_driver的话,add就是 acpi_pci_root_add
+    // 遍历pci总线树
 	result = driver->ops.add(device);
 	if (result) {
 		device->driver = NULL;
@@ -542,6 +582,22 @@ acpi_bus_driver_init(struct acpi_device *device, struct acpi_driver *driver)
 	return 0;
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_root_init()
+ *      acpi_bus_register_driver( driver == acpi_pci_root_driver)
+ *       driver_register(drv== acpi_pci_root_driver->drv)
+ *        bus_add_driver(drv== acpi_pci_root_driver->drv)
+ *         driver_attach(drv== acpi_pci_root_driver->drv)
+ *          __driver_attach(data==acpi_pci_root_driver->drv)
+ *           driver_probe_device(drv== acpi_pci_root_driver->drv)
+ *            really_probe(, drv== acpi_pci_root_driver->drv)
+ *             acpi_device_probe()
+ *              acpi_start_single_object()
+ */
 static int acpi_start_single_object(struct acpi_device *device)
 {
 	int result = 0;
@@ -551,7 +607,7 @@ static int acpi_start_single_object(struct acpi_device *device)
 	if (!(driver = device->driver))
 		return 0;
 
-	if (driver->ops.start) {
+	if (driver->ops.start) { //start == acpi_pci_root_start
 		result = driver->ops.start(device);
 		if (result && driver->ops.remove)
 			driver->ops.remove(device, ACPI_BUS_REMOVAL_NORMAL);
@@ -567,6 +623,16 @@ static int acpi_start_single_object(struct acpi_device *device)
  * Registers a driver with the ACPI bus.  Searches the namespace for all
  * devices that match the driver's criteria and binds.  Returns zero for
  * success or a negative error status for failure.
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     acpi_pci_root_init()
+ *      acpi_bus_register_driver( driver == acpi_pci_root_driver)
+ *
+ * acpi_pci_link_init()
+ *  acpi_bus_register_driver(acpi_pci_link_driver)
  */
 int acpi_bus_register_driver(struct acpi_driver *driver)
 {
@@ -1087,6 +1153,11 @@ static int acpi_bus_remove(struct acpi_device *dev, int rmdevice)
 	return 0;
 }
 
+/*
+ * acpi_bus_add()
+ *  acpi_bus_scan()
+ *   acpi_add_single_object()
+ */
 static int
 acpi_add_single_object(struct acpi_device **child,
 		       struct acpi_device *parent, acpi_handle handle, int type,
@@ -1216,6 +1287,10 @@ acpi_add_single_object(struct acpi_device **child,
 	return result;
 }
 
+/*
+ * acpi_bus_add()
+ *  acpi_bus_scan()
+ */
 static int acpi_bus_scan(struct acpi_device *start, struct acpi_bus_ops *ops)
 {
 	acpi_status status = AE_OK;

@@ -248,6 +248,13 @@ struct pci_bus * __devinit pci_acpi_scan_root(struct acpi_device *device, int do
 
 extern int pci_routeirq;
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   do_basic_setup()
+ *    do_initcalls()
+ *     pci_acpi_init()
+ */
 static int __init pci_acpi_init(void)
 {
 	struct pci_dev *dev = NULL;

@@ -1215,6 +1215,8 @@ static int cfs_rq_best_prio(struct cfs_rq *cfs_rq)
  *   load_balance()
  *    move_tasks()
  *     load_balance_fair()
+ *
+ * cpu工作太忙，迁移线程
  */
 static unsigned long
 load_balance_fair(struct rq *this_rq, int this_cpu, struct rq *busiest,
@@ -1250,11 +1252,13 @@ load_balance_fair(struct rq *this_rq, int this_cpu, struct rq *busiest,
 #else
 # define maxload rem_load_move
 #endif
+
 		/*
 		 * pass busy_cfs_rq argument into
 		 * load_balance_[start|next]_fair iterators
 		 */
 		cfs_rq_iterator.arg = busy_cfs_rq;
+
 		rem_load_move -= balance_tasks(this_rq, this_cpu, busiest,
 					       maxload, sd, idle, all_pinned,
 					       this_best_prio,
@@ -1267,6 +1271,12 @@ load_balance_fair(struct rq *this_rq, int this_cpu, struct rq *busiest,
 	return max_load_move - rem_load_move;
 }
 
+/*
+ * migration_thread()
+ *  active_load_balance()
+ *   move_one_task()
+ *    move_one_task_fair()
+ */
 static int
 move_one_task_fair(struct rq *this_rq, int this_cpu, struct rq *busiest,
 		   struct sched_domain *sd, enum cpu_idle_type idle)

@@ -188,6 +188,16 @@ static inline int is_64bit_memory(u32 mask)
 	return 0;
 }
 
+/*
+ * pci_acpi_scan_root()
+ *  pci_scan_bus_parented()
+ *   pci_scan_child_bus()
+ *    pci_scan_slot()
+ *     pci_scan_single_device()
+ *      pci_scan_device()
+ *       pci_setup_device()
+ *        pci_read_bases()
+ */
 static void pci_read_bases(struct pci_dev *dev, unsigned int howmany, int rom)
 {
 	unsigned int pos, reg, next;
@@ -747,7 +757,7 @@ static int pci_setup_device(struct pci_dev * dev)
 	class = dev->class >> 8;
 
 	switch (dev->hdr_type) {		    /* header type */
-	case PCI_HEADER_TYPE_NORMAL:		    /* standard header */
+	case PCI_HEADER_TYPE_NORMAL:		    /*PCI设备（PCI agent） standard header */
 		if (class == PCI_CLASS_BRIDGE_PCI)
 			goto bad;
 		pci_read_irq(dev);
@@ -792,7 +802,10 @@ static int pci_setup_device(struct pci_dev * dev)
 		/*
 		 * 这里会读取dev->irq,但是这个irq基本上不会是真的中断号，
 		 * 只有在由8259A中断控制器来传输中断时，这个irq号才是真的irq号，
-		 * 如果io apic ,local apic来处理中断，中断号会变的
+		 * 如果io apic ,local apic来处理中断，中断号会变的,在pci_enable_device中改变pci_dev->irq
+		 *
+		 * 如果启用MSI,MSI-X中断处理机制, 这个中断号也会变
+		 * 
 		 */
 		pci_read_irq(dev);
 		dev->transparent = ((dev->class & 0xff) == 1);
@@ -839,6 +852,20 @@ static void pci_release_dev(struct device *dev)
 	kfree(pci_dev);
 }
 
+/*
+ * acpi_device_probe()
+ *  acpi_bus_driver_init(,driver == acpi_pci_root_driver?)
+ *   acpi_pci_root_add()
+ *    pci_acpi_scan_root()
+ *     pci_scan_bus_parented()
+ *      pci_scan_child_bus()
+ *       pci_scan_slot()
+ *        pci_scan_single_device()
+ *         pci_scan_device()
+ *          set_pcie_port_type()
+ *
+ * 这个函数的主要作用是处理 PCI Express Capabilities结构
+ */
 static void set_pcie_port_type(struct pci_dev *pdev)
 {
 	int pos;
@@ -849,6 +876,8 @@ static void set_pcie_port_type(struct pci_dev *pdev)
 		return;
 	pdev->is_pcie = 1;
 	pci_read_config_word(pdev, pos + PCI_EXP_FLAGS, &reg16);
+
+	// PCI Express Capabilities结构
 	pdev->pcie_type = (reg16 & PCI_EXP_FLAGS_TYPE) >> 4;
 }
 
@@ -979,6 +1008,7 @@ pci_scan_device(struct pci_bus *bus, int devfn)
 	dev->device = (l >> 16) & 0xffff;
 	dev->cfg_size = pci_cfg_space_size(dev);
 	dev->error_state = pci_channel_io_normal;
+	
 	set_pcie_port_type(dev);
 
 	/* Assume 32-bit PCI; let 64-bit PCI cards (which are far rarer)
@@ -1099,6 +1129,8 @@ int pci_scan_slot(struct pci_bus *bus, int devfn)
  *      pci_scan_child_bus()
  *
  * 遍历总线上的设备，返回bus的subordinate号
+ *
+ * 该函数的主要作用是分配PCI总线树的PCI总线号，而并不初始化PCI设备使用的BAR空间
  */
 unsigned int pci_scan_child_bus(struct pci_bus *bus)
 {
@@ -1242,6 +1274,7 @@ struct pci_bus *pci_scan_bus_parented(struct device *parent,
 {
 	struct pci_bus *b;
 
+    //创建pci_bus对象
 	b = pci_create_bus(parent, bus, ops, sysdata);
 	if (b)
 		b->subordinate = pci_scan_child_bus(b);

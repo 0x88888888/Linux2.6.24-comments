@@ -64,6 +64,8 @@ static u32 ACPI_SYSTEM_XFACE acpi_ev_sci_xrupt_handler(void *context);
  *
  * sci中断处理函数
  *
+ * 在acpi_ev_install_sci_handler中设置
+ *
  ******************************************************************************/
 
 static u32 ACPI_SYSTEM_XFACE acpi_ev_sci_xrupt_handler(void *context)
