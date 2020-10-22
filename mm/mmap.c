@@ -265,6 +265,9 @@ static struct vm_area_struct *remove_vma(struct vm_area_struct *vma)
 	return next;
 }
 
+/*
+ * 会从buddy system中分配page
+ */
 asmlinkage unsigned long sys_brk(unsigned long brk)
 {
 	unsigned long rlim, retval;
@@ -453,6 +456,7 @@ void __vma_link_rb(struct mm_struct *mm, struct vm_area_struct *vma,
  * mmap_region()
  *  vma_link()
  *   __vma_link_file()
+ *
 */
 static inline void __vma_link_file(struct vm_area_struct *vma)
 {
@@ -464,6 +468,7 @@ static inline void __vma_link_file(struct vm_area_struct *vma)
 
 		if (vma->vm_flags & VM_DENYWRITE)
 			atomic_dec(&file->f_path.dentry->d_inode->i_writecount);
+		
 		if (vma->vm_flags & VM_SHARED)
 			mapping->i_mmap_writable++;
 
@@ -510,7 +515,7 @@ static void vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
 {
 	struct address_space *mapping = NULL;
 
-	if (vma->vm_file)
+	if (vma->vm_file) // 这段vma是映射到文件的
 		mapping = vma->vm_file->f_mapping; // address_space对象
 
 	if (mapping) {
@@ -1361,12 +1366,17 @@ munmap_back:
            在generic_file_mmap中设置:
            	vma->vm_ops = &generic_file_vm_ops; 在page_fault的时候，会调用generic_file_vm_ops.fault == filemap_fault
             vma->vm_flags |= VM_CAN_NONLINEAR;
+        *
+        * 设置vma->vm_ops
 		*/
 		error = file->f_op->mmap(file, vma);
 		if (error)
 			goto unmap_and_free_vma;
 	} else if (vm_flags & VM_SHARED) {
-	    /* 没有文件映射，但是有MAP_SHARED标记的要求 */
+	    /* 没有文件映射，但是有MAP_SHARED标记的要求 
+	     *
+	     * 设置vma->vm_op
+	     */
 		error = shmem_zero_setup(vma);
 		if (error)
 			goto free_vma;
@@ -2245,6 +2255,7 @@ static inline void verify_mm_writelocked(struct mm_struct *mm)
  * sys_brk()
  *  do_brk()
  *
+ * 这里还没有真的分配物理内存，只是操作VMA
  */
 unsigned long do_brk(unsigned long addr, unsigned long len)
 {
@@ -2356,6 +2367,7 @@ unsigned long do_brk(unsigned long addr, unsigned long len)
 	
 out:
 	mm->total_vm += len >> PAGE_SHIFT;
+	//需要直接分配物理内存
 	if (flags & VM_LOCKED) {
 		mm->locked_vm += len >> PAGE_SHIFT;
 		make_pages_present(addr, addr + len);
@@ -2430,7 +2442,7 @@ int insert_vm_struct(struct mm_struct * mm, struct vm_area_struct * vma)
 	if (!vma->vm_file) {
 		BUG_ON(vma->anon_vma);
 		/*
-		 * 
+		 * 页面为单位
 		 */
 		vma->vm_pgoff = vma->vm_start >> PAGE_SHIFT;
 	}

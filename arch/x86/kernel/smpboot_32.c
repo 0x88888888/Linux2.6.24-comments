@@ -1329,6 +1329,13 @@ void __init native_smp_cpus_done(unsigned int max_cpus)
 #endif
 }
 
+/*
+ * start_kernel()
+ *  init_IRQ()
+ *   intr_init_hook()
+ *    apic_intr_init()
+ *     smp_intr_init()
+ */
 void __init smp_intr_init(void)
 {
 	/*
@@ -1340,6 +1347,8 @@ void __init smp_intr_init(void)
 	/*
 	 * The reschedule interrupt is a CPU-to-CPU reschedule-helper
 	 * IPI, driven by wakeup.
+	 *
+	 * RCU和其余的reschedule时会用到这个中断处理函数
 	 */
 	set_intr_gate(RESCHEDULE_VECTOR, reschedule_interrupt);
 

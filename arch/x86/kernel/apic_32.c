@@ -1383,6 +1383,7 @@ void smp_error_interrupt(struct pt_regs *regs)
 void __init apic_intr_init(void)
 {
 #ifdef CONFIG_SMP
+    //这个重要
 	smp_intr_init();
 #endif
 	/* self generated IPI for local APIC timer */

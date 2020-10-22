@@ -29,6 +29,8 @@ struct thread_info {
 	__u32			flags;		/* low level flags */
 	__u32			status;		/* thread synchronous flags */
 	__u32			cpu;		/* current CPU */
+
+	/* 分成四段，1.preempt部分，2.hardirq部分,3.softirq部分,4.第一位,总开关 */
 	int 			preempt_count;	/* 0 => preemptable, <0 => BUG */
 
 	mm_segment_t		addr_limit;	

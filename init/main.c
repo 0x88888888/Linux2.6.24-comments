@@ -684,6 +684,8 @@ asmlinkage void __init start_kernel(void)
 	/*init_IRQ == native_init_IRQ  
 	 * init_IRQ[native_init_IRQ]->intr_init_hook->apic_intr_init,会设置Local APIC中断向量
 	 * 时钟中断被修改为apic_timer_interrupt
+	 *
+	 * 设置reschedule_interrupt
 	 */
 	init_IRQ(); /* irq_desc[i]=status=IRQ_DISABLED, irq_desc[i].action=NULL */
 	pidhash_init(); /* 初始化 pid_hash 哈希表 */

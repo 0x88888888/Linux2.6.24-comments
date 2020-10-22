@@ -1120,6 +1120,14 @@ no_page_table:
 	return page;
 }
 
+/*
+ * sys_brk()
+ *	do_brk()
+ *	 make_pages_present()
+ *    get_user_pages()
+ *
+ * 分配物理内存
+ */
 int get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned long start, int len, int write, int force,
 		struct page **pages, struct vm_area_struct **vmas)
@@ -1130,6 +1138,8 @@ int get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 	/* 
 	 * Require read or write permissions.
 	 * If 'force' is set, we only require the "MAY" flags.
+	 *
+	 * 读写权限
 	 */
 	vm_flags  = write ? (VM_WRITE | VM_MAYWRITE) : (VM_READ | VM_MAYREAD);
 	vm_flags &= force ? (VM_MAYREAD | VM_MAYWRITE) : (VM_READ | VM_WRITE);
@@ -1165,6 +1175,7 @@ int get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 				pte_unmap(pte);
 				return i ? : -EFAULT;
 			}
+			
 			if (pages) {
 				struct page *page = vm_normal_page(gate_vma, start, *pte);
 				pages[i] = page;
@@ -1205,6 +1216,8 @@ int get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 			 * If tsk is ooming, cut off its access to large memory
 			 * allocations. It has a pending SIGKILL, but it can't
 			 * be processed until returning to user space.
+			 *
+			 * 这个task_struct 发送oom
 			 */
 			if (unlikely(test_tsk_thread_flag(tsk, TIF_MEMDIE)))
 				return -ENOMEM;
@@ -2514,6 +2527,8 @@ oom:
  *   handle_pte_fault()
  *    do_linear_fault()
  *     __do_fault()
+ *
+ * 会从buddy system中分配page
  */
 static int __do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 		unsigned long address, pmd_t *pmd,
@@ -2582,7 +2597,7 @@ static int __do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 				ret = VM_FAULT_OOM;
 				goto out;
 			}
-			/* 分配一个新的page过来 */
+			/* 从buddy system中分配一个新的page过来 */
 			page = alloc_page_vma(GFP_HIGHUSER_MOVABLE,
 						vma, address);
 			if (!page) {
@@ -2829,6 +2844,13 @@ static int do_nonlinear_fault(struct mm_struct *mm, struct vm_area_struct *vma,
  * do_page_fault()
  *  handle_mm_fault()
  *   handle_pte_fault()
+ *
+ * sys_brk()
+ *	do_brk()
+ *	 make_pages_present()
+ *    get_user_pages()
+ *     handle_mm_fault()
+ *      handle_pte_fault()
  */
 static inline int handle_pte_fault(struct mm_struct *mm,
 		struct vm_area_struct *vma, unsigned long address,
@@ -2919,6 +2941,12 @@ unlock:
  * 
  * do_page_fault()
  *  handle_mm_fault()
+ *
+ * sys_brk()
+ *	do_brk()
+ *	 make_pages_present()
+ *    get_user_pages()
+ *     handle_mm_fault()
  */
 int handle_mm_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 		unsigned long address, int write_access)
@@ -3002,6 +3030,11 @@ int __pmd_alloc(struct mm_struct *mm, pud_t *pud, unsigned long address)
 }
 #endif /* __PAGETABLE_PMD_FOLDED */
 
+/*
+ * sys_brk()
+ *  do_brk()
+ *   make_pages_present()
+ */
 int make_pages_present(unsigned long addr, unsigned long end)
 {
 	int ret, len, write;
@@ -3014,8 +3047,10 @@ int make_pages_present(unsigned long addr, unsigned long end)
 	BUG_ON(addr >= end);
 	BUG_ON(end > vma->vm_end);
 	len = DIV_ROUND_UP(end, PAGE_SIZE) - addr/PAGE_SIZE;
+	
 	ret = get_user_pages(current, current->mm, addr,
 			len, write, 0, NULL, NULL);
+	
 	if (ret < 0)
 		return ret;
 	return ret == len ? 0 : -1;

@@ -132,6 +132,7 @@ void vma_prio_tree_insert(struct vm_area_struct *vma,
 	vma->shared.vm_set.head = NULL;
 
 	ptr = raw_prio_tree_insert(root, &vma->shared.prio_tree_node);
+	
 	if (ptr != (struct prio_tree_node *) &vma->shared.prio_tree_node) {
 		old = prio_tree_entry(ptr, struct vm_area_struct,
 					shared.prio_tree_node);

@@ -242,6 +242,9 @@ struct vm_area_struct {
 			 * 在vma_nonlinear_insert()操作
 		     */
 			struct list_head list; 
+			/*
+			 * 在vma_prio_tree_add中操作
+			 */
 			void *parent;	/* aligns with prio_tree_node parent */
 			struct vm_area_struct *head; //当多个vma对应相同的page时，用这个head链接其各个不同的vma
 		} vm_set; /* address_space->i_mmap */

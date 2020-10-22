@@ -1064,6 +1064,10 @@ struct vm_area_struct *vma_prio_tree_next(struct vm_area_struct *vma,
 /*
  * sys_remap_file_pages()
  *  vma_nonlinear_insert()
+ *
+ * vma_link()
+ *  __vma_link_file()
+ *   vma_nonlinear_insert()
  */
 static inline void vma_nonlinear_insert(struct vm_area_struct *vma,
 					struct list_head *list)

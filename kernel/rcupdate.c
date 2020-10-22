@@ -84,6 +84,12 @@ static DEFINE_MUTEX(rcu_barrier_mutex);
 static struct completion rcu_barrier_completion;
 
 #ifdef CONFIG_SMP
+
+/*
+ * synchronize_rcu()
+ *  call_rcu(&rcu.head, wakeme_after_rcu)
+ *   force_quiescent_state()
+ */
 static void force_quiescent_state(struct rcu_data *rdp,
 			struct rcu_ctrlblk *rcp)
 {
@@ -98,8 +104,9 @@ static void force_quiescent_state(struct rcu_data *rdp,
 		 */
 		cpumask = rcp->cpumask;
 		cpu_clear(rdp->cpu, cpumask);
+		//每个cpu都进程context switch
 		for_each_cpu_mask(cpu, cpumask)
-			smp_send_reschedule(cpu);
+			smp_send_reschedule(cpu); //这个函数在 include/asm-x86/smp_32.h中
 	}
 }
 #else
@@ -120,6 +127,9 @@ static inline void force_quiescent_state(struct rcu_data *rdp,
  * read-side critical sections have completed.  RCU read-side critical
  * sections are delimited by rcu_read_lock() and rcu_read_unlock(),
  * and may be nested.
+ *
+ * synchronize_rcu()
+ *  call_rcu(&rcu.head, func=wakeme_after_rcu)
  */
 void fastcall call_rcu(struct rcu_head *head,
 				void (*func)(struct rcu_head *rcu))
@@ -130,11 +140,14 @@ void fastcall call_rcu(struct rcu_head *head,
 	head->func = func;
 	head->next = NULL;
 	local_irq_save(flags);
+	
 	rdp = &__get_cpu_var(rcu_data);
 	*rdp->nxttail = head;
 	rdp->nxttail = &head->next;
+	
 	if (unlikely(++rdp->qlen > qhimark)) {
 		rdp->blimit = INT_MAX;
+		//调用SMP版本的
 		force_quiescent_state(rdp, &rcu_ctrlblk);
 	}
 	local_irq_restore(flags);
@@ -649,7 +662,9 @@ void synchronize_rcu(void)
 	/* Will wake me after RCU finished */
 	call_rcu(&rcu.head, wakeme_after_rcu);
 
-	/* Wait for it */
+	/* Wait for it
+	 * 等待
+	 */
 	wait_for_completion(&rcu.completion);
 }
 

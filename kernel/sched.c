@@ -4089,12 +4089,14 @@ asmlinkage void __sched preempt_schedule(void)
 	 * 或者禁止中断
 	 * If there is a non-zero preempt_count or interrupts are disabled,
 	 * we do not want to preempt the current task. Just return..
+	 *
+	 * thread_info->preempt_count==0时，才可以抢占
 	 */
 	if (likely(ti->preempt_count || irqs_disabled()))
 		return;
 
 	do {
-		/* 抢占 */
+		/* 抢占了，不能被抢占 */
 		add_preempt_count(PREEMPT_ACTIVE);
 
 		/*

@@ -107,6 +107,11 @@ static inline void smp_send_stop(void)
  *    check_preempt_tick()
  *     resched_task()
  *      smp_send_reschedule()
+ *
+ * synchronize_rcu()
+ *  call_rcu(&rcu.head, wakeme_after_rcu)
+ *   force_quiescent_state()
+ *    smp_send_reschedule()
  */
 
 static inline void smp_send_reschedule(int cpu)

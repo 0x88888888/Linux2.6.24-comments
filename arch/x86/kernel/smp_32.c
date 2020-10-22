@@ -476,11 +476,24 @@ void flush_tlb_all(void)
  *     resched_task()
  *      smp_send_reschedule() 
  *       native_smp_send_reschedule()
+ *
+ * synchronize_rcu()
+ *  call_rcu(&rcu.head, wakeme_after_rcu)
+ *   force_quiescent_state()
+ *    smp_send_reschedule()
+ *     native_smp_send_reschedule()
  */
 static void native_smp_send_reschedule(int cpu)
 {
 	WARN_ON(cpu_is_offline(cpu));
-	/* 发送一个cpu中断,RESCHEDULE_VECTOR的中断处理函数为 reschedule_interrupt */
+	/* 发送一个cpu中断,RESCHEDULE_VECTOR的中断处理函数为 reschedule_interrupt 
+	 *
+	 * reschedule_interrupt在entry_arch.h中
+	 *
+	 * 看这篇文章
+	 * http://oliveryang.net/2016/03/linux-scheduler-1/
+	 * http://oliveryang.net/2016/03/linux-scheduler-2/
+	 */
 	send_IPI_mask(cpumask_of_cpu(cpu), RESCHEDULE_VECTOR);
 }
 
