@@ -49,6 +49,7 @@
  * @func: actual update function to call after the grace period.
  */
 struct rcu_head {
+    //链接到rcu_data->nxttail
 	struct rcu_head *next;
 	void (*func)(struct rcu_head *head);
 };
@@ -90,11 +91,16 @@ static inline int rcu_batch_after(long a, long b)
  * Per-CPU data for Read-Copy UPdate.
  * nxtlist - new callbacks are added here
  * curlist - current batch for which quiescent cycle started if any
+ *
+ * 在call_rcu中使用,是per_cpu对象
  */
 struct rcu_data {
 	/* 1) quiescent state handling : */
+    // 表示rcu_data已经完成的grace period序号
 	long		quiescbatch;     /* Batch # for grace period */
+	// rcu_qsctr_inc()中设置为1
 	int		passed_quiesc;	 /* User-mode/idle loop etc. */
+	// rcu_check_quiescent_state()中设置为1
 	int		qs_pending;	 /* core waits for quiesc state */
 
 	/* 2) batch handling */

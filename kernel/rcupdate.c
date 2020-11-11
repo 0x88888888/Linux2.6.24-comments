@@ -130,6 +130,9 @@ static inline void force_quiescent_state(struct rcu_data *rdp,
  *
  * synchronize_rcu()
  *  call_rcu(&rcu.head, func=wakeme_after_rcu)
+ * 
+ * rcu_barrier_func()
+ *  call_rcu(..., func ==rcu_barrier_callback)
  */
 void fastcall call_rcu(struct rcu_head *head,
 				void (*func)(struct rcu_head *rcu))
@@ -137,10 +140,12 @@ void fastcall call_rcu(struct rcu_head *head,
 	unsigned long flags;
 	struct rcu_data *rdp;
 
+    //在rcu_do_batch()中回调func== wakeme_after_rcu
 	head->func = func;
 	head->next = NULL;
 	local_irq_save(flags);
-	
+
+	//将head放到rcu_data链表中去,最后通过head->func来唤醒本进程
 	rdp = &__get_cpu_var(rcu_data);
 	*rdp->nxttail = head;
 	rdp->nxttail = &head->next;
@@ -263,7 +268,7 @@ static void rcu_do_batch(struct rcu_data *rdp)
 	while (list) {
 		next = list->next;
 		prefetch(next);
-	    //走起
+	    //走起,func == wakeme_after_rcu,在synchronize_rcu()调用call_rcu时设置
 		list->func(list);
 		list = next;
 		if (++count >= rdp->blimit)
@@ -633,7 +638,10 @@ struct rcu_synchronize {
 	struct completion completion;
 };
 
-/* Because of FASTCALL declaration of complete, we use this wrapper */
+/* Because of FASTCALL declaration of complete, we use this wrapper 
+ *
+ *
+ */
 static void wakeme_after_rcu(struct rcu_head  *head)
 {
 	struct rcu_synchronize *rcu;
@@ -659,7 +667,10 @@ void synchronize_rcu(void)
 	struct rcu_synchronize rcu;
 
 	init_completion(&rcu.completion);
-	/* Will wake me after RCU finished */
+	/* Will wake me after RCU finished 
+	 *
+	 * 在rcu_do_batch()中回调wakeme_after_rcu
+	 */
 	call_rcu(&rcu.head, wakeme_after_rcu);
 
 	/* Wait for it
