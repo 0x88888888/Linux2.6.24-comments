@@ -368,6 +368,11 @@ static inline void mps_oem_check(struct mp_config_table *mpc, char *oem,
 
 /*
  * Read/parse the MPC
+ *
+ * start_kernel() [init/main.c]
+ *  setup_arch()
+ *   get_smp_config()
+ *    smp_read_mpc()
  */
 
 static int __init smp_read_mpc(struct mp_config_table *mpc)
@@ -410,6 +415,8 @@ static int __init smp_read_mpc(struct mp_config_table *mpc)
 	/* 
 	 * Save the local APIC address (it might be non-default) -- but only
 	 * if we're not using ACPI.
+	 *
+	 * 获得 LAPIC 地址，存入 mp_lapic_addr 全局变量
 	 */
 	if (!acpi_lapic)
 		mp_lapic_addr = mpc->mpc_lapic;
@@ -441,7 +448,7 @@ static int __init smp_read_mpc(struct mp_config_table *mpc)
 				break;
 			}
 			case MP_IOAPIC:
-			{
+			{//获取IOAPIC信息
 				struct mpc_config_ioapic *m=
 					(struct mpc_config_ioapic *)mpt;
 				MP_ioapic_info(m);
@@ -460,7 +467,7 @@ static int __init smp_read_mpc(struct mp_config_table *mpc)
 				break;
 			}
 			case MP_LINTSRC:
-			{
+			{ //获取LAPIC信息
 				struct mpc_config_lintsrc *m=
 					(struct mpc_config_lintsrc *)mpt;
 				MP_lintsrc_info(m);
@@ -556,6 +563,14 @@ static void __init construct_default_ioirq_mptable(int mpc_default_type)
 	MP_intsrc_info(&intsrc);
 }
 
+/*
+ * start_kernel() [init/main.c]
+ *  setup_arch()
+ *   get_smp_config()
+ *    construct_default_ISA_mptable()
+ *
+ * 该函数会对 CPU、总线、中断等使用默认配置
+ */
 static inline void __init construct_default_ISA_mptable(int mpc_default_type)
 {
 	struct mpc_config_processor processor;
@@ -621,10 +636,13 @@ static inline void __init construct_default_ISA_mptable(int mpc_default_type)
 	ioapic.mpc_apicver = mpc_default_type > 4 ? 0x10 : 0x01;
 	ioapic.mpc_flags = MPC_APIC_USABLE;
 	ioapic.mpc_apicaddr = 0xFEC00000;
+	//把 该 struct mpc_config_ioapic 存入 mp_ioapics 数组
 	MP_ioapic_info(&ioapic);
 
 	/*
 	 * We set up most of the low 16 IO-APIC pins according to MPS rules.
+	 *
+	 * 配置 ISA 中断
 	 */
 	construct_default_ioirq_mptable(mpc_default_type);
 
@@ -644,6 +662,10 @@ static struct intel_mp_floating *mpf_found;
 
 /*
  * Scan the memory blocks for an SMP configuration block.
+ *
+ * start_kernel() [init/main.c]
+ *  setup_arch()
+ *   get_smp_config()
  */
 void __init get_smp_config (void)
 {

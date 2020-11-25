@@ -427,8 +427,10 @@ is386:	movl $2,%ecx		# set MP
 	movb $1, ready
 	cmpb $0,%cl		# the first CPU calls start_kernel
 	je   1f
+	# bsp cpu不会走这里
 	movl $(__KERNEL_PERCPU), %eax
 	movl %eax,%fs		# set this cpu''s percpu
+	# 初始化ap,在smpboot_32.c中
 	jmp initialize_secondary # all other CPUs call initialize_secondary
 1:
 #endif /* CONFIG_SMP */

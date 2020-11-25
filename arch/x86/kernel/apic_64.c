@@ -1027,8 +1027,9 @@ void setup_APIC_extended_lvt(unsigned char lvt_off, unsigned char vector,
  * happen only every 'profiling multiplier' ticks. The default
  * multiplier is 1 and it can be changed by writing the new multiplier
  * value into /proc/profile.
+ *
+ * 时钟中断
  */
-
 void smp_local_timer_interrupt(void)
 {
 	int cpu = smp_processor_id();

@@ -447,12 +447,17 @@ static void __cpuinit start_secondary(void *unused)
  * CPUs - they just need to reload everything
  * from the task structure
  * This function must not return.
+ *
+ * 从arch/x86/kernel/head_32.S中跳转过来
+ *  initialize_secondary()
  */
 void __devinit initialize_secondary(void)
 {
 	/*
 	 * We don't actually need to load the full TSS,
 	 * basically just the stack pointer and the eip.
+	 *
+	 * 
 	 */
 
 	asm volatile(
@@ -772,6 +777,15 @@ static inline struct task_struct * __cpuinit alloc_idle_task(int cpu)
 #define alloc_idle_task(cpu) fork_idle(cpu)
 #endif
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    smp_prepare_cpus()
+ *     native_smp_prepare_cpus()
+ *      smp_boot_cpus()
+ *       do_boot_cpu()
+ */
 static int __cpuinit do_boot_cpu(int apicid, int cpu)
 /*
  * NOTE - on most systems this is a PHYSICAL apic ID, but on multiquad
@@ -833,6 +847,8 @@ static int __cpuinit do_boot_cpu(int apicid, int cpu)
 
 	/*
 	 * Starting actual IPI sequence...
+	 *
+	 * 发送IPI中断，唤醒AP
 	 */
 	boot_error = wakeup_secondary_cpu(apicid, start_eip);
 
@@ -973,6 +989,8 @@ EXPORT_SYMBOL(xquad_portio);
  *    smp_prepare_cpus()
  *     native_smp_prepare_cpus()
  *      smp_boot_cpus()
+ *
+ * 将调用 LAPIC 和 IOAPIC 的初始化函数
  */
 static void __init smp_boot_cpus(unsigned int max_cpus)
 {
@@ -1040,6 +1058,7 @@ static void __init smp_boot_cpus(unsigned int max_cpus)
 		return;
 	}
 
+    //通过 LAPIC version 寄存器、 LAPIC ID寄存器验证LAPIC
 	verify_local_APIC();
 
 	/*
@@ -1079,6 +1098,7 @@ static void __init smp_boot_cpus(unsigned int max_cpus)
 	Dprintk("CPU present map: %lx\n", physids_coerce(phys_cpu_present_map));
 
 	kicked = 1;
+	//启动所有的cpu了
 	for (bit = 0; kicked < NR_CPUS && bit < MAX_APICS; bit++) {
 		apicid = cpu_present_to_apicid(bit);
 		/*
@@ -1092,6 +1112,7 @@ static void __init smp_boot_cpus(unsigned int max_cpus)
 		if (max_cpus <= cpucount+1)
 			continue;
 
+		//启动cpu
 		if (((cpu = alloc_cpu_id()) <= 0) || do_boot_cpu(apicid, cpu))
 			printk("CPU #%d not responding - cannot use it.\n",
 								apicid);

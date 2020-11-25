@@ -1068,8 +1068,8 @@ static int noinline init_post(void)
  *
  *
  * start_kernel()
- *   rest_init() 中调用kernel_thread()创建kernel_init线程
- *    kernel_init()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
  */
 static int __init kernel_init(void * unused)
 {

@@ -98,16 +98,33 @@ struct mpc_config_bus
 #define BUSTYPE_VME	"VME"
 #define BUSTYPE_XPRESS	"XPRESS"
 
+/*
+ * 内核用 mp_ioapics 全局数组存放系统中所有 IOAPIC 对应的 struct mpc_config_ioapic，
+ * nr_ioapics 为 IOAPIC 数量。目前 Linux 最多支持 64 个 IOAPIC，当数量超过时可以配置
+ * MAX_IO_APICS 宏扩大限制
+ *
+ * 对应 MP spec 的 IOAPIC entry
+ */
 struct mpc_config_ioapic
 {
 	unsigned char mpc_type;
 	unsigned char mpc_apicid;
 	unsigned char mpc_apicver;
+	/*
+	 * 最低 bit 有效，其余 bit 预留
+     * 0：IOAPIC disabled
+     * 1：IOAPIC enabled
+     */
 	unsigned char mpc_flags;
 #define MPC_APIC_USABLE		0x01
+    //该 IOAPIC 基地址
 	unsigned long mpc_apicaddr;
 };
 
+/*
+ * 对应 MP spec 的 IO interrupt entry，
+ * 代表各个中断源（一个 IOAPIC管脚连接一个中断源）
+ */
 struct mpc_config_intsrc
 {
 	unsigned char mpc_type;
@@ -131,6 +148,10 @@ enum mp_irq_source_types {
 #define MP_IRQDIR_LOW		3
 
 
+/*
+ * 定义和 mpc_config_intsrc 一样。只是 mpc_dstapic 代表 LAPIC ，
+ * 且 mpc_dstirq 只能取值 0 或 1。
+ */
 struct mpc_config_lintsrc
 {
 	unsigned char mpc_type;

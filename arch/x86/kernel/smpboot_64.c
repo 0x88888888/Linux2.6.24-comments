@@ -867,8 +867,9 @@ void __init smp_set_apicids(void)
  *
  *
  * start_kernel()
- *   rest_init() 中调用kernel_thread()创建kernel_init线程
- *     smp_prepare_cpus()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    smp_prepare_cpus()
  */
 void __init smp_prepare_cpus(unsigned int max_cpus)
 {
@@ -887,6 +888,8 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 
 	/*
 	 * Switch from PIC to APIC mode.
+	 *
+	 * 使用APIC来处理中断
 	 */
 	setup_local_APIC();
 

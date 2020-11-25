@@ -237,6 +237,14 @@ void acpi_nmi_disable(void)
 		on_each_cpu(__acpi_nmi_disable, NULL, 0, 1);
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    smp_prepare_cpus()
+ *     setup_local_APIC()
+ *      setup_apic_nmi_watchdog()
+ */
 void setup_apic_nmi_watchdog (void *unused)
 {
 	if (__get_cpu_var(wd_enabled))

@@ -800,6 +800,7 @@ void __init setup_arch(char **cmdline_p)
 #endif
 #endif
 #ifdef CONFIG_X86_LOCAL_APIC
+   //获取IOAPIC LAPIC信息
 	if (smp_found_config)
 		get_smp_config();
 #endif

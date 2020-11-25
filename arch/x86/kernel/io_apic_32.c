@@ -1259,16 +1259,14 @@ static struct irq_chip ioapic_chip;
 #define IOAPIC_LEVEL	1
 
 /*
+ *
  * start_kernel()
  *  rest_init() 中调用kernel_thread()创建kernel_init线程
  *   kernel_init()
- *	  smp_prepare_cpus()
- *	   native_smp_prepare_cpus()
- *	    smp_boot_cpus()
- *	     APIC_init_uniprocessor()
- *		  setup_IO_APIC()
- *         setup_IO_APIC_irqs()
- *          ioapic_register_intr(, trigger = IOAPIC_AUTO)
+ *    smp_prepare_cpus()
+ *     setup_IO_APIC()
+ *      setup_IO_APIC_irqs()
+ *       ioapic_register_intr(, trigger = IOAPIC_AUTO)
  */
 static void ioapic_register_intr(int irq, int vector, unsigned long trigger)
 {
@@ -1287,14 +1285,22 @@ static void ioapic_register_intr(int irq, int vector, unsigned long trigger)
 }
 
 /*
+ *
  * start_kernel()
  *  rest_init() 中调用kernel_thread()创建kernel_init线程
  *   kernel_init()
- *	  smp_prepare_cpus()
- *	   native_smp_prepare_cpus()
- *	    smp_boot_cpus()
- *	     APIC_init_uniprocessor()
- *		  setup_IO_APIC()
+ *    smp_prepare_cpus()
+ *     setup_IO_APIC()
+ *      setup_IO_APIC_irqs()
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    smp_prepare_cpus()
+ *     native_smp_prepare_cpus()
+ *      smp_boot_cpus()
+ *       smpboot_setup_io_apic()
+ *        setup_IO_APIC()
  *         setup_IO_APIC_irqs()
  */
 static void __init setup_IO_APIC_irqs(void)
@@ -1424,6 +1430,17 @@ static void __init setup_ExtINT_IRQ0_pin(unsigned int apic, unsigned int pin, in
 	enable_8259A_irq(0);
 }
 
+/*
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    smp_prepare_cpus()
+ *     native_smp_prepare_cpus()
+ *      smp_boot_cpus()
+ *       smpboot_setup_io_apic()
+ *        setup_IO_APIC()
+ *         print_IO_APIC()
+ */
 void __init print_IO_APIC(void)
 {
 	int apic, i;
@@ -2210,6 +2227,16 @@ int timer_uses_ioapic_pin_0;
  * a wide range of boards and BIOS bugs.  Fortunately only the timer IRQ
  * is so screwy.  Thanks to Brian Perkins for testing/hacking this beast
  * fanatically on his truly buggy board.
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    smp_prepare_cpus()
+ *     native_smp_prepare_cpus()
+ *      smp_boot_cpus()
+ *       smpboot_setup_io_apic()
+ *        setup_IO_APIC()
+ *         check_timer()
  */
 static inline void __init check_timer(void)
 {
@@ -2345,13 +2372,20 @@ out:
 #define PIC_IRQS	(1 << PIC_CASCADE_IR)
 
 /*
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    smp_prepare_cpus()
+ *     setup_IO_APIC()
+ *
  * start_kernel()
  *  rest_init() 中调用kernel_thread()创建kernel_init线程
  *   kernel_init()
  *    smp_prepare_cpus()
  *     native_smp_prepare_cpus()
  *      smp_boot_cpus()
- *       APIC_init_uniprocessor()
+ *       smpboot_setup_io_apic()
  *        setup_IO_APIC()
  */
 void __init setup_IO_APIC(void)

@@ -38,6 +38,16 @@ static inline unsigned long check_apicid_present(int bit)
  * Intel recommends to set DFR, LDR and TPR before enabling
  * an APIC.  See e.g. "AP-388 82489DX User's Manual" (Intel
  * document number 292116).  So here it goes...
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    smp_prepare_cpus()
+ *     setup_local_APIC()
+ *      init_apic_ldr()
+ *
+ * 设置 DFR 和 LDR。目前 Linux 采用的是 Flat 模式。
+ * LDR 的 logicalAPICID = 1UL << smp_processor_id() 
  */
 static inline void init_apic_ldr(void)
 {

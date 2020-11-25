@@ -766,6 +766,14 @@ void lapic_shutdown(void)
  * This is to verify that we're looking at a real local APIC.
  * Check these against your board if the CPUs aren't getting
  * started for no apparent reason.
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    smp_prepare_cpus()
+ *     native_smp_prepare_cpus()
+ *      smp_boot_cpus()
+ *       verify_local_APIC()
  */
 int __init verify_local_APIC(void)
 {
@@ -892,12 +900,16 @@ void __init init_bsp_APIC(void)
 /**
  * setup_local_APIC - setup the local APIC
  *
+ *
  * start_kernel()
- *  kernel_init()
- *   smp_prepare_cpus()
- *    native_smp_prepare_cpus()
- *     smp_boot_cpus()
- *      setup_boot_clock()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    smp_prepare_cpus()
+ *     native_smp_prepare_cpus()
+ *      smp_boot_cpus()
+ *       setup_local_APIC()
+ *
+ * 设置 LAPIC
  */
 void __cpuinit setup_local_APIC(void)
 {
@@ -924,12 +936,19 @@ void __cpuinit setup_local_APIC(void)
 	 * Intel recommends to set DFR, LDR and TPR before enabling
 	 * an APIC.  See e.g. "AP-388 82489DX User's Manual" (Intel
 	 * document number 292116).  So here it goes...
+	 *
+	 * 设置 DFR 和 LDR。目前 Linux 采用的是 Flat 模式。
+	 * LDR 的 logical APICID = 1UL << smp_processor_id()
 	 */
 	init_apic_ldr();
 
 	/*
 	 * Set Task Priority to 'accept all'. We never change this
 	 * later on.
+	 *
+	 * 设置优先级
+	 *
+	 *  设置 TPR 为 0
 	 */
 	value = apic_read(APIC_TASKPRI);
 	value &= ~APIC_TPRI_MASK;
@@ -1022,6 +1041,8 @@ void __cpuinit setup_local_APIC(void)
 		value = APIC_DM_NMI;
 	else
 		value = APIC_DM_NMI | APIC_LVT_MASKED;
+
+	
 	if (!integrated)		/* 82489DX */
 		value |= APIC_LVT_LEVEL_TRIGGER;
 	apic_write_around(APIC_LVT1, value);
@@ -1069,6 +1090,11 @@ void __cpuinit setup_local_APIC(void)
 
 /*
  * Detect and initialize APIC
+ *
+ * start_kernel()
+ *  trap_init()
+ *   init_apic_mappings()
+ *    detect_init_APIC()
  */
 static int __init detect_init_APIC (void)
 {
@@ -1151,6 +1177,10 @@ no_apic:
 
 /**
  * init_apic_mappings - initialize APIC mappings
+ *
+ * start_kernel()
+ *  trap_init()
+ *   init_apic_mappings()
  */
 void __init init_apic_mappings(void)
 {
@@ -1401,15 +1431,26 @@ void __init apic_intr_init(void)
 
 /**
  * connect_bsp_APIC - attach the APIC to the interrupt system
+ *
+ * start_kernel()
+ *  rest_init() 中调用kernel_thread()创建kernel_init线程
+ *   kernel_init()
+ *    smp_prepare_cpus()
+ *     native_smp_prepare_cpus()
+ *      smp_boot_cpus()
+ *       connect_bsp_APIC()
  */
 void __init connect_bsp_APIC(void)
 {
+    
 	if (pic_mode) {
+		
 		/*
 		 * Do not trust the local APIC being empty at bootup.
 		 */
 		clear_local_APIC();
 		/*
+		 * 通过IMCR 切换入 APIC 模式
 		 * PIC mode, enable APIC mode in the IMCR, i.e.  connect BSP's
 		 * local APIC to INT and NMI lines.
 		 */
@@ -1418,6 +1459,8 @@ void __init connect_bsp_APIC(void)
 		outb(0x70, 0x22);
 		outb(0x01, 0x23);
 	}
+
+	//空函数
 	enable_apic_mode();
 }
 

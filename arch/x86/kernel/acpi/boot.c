@@ -767,6 +767,12 @@ unsigned long __init acpi_find_rsdp(void)
 /*
  * Parse LAPIC entries in MADT
  * returns 0 on success, < 0 on error
+ *
+ * start_kernel() [init/main.c]
+ *  setup_arch()
+ *   acpi_boot_init()
+ *    acpi_process_madt()
+ *     acpi_parse_madt_lapic_entries()
  */
 static int __init acpi_parse_madt_lapic_entries(void)
 {
@@ -894,6 +900,12 @@ static inline int acpi_parse_madt_ioapic_entries(void)
 }
 #endif	/* !CONFIG_X86_IO_APIC */
 
+/*
+ * start_kernel() [init/main.c]
+ *  setup_arch()
+ *   acpi_boot_init()
+ *    acpi_process_madt()
+ */
 static void __init acpi_process_madt(void)
 {
 #ifdef CONFIG_X86_LOCAL_APIC
@@ -903,6 +915,9 @@ static void __init acpi_process_madt(void)
 
 		/*
 		 * Parse MADT LAPIC entries
+		 *
+		 * 确定有多少个LAPIC entries
+		 * 以及获得 LAPIC 的默认地址并放入 acpi_lapic_addr 全局变量中
 		 */
 		error = acpi_parse_madt_lapic_entries();
 		if (!error) {
@@ -1233,6 +1248,13 @@ int __init acpi_boot_table_init(void)
 	return 0;
 }
 
+/*
+ * start_kernel() [init/main.c]
+ *  setup_arch()
+ *   acpi_boot_init()
+ *
+ *
+ */
 int __init acpi_boot_init(void)
 {
 	/*
@@ -1251,6 +1273,8 @@ int __init acpi_boot_init(void)
 
 	/*
 	 * Process the Multiple APIC Description Table (MADT), if present
+	 *
+	 * 解析 MADT 表
 	 */
 	acpi_process_madt();
 
