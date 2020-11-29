@@ -1254,6 +1254,9 @@ int ip_append_data(struct sock *sk,
 		return 0;
 	}
 
+	//到此,说明网卡不支持UFO了，所以要软件来做了
+
+
 	/* So, what's going on in the loop below?
 	 *
 	 * We use calculated fragment length to generate chained skb,

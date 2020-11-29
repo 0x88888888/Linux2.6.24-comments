@@ -436,6 +436,15 @@ static void tcp_build_and_update_options(__be32 *ptr, struct tcp_sock *tp,
  * Note - that with the RFC2385 TCP option, we make room for the
  * 16 byte MD5 hash. This will be filled in later, so the pointer for the
  * location to be filled is passed back up.
+ *
+ * sys_sendto()
+ *  sock_sendmsg()
+ *   __sock_sendmsg()
+ *    tcp_sendmsg()
+ *     __tcp_push_pending_frames()
+ *      tcp_write_xmit()
+ *       tcp_transmit_skb()
+ *        tcp_syn_build_options()
  */
 static void tcp_syn_build_options(__be32 *ptr, int mss, int ts, int sack,
 				  int offer_wscale, int wscale, __u32 tstamp,

@@ -715,7 +715,7 @@ int tcp_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 	/* This should be in poll */
 	clear_bit(SOCK_ASYNC_NOSPACE, &sk->sk_socket->flags);
 
-    /* 计算当前的MSS， size_goal为可发送数据的大小 */
+    /* 计算当前TCP包的MSS， size_goal为可发送数据的大小 */
 	mss_now = tcp_current_mss(sk, !(flags&MSG_OOB));
 	size_goal = tp->xmit_size_goal;
 

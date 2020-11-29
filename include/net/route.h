@@ -163,6 +163,12 @@ static inline char rt_tos2priority(u8 tos)
  *    tcp_v4_connect()
  *     ip_route_connect()
  *
+ * sys_socketcall()
+ *  sys_connect()
+ *   inet_dgram_connect()
+ *    ip4_datagram_connect()
+ *     ip_route_connect()
+ *
  * 查询路由表项，通过参数rp返回
  */
 static inline int ip_route_connect(struct rtable **rp, __be32 dst,
@@ -170,6 +176,7 @@ static inline int ip_route_connect(struct rtable **rp, __be32 dst,
 				   __be16 sport, __be16 dport, struct sock *sk,
 				   int flags)
 {
+    //设置路由查询的索引信息,记录在struct flowi结构变量中
 	struct flowi fl = { .oif = oif,
 			    .nl_u = { .ip4_u = { .daddr = dst,
 						 .saddr = src,
