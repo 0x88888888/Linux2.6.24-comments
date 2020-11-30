@@ -304,7 +304,7 @@ static int ip_finish_output(struct sk_buff *skb)
 		return dst_output(skb); //加上IPSKB_REROUTED，又回去
 	}
 #endif
-     /* 超过mtu了，需要分片 */
+     /* 超过mtu了,网卡有不支持GSO，需要分片 */
 	if (skb->len > ip_skb_dst_mtu(skb) && !skb_is_gso(skb))
 		return ip_fragment(skb, ip_finish_output2);
 	else

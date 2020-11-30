@@ -503,6 +503,7 @@ int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, 
 	if (iph->ihl < 5 || iph->version != 4)
 		goto inhdr_error;
 
+    //数据包的长度
 	if (!pskb_may_pull(skb, iph->ihl*4))
 		goto inhdr_error;
 

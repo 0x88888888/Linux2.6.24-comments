@@ -1947,6 +1947,11 @@ static DEFINE_RWLOCK(proto_list_lock);
 
 /*
  * 在inet_init中调用 添加tcp_prot,udp_prot,raw_prot
+ *
+ * udpv6_prot
+ * tcpv6_prot
+ * rawv6_prot
+ * udplitev6_prot
  * 到这个链表中来
  */
 static LIST_HEAD(proto_list);
