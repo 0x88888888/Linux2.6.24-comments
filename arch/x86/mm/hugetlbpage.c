@@ -123,6 +123,12 @@ int huge_pmd_unshare(struct mm_struct *mm, unsigned long *addr, pte_t *ptep)
 	return 1;
 }
 
+/*
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   hugetlb_fault()
+ *    huge_pte_alloc()
+ */
 pte_t *huge_pte_alloc(struct mm_struct *mm, unsigned long addr)
 {
 	pgd_t *pgd;

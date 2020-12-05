@@ -2009,6 +2009,14 @@ DEFINE_PER_CPU(struct netif_rx_stats, netdev_rx_stat) = { 0, };
  *   net_rx()      :创建sk_buff对象
  *    netif_rx()  : 上面的两个函数是特定于网卡的 ,
  *
+ * ixgbe_receive_skb()
+ *  netif_rx()
+ *
+ * netif_receive_skb()
+ *  handle_macvlan()
+ *   macvlan_handle_frame()
+ *    netif_rx()
+ *
  *  数据已经在net_rx()读取到skb了。
  *  
  */
@@ -2108,6 +2116,7 @@ static inline struct net_device *skb_bond(struct sk_buff *skb)
 
 /*
  * 网络数据包发送软中断处理函数
+ * NET_TX_SOFTIRQ软中断处理函数
  */
 static void net_tx_action(struct softirq_action *h)
 {
@@ -2130,6 +2139,7 @@ static void net_tx_action(struct softirq_action *h)
 			clist = clist->next;
 
 			BUG_TRAP(!atomic_read(&skb->users));
+			//释放掉已经被传输完成的SKB
 			__kfree_skb(skb);
 		}
 	}
@@ -2155,9 +2165,11 @@ static void net_tx_action(struct softirq_action *h)
              * 否则，进行下一步调度。
              */
 			if (spin_trylock(&dev->queue_lock)) {
+				//得到锁了，启动发送
 				qdisc_run(dev);
 				spin_unlock(&dev->queue_lock);
 			} else {
+				//重新调度NET_TX_SOFTIRQ软中断
 				netif_schedule(dev);
 			}
 		}
@@ -2239,6 +2251,10 @@ static inline struct sk_buff *handle_bridge(struct sk_buff *skb,
 struct sk_buff *(*macvlan_handle_frame_hook)(struct sk_buff *skb) __read_mostly;
 EXPORT_SYMBOL_GPL(macvlan_handle_frame_hook);
 
+/*
+ * netif_receive_skb()
+ *  handle_macvlan()
+ */
 static inline struct sk_buff *handle_macvlan(struct sk_buff *skb,
 					     struct packet_type **pt_prev,
 					     int *ret,
@@ -2251,6 +2267,8 @@ static inline struct sk_buff *handle_macvlan(struct sk_buff *skb,
 		*ret = deliver_skb(skb, *pt_prev, orig_dev);
 		*pt_prev = NULL;
 	}
+
+	//macvlan_handle_frame_hook==macvlan_handle_frame
 	return macvlan_handle_frame_hook(skb);
 }
 #else
@@ -2346,6 +2364,16 @@ out:
  * e1000_intr_msi()
  *  e1000_clean_rx_irq()
  *   netif_receive_skb()
+ *
+ * e1000_receive_skb()
+ *  netif_receive_skb()
+ *
+ * virtnet_poll()
+ *  receive_skb()
+ *   netif_receive_skb()
+ *
+ * ixgbe_receive_skb()
+ *  netif_receive_skb()
  */
 int netif_receive_skb(struct sk_buff *skb)
 {

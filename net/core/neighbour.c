@@ -1312,6 +1312,7 @@ int neigh_resolve_output(struct sk_buff *skb)
 	    */
 		if (dev->header_ops->cache && !dst->hh) {
 			write_lock_bh(&neigh->lock);
+			//这里很重要了,设置dst的函数
 			if (!dst->hh)
 				neigh_hh_init(neigh, dst, dst->ops->protocol);
 			

@@ -42,6 +42,10 @@
 #define PF_INSTR	(1<<4)
 
 #ifdef CONFIG_KPROBES
+/*
+ * do_page_fault()
+ *  notify_page_fault()
+ */
 static inline int notify_page_fault(struct pt_regs *regs)
 {
 	int ret = 0;
@@ -237,6 +241,9 @@ static noinline void pgtable_bad(unsigned long address, struct pt_regs *regs,
  * Handle a fault on the vmalloc area
  *
  * This assumes no large pages in there.
+ *
+ * do_page_fault()
+ *  vmalloc_fault()
  */
 static int vmalloc_fault(unsigned long address)
 {
@@ -291,6 +298,8 @@ int show_unhandled_signals = 1;
  * This routine handles page faults.  It determines the address,
  * and the problem, and then passes it off to one of the appropriate
  * routines.
+ *
+ * 缺页异常
  */
 asmlinkage void __kprobes do_page_fault(struct pt_regs *regs,
 					unsigned long error_code)
@@ -331,18 +340,23 @@ asmlinkage void __kprobes do_page_fault(struct pt_regs *regs,
 	 * This verifies that the fault happens in kernel space
 	 * (error_code & 4) == 0, and that the fault was not a
 	 * protection error (error_code & 9) == 0.
+	 *
+	 * 
 	 */
 	if (unlikely(address >= TASK_SIZE64)) {
 		/*
 		 * Don't check for the module range here: its PML4
 		 * is always initialized because it's shared with the main
 		 * kernel text. Only vmalloc may need PML4 syncups.
+		 *
+		 * 在内核态出现缺页异常，只能是vmalloc区域才能出现缺页异常
 		 */
 		if (!(error_code & (PF_RSVD|PF_USER|PF_PROT)) &&
 		      ((address >= VMALLOC_START && address < VMALLOC_END))) {
 			if (vmalloc_fault(address) >= 0)
 				return;
 		}
+		//kprobe处理
 		if (notify_page_fault(regs))
 			return;
 		/*
@@ -358,6 +372,7 @@ asmlinkage void __kprobes do_page_fault(struct pt_regs *regs,
 	if (likely(regs->eflags & X86_EFLAGS_IF))
 		local_irq_enable();
 
+    //检查标志位确定访问发生在"内核态"
 	if (unlikely(error_code & PF_RSVD))
 		pgtable_bad(address, regs, error_code);
 
@@ -371,6 +386,8 @@ asmlinkage void __kprobes do_page_fault(struct pt_regs *regs,
 	/*
 	 * User-mode registers count as a user access even for any
 	 * potential system fault or CPU buglet.
+	 *
+	 * 用户态的异常
 	 */
 	if (user_mode_vm(regs))
 		error_code |= PF_USER;
@@ -401,8 +418,10 @@ asmlinkage void __kprobes do_page_fault(struct pt_regs *regs,
 	vma = find_vma(mm, address);
 	if (!vma)
 		goto bad_area;
+	//找到对应的VMA了
 	if (likely(vma->vm_start <= address))
 		goto good_area;
+	//如果上一步没有跳转到good_area，那只能是stack需要扩展的page fault了
 	if (!(vma->vm_flags & VM_GROWSDOWN))
 		goto bad_area;
 	if (error_code & 4) {
@@ -424,12 +443,12 @@ good_area:
 	switch (error_code & (PF_PROT|PF_WRITE)) {
 		default:	/* 3: write, present */
 			/* fall through */
-		case PF_WRITE:		/* write, not present */
-			if (!(vma->vm_flags & VM_WRITE))
+		case PF_WRITE:		/* write, not present ,写，缺页异常*/
+			if (!(vma->vm_flags & VM_WRITE)) //vma的保护标记不能和操作唱反调啊
 				goto bad_area;
 			write++;
 			break;
-		case PF_PROT:		/* read, present */
+		case PF_PROT:		/* read, present,读缺页异常 */
 			goto bad_area;
 		case 0:			/* read, not present */
 			if (!(vma->vm_flags & (VM_READ | VM_EXEC | VM_WRITE)))

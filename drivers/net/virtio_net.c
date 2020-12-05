@@ -61,6 +61,10 @@ static bool skb_xmit_done(struct virtqueue *rvq)
 	return true;
 }
 
+/*
+ * virtnet_poll()
+ *  receive_skb()
+ */
 static void receive_skb(struct net_device *dev, struct sk_buff *skb,
 			unsigned len)
 {
@@ -188,6 +192,7 @@ again:
 	while (received < budget &&
 	       (skb = vi->rvq->vq_ops->get_buf(vi->rvq, &len)) != NULL) {
 		__skb_unlink(skb, &vi->recv);
+		//收数据包
 		receive_skb(vi->dev, skb, len);
 		vi->num--;
 		received++;

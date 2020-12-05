@@ -568,6 +568,11 @@ out:
 	return 1;
 }
 
+/*
+ * do_page_fault()
+ *  notify_page_fault()
+ *   kprobe_fault_handler()
+ */
 int __kprobes kprobe_fault_handler(struct pt_regs *regs, int trapnr)
 {
 	struct kprobe *cur = kprobe_running();

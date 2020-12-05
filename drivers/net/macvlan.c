@@ -34,6 +34,9 @@
 
 struct macvlan_port {
 	struct net_device	*dev;
+	/*
+	 * 链接到macvlan_dev->hlist_node
+	 */
 	struct hlist_head	vlan_hash[MACVLAN_HASH_SIZE];
 	struct list_head	vlans;
 };
@@ -99,7 +102,12 @@ static void macvlan_broadcast(struct sk_buff *skb,
 	}
 }
 
-/* called under rcu_read_lock() from netif_receive_skb */
+/* called under rcu_read_lock() from netif_receive_skb 
+ *
+ * netif_receive_skb()
+ *  handle_macvlan()
+ *   macvlan_handle_frame()
+ */
 static struct sk_buff *macvlan_handle_frame(struct sk_buff *skb)
 {
 	const struct ethhdr *eth = eth_hdr(skb);
@@ -111,11 +119,13 @@ static struct sk_buff *macvlan_handle_frame(struct sk_buff *skb)
 	if (port == NULL)
 		return skb;
 
+    //链路层广播
 	if (is_multicast_ether_addr(eth->h_dest)) {
 		macvlan_broadcast(skb, port);
 		return skb;
 	}
 
+    //查找，得到macvlan_dev对象
 	vlan = macvlan_hash_lookup(port, eth->h_dest);
 	if (vlan == NULL)
 		return skb;

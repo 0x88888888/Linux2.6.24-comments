@@ -65,6 +65,7 @@ static void put_compound_page(struct page *page)
 	if (put_page_testzero(page)) {
 		compound_page_dtor *dtor;
 
+	    //dtor==free_huge_page
 		dtor = get_compound_page_dtor(page);
 		(*dtor)(page);
 	}

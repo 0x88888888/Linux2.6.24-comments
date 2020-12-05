@@ -756,6 +756,9 @@ struct net_device
 	 * 正在通过该网络设备发送数据包的CPU
 	 */
 	int			xmit_lock_owner;
+	/*
+	 * macvlan_dev,
+	 */
 	void			*priv;	/* pointer to private data	*/
 
 	/* 给上层用的发送数据的函数指针。

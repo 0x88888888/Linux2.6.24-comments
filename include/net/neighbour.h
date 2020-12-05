@@ -164,6 +164,8 @@ struct neighbour
 	 * ndisc_constructor(), neigh_connect()
 	 * neigh_flush_dev(),neigh_alloc(), neigh_suspect()
 	 * shaper_neigh_setup() 中改变
+	 *
+	 * 在ip_finish_output2(),ip6_output_finish()中调用
 	 */
 	int			(*output)(struct sk_buff *skb);
 	// 通常是等待发送出去的TCP、UDP数据

@@ -25,6 +25,7 @@ const unsigned long hugetlb_zero = 0, hugetlb_infinity = ~0UL;
 static unsigned long nr_huge_pages, free_huge_pages, resv_huge_pages;
 static unsigned long surplus_huge_pages;
 unsigned long max_huge_pages;
+//系统中所有的hugepage
 static struct list_head hugepage_freelists[MAX_NUMNODES];
 static unsigned int nr_huge_pages_node[MAX_NUMNODES];
 static unsigned int free_huge_pages_node[MAX_NUMNODES];
@@ -62,6 +63,10 @@ static void copy_huge_page(struct page *dst, struct page *src,
 	}
 }
 
+/*
+ * free_huge_page()
+ *  enqueue_huge_page()
+ */
 static void enqueue_huge_page(struct page *page)
 {
 	int nid = page_to_nid(page);
@@ -70,6 +75,15 @@ static void enqueue_huge_page(struct page *page)
 	free_huge_pages_node[nid]++;
 }
 
+/*
+ * do_page_fault()
+ *	handle_mm_fault()
+ *	 hugetlb_fault()
+ *	  hugetlb_no_page()
+ *	   alloc_huge_page()
+ *      alloc_huge_page_private()
+ *       dequeue_huge_page()
+ */
 static struct page *dequeue_huge_page(struct vm_area_struct *vma,
 				unsigned long address)
 {
@@ -84,6 +98,7 @@ static struct page *dequeue_huge_page(struct vm_area_struct *vma,
 		nid = zone_to_nid(*z);
 		if (cpuset_zone_allowed_softwall(*z, htlb_alloc_mask) &&
 		    !list_empty(&hugepage_freelists[nid])) {
+		    
 			page = list_entry(hugepage_freelists[nid].next,
 					  struct page, lru);
 			list_del(&page->lru);
@@ -113,6 +128,11 @@ static void update_and_free_page(struct page *page)
 	__free_pages(page, HUGETLB_PAGE_ORDER);
 }
 
+/*
+ * 在alloc_fresh_huge_page_node()中设置
+ *
+ *  将page enqueue到hugepage_freelists[]
+ */
 static void free_huge_page(struct page *page)
 {
 	int nid = page_to_nid(page);
@@ -171,25 +191,40 @@ static int adjust_pool_surplus(int delta)
 	return ret;
 }
 
+/*
+ * hugetlb_init()
+ *  alloc_fresh_huge_page()
+ *   alloc_fresh_huge_page_node()
+ */
 static struct page *alloc_fresh_huge_page_node(int nid)
 {
 	struct page *page;
 
 	page = alloc_pages_node(nid,
 		htlb_alloc_mask|__GFP_COMP|__GFP_THISNODE|__GFP_NOWARN,
-		HUGETLB_PAGE_ORDER);
+		HUGETLB_PAGE_ORDER /* 应该是10 */);
+	
 	if (page) {
+		//先在这里设置析构函数为free_huge_page
 		set_compound_page_dtor(page, free_huge_page);
 		spin_lock(&hugetlb_lock);
 		nr_huge_pages++;
 		nr_huge_pages_node[nid]++;
 		spin_unlock(&hugetlb_lock);
-		put_page(page); /* free it into the hugepage allocator */
+		/* 
+		 * free it into the hugepage allocator ,
+		 * 调用free_huge_page,enqueue到hugepage_freelists
+		 */
+		put_page(page); 
 	}
 
 	return page;
 }
 
+/*
+ * hugetlb_init()
+ *  alloc_fresh_huge_page()
+ */
 static int alloc_fresh_huge_page(void)
 {
 	struct page *page;
@@ -199,7 +234,9 @@ static int alloc_fresh_huge_page(void)
 
 	start_nid = hugetlb_next_nid;
 
+    //这个page分配出来，好像没有使用的地方啊
 	do {
+		//分配4M的连续物理page
 		page = alloc_fresh_huge_page_node(hugetlb_next_nid);
 		if (page)
 			ret = 1;
@@ -218,11 +255,22 @@ static int alloc_fresh_huge_page(void)
 		if (next_nid == MAX_NUMNODES)
 			next_nid = first_node(node_online_map);
 		hugetlb_next_nid = next_nid;
+		//只要前面分配成功，就跳出去了
 	} while (!page && hugetlb_next_nid != start_nid);
 
 	return ret;
 }
 
+
+/*
+ * do_page_fault()
+ *	handle_mm_fault()
+ *	 hugetlb_fault()
+ *	  hugetlb_no_page()
+ *	   alloc_huge_page()
+ *      alloc_huge_page_private()
+ *       alloc_buddy_huge_page()
+ */
 static struct page *alloc_buddy_huge_page(struct vm_area_struct *vma,
 						unsigned long address)
 {
@@ -395,6 +443,14 @@ static void return_unused_surplus_pages(unsigned long unused_resv_pages)
 }
 
 
+/*
+ * do_page_fault()
+ *	handle_mm_fault()
+ *	 hugetlb_fault()
+ *	  hugetlb_no_page()
+ *     alloc_huge_page()
+ *      alloc_huge_page_shared()
+ */
 static struct page *alloc_huge_page_shared(struct vm_area_struct *vma,
 						unsigned long addr)
 {
@@ -406,6 +462,14 @@ static struct page *alloc_huge_page_shared(struct vm_area_struct *vma,
 	return page ? page : ERR_PTR(-VM_FAULT_OOM);
 }
 
+/*
+ * do_page_fault()
+ *	handle_mm_fault()
+ *	 hugetlb_fault()
+ *	  hugetlb_no_page()
+ *	   alloc_huge_page()
+ *      alloc_huge_page_private()
+ */
 static struct page *alloc_huge_page_private(struct vm_area_struct *vma,
 						unsigned long addr)
 {
@@ -417,6 +481,7 @@ static struct page *alloc_huge_page_private(struct vm_area_struct *vma,
 	spin_lock(&hugetlb_lock);
 	if (free_huge_pages > resv_huge_pages)
 		page = dequeue_huge_page(vma, addr);
+	
 	spin_unlock(&hugetlb_lock);
 	if (!page) {
 		page = alloc_buddy_huge_page(vma, addr);
@@ -428,6 +493,13 @@ static struct page *alloc_huge_page_private(struct vm_area_struct *vma,
 	return page;
 }
 
+/*
+ * do_page_fault()
+ *	handle_mm_fault()
+ *	 hugetlb_fault()
+ *	  hugetlb_no_page()
+ *     alloc_huge_page()
+ */
 static struct page *alloc_huge_page(struct vm_area_struct *vma,
 				    unsigned long addr)
 {
@@ -453,15 +525,17 @@ static int __init hugetlb_init(void)
 	if (HPAGE_SHIFT == 0)
 		return 0;
 
+    //每个node都有一个hugepage_freelist链表
 	for (i = 0; i < MAX_NUMNODES; ++i)
 		INIT_LIST_HEAD(&hugepage_freelists[i]);
 
 	hugetlb_next_nid = first_node(node_online_map);
 
 	for (i = 0; i < max_huge_pages; ++i) {
-		if (!alloc_fresh_huge_page())
+		if (!alloc_fresh_huge_page()) //分配huge page存储到hugepage_freelists[]中去
 			break;
 	}
+	
 	max_huge_pages = free_huge_pages = nr_huge_pages = i;
 	printk("Total HugeTLB memory allocated, %ld\n", free_huge_pages);
 	return 0;
@@ -828,6 +902,12 @@ static int hugetlb_cow(struct mm_struct *mm, struct vm_area_struct *vma,
 	return 0;
 }
 
+/*
+ * do_page_fault()
+ *	handle_mm_fault()
+ *	 hugetlb_fault()
+ *    hugetlb_no_page()
+ */
 static int hugetlb_no_page(struct mm_struct *mm, struct vm_area_struct *vma,
 			unsigned long address, pte_t *ptep, int write_access)
 {
@@ -908,6 +988,11 @@ backout:
 	goto out;
 }
 
+/*
+ * do_page_fault()
+ *  handle_mm_fault()
+ *   hugetlb_fault()
+ */
 int hugetlb_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 			unsigned long address, int write_access)
 {
@@ -940,6 +1025,7 @@ int hugetlb_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 	if (likely(pte_same(entry, *ptep)))
 		if (write_access && !pte_write(entry))
 			ret = hugetlb_cow(mm, vma, address, ptep, entry);
+		
 	spin_unlock(&mm->page_table_lock);
 	mutex_unlock(&hugetlb_instantiation_mutex);
 

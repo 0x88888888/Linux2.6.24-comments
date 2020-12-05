@@ -180,7 +180,7 @@ FASTCALL(__alloc_pages(gfp_t, unsigned int, struct zonelist *));
 /*
  * page_cache_alloc()
  *  __page_cache_alloc()
- *   alloc_pages_node()
+ *   alloc_pages_node( order==10)
  */
 static inline struct page *alloc_pages_node(int nid, gfp_t gfp_mask,
 						unsigned int order)

@@ -1052,6 +1052,7 @@ skip_this_frame:
 	} else {
 		memcpy(skb_put(skb,length), bp, length);
 	}
+	
 	bp += (length + 3) & ~3;
 	if (bp >= lp->end_dma_buff) bp -= lp->dmasize*1024;
 	lp->rx_dma_ptr = bp;

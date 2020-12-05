@@ -2865,7 +2865,8 @@ static inline int handle_pte_fault(struct mm_struct *mm,
 	if (!pte_present(entry)) { /* pte对应的数据不在内存中，需要从磁盘上读过来 */
 		
 		if (pte_none(entry) /*即entry==0,需要重新从文件中读取或者分配物理内存 */ ) {
-			/*
+			/* 
+			 * vma->vm_ops !=NULL,说明是映射到file
 			 * vma->vm_ops == generic_file_vm_ops 或者shmem_vm_ops
 			 */
 			if (vma->vm_ops) {
@@ -2898,6 +2899,8 @@ static inline int handle_pte_fault(struct mm_struct *mm,
 					pte, pmd, write_access, entry);
 	}
 
+    //到这里说访问的page已经present 了
+   
 	ptl = pte_lockptr(mm, pmd);
 	spin_lock(ptl);
 	if (unlikely(!pte_same(*pte, entry)))
@@ -2908,6 +2911,7 @@ static inline int handle_pte_fault(struct mm_struct *mm,
 			// COW操作了
 			return do_wp_page(mm, vma, address,
 					pte, pmd, ptl, entry); /* 负责创建该页的副本，并插入到进程的页表中。该机制称为COW(copy on write) */
+		
 		entry = pte_mkdirty(entry);
 	}
 	
@@ -2949,7 +2953,7 @@ unlock:
  *     handle_mm_fault()
  */
 int handle_mm_fault(struct mm_struct *mm, struct vm_area_struct *vma,
-		unsigned long address, int write_access)
+		unsigned long address, int write_access /*== error_code & PF_WRITE */)
 {
 	pgd_t *pgd;
 	pud_t *pud;
@@ -2962,6 +2966,7 @@ int handle_mm_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 
 	if (unlikely(is_vm_hugetlb_page(vma)))
 		return hugetlb_fault(mm, vma, address, write_access);
+	
     //pgd_offset在include/asm-x86/pgtable_32.h中
 	pgd = pgd_offset(mm, address);
 	//pud_alloc在include/linux/mm.h中
